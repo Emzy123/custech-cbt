@@ -1,0 +1,213 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Lora:wght@400;500&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom base styles */
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+  
+  body {
+    font-family: 'Inter', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  
+  /* Focus styles for accessibility */
+  *:focus-visible {
+    @apply ring-2 ring-info ring-offset-2 rounded;
+  }
+  
+  /* Skip to main content link */
+  .skip-to-main {
+    @apply sr-only;
+  }
+  
+  .skip-to-main:focus {
+    @apply not-sr-only absolute top-4 left-4 bg-primary-blue-800 text-white px-4 py-2 rounded-md z-50;
+  }
+}
+
+/* Custom component styles */
+@layer components {
+  /* Button Components */
+  .btn-primary {
+    @apply bg-primary-blue-800 text-white font-semibold text-base py-3 px-6 rounded-md hover:bg-primary-blue-700 focus:ring-2 focus:ring-info focus:ring-offset-2 disabled:bg-surface-grey-dark disabled:text-text-disabled transition-colors duration-150;
+  }
+  
+  .btn-secondary {
+    @apply bg-transparent text-primary-blue-800 font-medium text-base py-3 px-6 border-2 border-primary-blue-800 rounded-md hover:bg-surface-white focus:ring-2 focus:ring-info focus:ring-offset-2 transition-colors duration-150;
+  }
+  
+  .btn-tertiary {
+    @apply bg-transparent text-text-secondary font-medium text-sm py-3 px-6 rounded-md hover:bg-surface-grey hover:text-text-primary focus:ring-2 focus:ring-info focus:ring-offset-2 transition-colors duration-150;
+  }
+  
+  /* Form Components */
+  .form-input {
+    @apply w-full h-12 bg-surface-white border-2 border-surface-grey-dark rounded-md focus:border-info focus:ring-2 focus:ring-info focus:ring-opacity-15 transition-colors duration-150;
+  }
+  
+  .form-label {
+    @apply block text-text-secondary text-sm font-medium mb-2 transition-colors duration-150;
+  }
+  
+  .form-label:focus-within {
+    @apply text-info;
+  }
+  
+  .form-error {
+    @apply text-danger text-sm mt-1;
+  }
+  
+  /* Card Components */
+  .card {
+    @apply bg-surface-white rounded-md shadow-elevation-1;
+  }
+  
+  .card-elevated {
+    @apply bg-surface-white rounded-md shadow-elevation-2;
+  }
+  
+  .card-modal {
+    @apply bg-surface-white rounded-lg shadow-elevation-3;
+  }
+  
+  /* Option Card for Exam Questions */
+  .option-card {
+    @apply bg-surface-white border-2 border-surface-grey-dark rounded-md p-4 cursor-pointer transition-all duration-150 hover:border-info;
+  }
+  
+  .option-card.selected {
+    @apply border-info bg-blue-50;
+  }
+  
+  /* Timer Component */
+  .timer-normal {
+    @apply bg-surface-grey text-text-secondary;
+  }
+  
+  .timer-warning {
+    @apply bg-amber-50 text-warning;
+  }
+  
+  .timer-critical {
+    @apply bg-red-50 text-danger animate-pulse-slow;
+  }
+  
+  /* Question Navigation Grid */
+  .question-grid-box {
+    @apply w-10 h-10 border-2 border-surface-grey-dark rounded flex items-center justify-center text-sm font-medium cursor-pointer transition-colors duration-150;
+  }
+  
+  .question-grid-box.answered {
+    @apply bg-info text-surface-white border-info;
+  }
+  
+  .question-grid-box.current {
+    @apply ring-2 ring-info ring-offset-2;
+  }
+  
+  .question-grid-box.current.answered {
+    @apply bg-info text-surface-white border-info;
+  }
+  
+  .question-grid-box.flagged::after {
+    content: '';
+    @apply absolute top-0 right-0 w-0 h-0 border-l-4 border-l-transparent border-r-4 border-r-transparent border-t-4 border-t-warning;
+  }
+  
+  /* Status Indicators */
+  .status-dot {
+    @apply w-2 h-2 rounded-full;
+  }
+  
+  .status-dot.green {
+    @apply bg-success;
+  }
+  
+  .status-dot.amber {
+    @apply bg-warning;
+  }
+  
+  .status-dot.red {
+    @apply bg-danger;
+  }
+  
+  /* Badge Components */
+  .badge {
+    @apply inline-flex items-center px-2 py-1 text-xs font-medium rounded;
+  }
+  
+  .badge-success {
+    @apply bg-green-100 text-success;
+  }
+  
+  .badge-warning {
+    @apply bg-amber-100 text-warning;
+  }
+  
+  .badge-danger {
+    @apply bg-red-100 text-danger;
+  }
+  
+  .badge-info {
+    @apply bg-blue-100 text-info;
+  }
+  
+  /* Loading States */
+  .skeleton {
+    @apply bg-gray-200 rounded animate-pulse;
+  }
+  
+  /* Responsive Utilities */
+  .container-fluid {
+    @apply w-full px-4 md:px-6 lg:px-8;
+  }
+  
+  .container-max {
+    @apply max-w-7xl mx-auto px-4 md:px-6 lg:px-8;
+  }
+}
+
+/* Custom utilities */
+@layer utilities {
+  .ring-info-opacity-15 {
+    --tw-ring-color: rgb(37 99 235 0.15);
+  }
+  
+  .text-balance {
+    text-wrap: balance;
+  }
+  
+  /* Animation utilities */
+  .animate-on-hover:hover {
+    animation: scale-subtle 150ms ease-out;
+  }
+  
+  /* Accessibility utilities */
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+  
+  .not-sr-only {
+    position: static;
+    width: auto;
+    height: auto;
+    padding: 0;
+    margin: 0;
+    overflow: visible;
+    clip: auto;
+    white-space: normal;
+  }
+}

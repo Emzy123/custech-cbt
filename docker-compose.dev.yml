@@ -1,0 +1,120 @@
+version: '3.8'
+
+services:
+  # CBT Application (Development)
+  cbt-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: cbt-app-dev
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://cbt_user:dev_password@postgres:5432/cbt_dev
+      - REDIS_URL=redis://redis:6379/0
+      - JWT_SECRET=dev-jwt-secret-key-change-in-production
+      - BIOMETRIC_ENCRYPTION_KEY=dev-biometric-key-32-bytes-long
+      - SECRET_KEY=dev-secret-key-for-session-management
+      - DEBUG=true
+      - ENVIRONMENT=development
+      - RELOAD=true
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./src:/app/src
+      - ./logs:/app/logs
+      - ./uploads:/app/uploads
+      - ./static:/app/static
+    networks:
+      - cbt-dev-network
+    restart: unless-stopped
+    command: ["python", "-m", "cbt.main"]
+
+  # PostgreSQL Database (Development)
+  postgres:
+    image: postgres:15-alpine
+    container_name: cbt-postgres-dev
+    environment:
+      - POSTGRES_DB=cbt_dev
+      - POSTGRES_USER=cbt_user
+      - POSTGRES_PASSWORD=dev_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_dev_data:/var/lib/postgresql/data
+      - ./database/init-scripts:/docker-entrypoint-initdb.d
+    networks:
+      - cbt-dev-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cbt_user -d cbt_dev"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis Cache (Development)
+  redis:
+    image: redis:7-alpine
+    container_name: cbt-redis-dev
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_dev_data:/data
+    networks:
+      - cbt-dev-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+  # Database Admin (Development)
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: cbt-pgadmin
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=admin@cbt.dev
+      - PGADMIN_DEFAULT_PASSWORD=admin
+    ports:
+      - "5050:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    depends_on:
+      - postgres
+    networks:
+      - cbt-dev-network
+    restart: unless-stopped
+    profiles:
+      - tools
+
+  # Redis Commander (Development)
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: cbt-redis-commander
+    environment:
+      - REDIS_HOSTS=local:redis:6379
+    ports:
+      - "8081:8081"
+    depends_on:
+      - redis
+    networks:
+      - cbt-dev-network
+    restart: unless-stopped
+    profiles:
+      - tools
+
+volumes:
+  postgres_dev_data:
+    driver: local
+  redis_dev_data:
+    driver: local
+  pgadmin_data:
+    driver: local
+
+networks:
+  cbt-dev-network:
+    driver: bridge
