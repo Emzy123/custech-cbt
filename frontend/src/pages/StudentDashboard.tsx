@@ -13,7 +13,7 @@ import {
 import Button from '../components/ui/Button';
 import Card from '../components/ui/Card';
 import Timer from '../components/ui/Timer';
-import { apiRequest, clearAuthStorage } from '../lib/api';
+import { apiRequest, logout } from '../lib/api';
 
 interface Exam {
   id: string;
@@ -171,8 +171,8 @@ const StudentDashboard: React.FC = () => {
     return 'text-danger';
   };
 
-  const handleSignOut = () => {
-    clearAuthStorage();
+  const handleSignOut = async () => {
+    await logout();
     navigate('/', { replace: true });
   };
 

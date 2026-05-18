@@ -22,7 +22,7 @@ import {
   FileCsv,
   ChartBar,
 } from '@phosphor-icons/react';
-import { apiRequest, clearAuthStorage } from '../lib/api';
+import { apiRequest, logout } from '../lib/api';
 
 interface AssignedCourse {
   id: string;
@@ -169,8 +169,8 @@ const LecturerDashboard: React.FC = () => {
     loadExams(selectedCourse.id);
   }, [selectedCourse, loadQuestions, loadExams]);
 
-  const handleLogout = () => {
-    clearAuthStorage();
+  const handleLogout = async () => {
+    await logout();
     navigate('/', { replace: true });
   };
 

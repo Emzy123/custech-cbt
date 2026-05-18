@@ -36,6 +36,7 @@ class UserRoleAssignment(BaseDocument):
     granted_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     granted_by: Optional[str] = None
     expires_at: Optional[datetime] = None
+    is_active: bool = True
 
     class Settings:
         name = "user_roles"

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { apiRequest, clearAuthStorage } from '../lib/api';
+import { apiRequest, logout } from '../lib/api';
 import { Plus, Search, Trash2, Lock, UserPlus, RefreshCw, Shield, Users, Building2, BookOpen, GraduationCap, FileText, Activity, Settings, X, ChevronDown, ChevronRight, LogOut, UserCheck } from 'lucide-react';
 
 // --- Interfaces ---
@@ -99,8 +99,8 @@ export default function AdminDashboard() {
     { id: 'system', label: 'System Health', icon: <Settings size={20} /> },
   ];
 
-  const handleLogout = () => {
-    clearAuthStorage();
+  const handleLogout = async () => {
+    await logout();
     navigate('/', { replace: true });
   };
 

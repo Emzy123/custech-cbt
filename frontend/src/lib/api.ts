@@ -23,6 +23,23 @@ export function clearAuthStorage(): void {
   localStorage.removeItem('authUser');
 }
 
+export async function logout(): Promise<boolean> {
+  const refreshToken = localStorage.getItem('refreshToken');
+  if (refreshToken) {
+    try {
+      await fetch('/api/v1/auth/logout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refresh_token: refreshToken }),
+      });
+    } catch {
+      // Ignore errors, still clear storage
+    }
+  }
+  clearAuthStorage();
+  return true;
+}
+
 interface RefreshPayload {
   access?: string;
   access_token?: string;

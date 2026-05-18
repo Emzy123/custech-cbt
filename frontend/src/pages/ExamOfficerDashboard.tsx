@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
   Settings, Calendar, Users, MapPin, FileText, CheckCircle, AlertTriangle, 
   Printer, Download, Loader2, Plus, Trash2, GraduationCap, Bell, Clock,
   LayoutDashboard, BookOpen, BarChart3, ChevronRight, User, LogOut,
   ClipboardList, School, FileCheck, TrendingUp, Activity, MoreHorizontal
 } from 'lucide-react';
-import { apiRequest, getAuthToken } from '../lib/api';
+import { apiRequest, logout } from '../lib/api';
 
 const API_BASE = '/api/v1';
 
@@ -32,6 +33,7 @@ interface Exam {
 }
 
 const ExamOfficerDashboard: React.FC = () => {
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<'wizard' | 'blueprint' | 'venue' | 'slips' | 'results'>('wizard');
   const [activeExamId, setActiveExamId] = useState<string>(localStorage.getItem('activeExamId') || '');
 
@@ -367,7 +369,10 @@ const ExamOfficerDashboard: React.FC = () => {
               <p className="text-sm font-medium text-white truncate">Exam Officer</p>
               <p className="text-xs text-slate-400">Administrator</p>
             </div>
-            <button className="text-slate-400 hover:text-white transition-colors">
+            <button 
+              onClick={async () => { await logout(); navigate('/', { replace: true }); }}
+              className="text-slate-400 hover:text-white transition-colors"
+            >
               <LogOut size={20} />
             </button>
           </div>

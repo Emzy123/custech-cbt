@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
   Users, 
   Warning, 
@@ -13,12 +14,13 @@ import {
   Clock,
   MapPin,
   Camera,
-  User
+  User,
+  SignOut
 } from '@phosphor-icons/react';
 import Button from '../components/ui/Button';
 import Card from '../components/ui/Card';
 import Timer from '../components/ui/Timer';
-import { apiRequest } from '../lib/api';
+import { apiRequest, logout } from '../lib/api';
 
 interface Student {
   id: string;
@@ -55,6 +57,7 @@ interface Alert {
 }
 
 const InvigilatorDashboard: React.FC = () => {
+  const navigate = useNavigate();
   const [students, setStudents] = useState<Student[]>([]);
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
@@ -236,6 +239,14 @@ const InvigilatorDashboard: React.FC = () => {
           <div className="text-sm text-text-secondary">
             Last updated: {new Date().toLocaleTimeString()}
           </div>
+          <Button
+            variant="tertiary"
+            size="sm"
+            onClick={async () => { await logout(); navigate('/', { replace: true }); }}
+          >
+            <SignOut size={16} weight="bold" className="mr-2" />
+            Logout
+          </Button>
         </div>
       </header>
 

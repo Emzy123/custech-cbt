@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
   Plus, 
   Upload, 
@@ -39,7 +40,7 @@ import {
 import Button from '../components/ui/Button';
 import Card from '../components/ui/Card';
 import Input from '../components/ui/Input';
-import { apiRequest } from '../lib/api';
+import { apiRequest, logout } from '../lib/api';
 
 interface Question {
   id: string;
@@ -88,6 +89,7 @@ const INITIAL_FORM_DATA: QuestionFormData = {
 };
 
 const LecturerQuestionBank: React.FC = () => {
+  const navigate = useNavigate();
   const [questions, setQuestions] = useState<Question[]>([]);
   const [filteredQuestions, setFilteredQuestions] = useState<Question[]>([]);
   const [selectedQuestions, setSelectedQuestions] = useState<string[]>([]);
@@ -696,7 +698,10 @@ const LecturerQuestionBank: React.FC = () => {
               <p className="text-sm font-medium text-white truncate">Dr. Lecturer</p>
               <p className="text-xs text-slate-400">Lecturer</p>
             </div>
-            <button className="text-slate-400 hover:text-white transition-colors">
+            <button 
+              onClick={async () => { await logout(); navigate('/', { replace: true }); }}
+              className="text-slate-400 hover:text-white transition-colors"
+            >
               <SignOut size={20} />
             </button>
           </div>
