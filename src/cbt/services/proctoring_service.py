@@ -5,6 +5,8 @@ Proctoring service for browser lockdown, environment control, and monitoring.
 import uuid
 import time
 import asyncio
+import json
+import logging
 from typing import List, Optional, Dict, Any, Tuple
 from datetime import datetime, timedelta
 from cryptography.hazmat.primitives import hashes
@@ -44,16 +46,11 @@ class ProctoringService:
         """
         try:
             # Get exam instance
-            instance_result = await self.db.execute(
-                select(ExamInstance).where(
-                    and_(
-                        ExamInstance.examination_id == examination_id,
-                        ExamInstance.student_id == student_id,
-                        ExamInstance.status == ExamInstanceStatus.IN_PROGRESS
-                    )
-                )
+            instance = await ExamInstance.find_one(
+                ExamInstance.examination_id == examination_id,
+                ExamInstance.student_id == student_id,
+                ExamInstance.status == ExamInstanceStatus.IN_PROGRESS,
             )
-            instance = instance_result.scalar_one_or_none()
             if not instance:
                 raise ValueError("Active exam instance not found")
             
@@ -490,18 +487,17 @@ class ProctoringService:
     
     async def _log_security_event(self, student_id: str, event_type: str, details: Dict[str, Any]):
         """Log security event."""
-        if self.db:
+        try:
+            desc = f"{event_type}: {json.dumps(details, default=str)[:4000]}"
             security_event = SecurityEvent(
-                id=str(uuid.uuid4()),
-                user_id=student_id,
                 event_type=event_type,
-                details=details,
-                severity="medium",
-                created_at=datetime.utcnow()
+                severity="MEDIUM",
+                description=desc,
+                user_id=student_id,
             )
-            
-            self.db.add(security_event)
-            await self.db.commit()
+            await security_event.insert()
+        except Exception:
+            logging.getLogger(__name__).exception("Failed to persist security event")
     
     async def generate_session_watermark(self, session_id: str, student_info: Dict[str, Any]) -> str:
         """

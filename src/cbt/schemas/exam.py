@@ -2,10 +2,9 @@
 Examination schemas.
 """
 
-from pydantic import BaseModel, validator
-from typing import Optional, List, Dict, Any
+from pydantic import BaseModel, ConfigDict, field_validator, model_validator
+from typing import Optional, List, Dict, Any, Self
 from datetime import datetime, date
-from enum import Enum
 
 from ..models.exam import ExamStatus, ExamInstanceStatus
 
@@ -24,24 +23,29 @@ class ExaminationBase(BaseModel):
     allow_review: bool = False
     show_results_immediately: bool = False
     max_attempts: int = 1
-    
-    @validator('duration_minutes')
-    def validate_duration(cls, v):
+
+    @field_validator("duration_minutes")
+    @classmethod
+    def validate_duration(cls, v: int) -> int:
         if v < 5 or v > 480:  # 5 minutes to 8 hours
-            raise ValueError('Duration must be between 5 and 480 minutes')
+            raise ValueError("Duration must be between 5 and 480 minutes")
         return v
-    
-    @validator('total_points')
-    def validate_total_points(cls, v):
+
+    @field_validator("total_points")
+    @classmethod
+    def validate_total_points(cls, v: int) -> int:
         if v <= 0:
-            raise ValueError('Total points must be greater than 0')
+            raise ValueError("Total points must be greater than 0")
         return v
-    
-    @validator('pass_points')
-    def validate_pass_points(cls, v, values):
-        if v is not None and 'total_points' in values and v > values['total_points']:
-            raise ValueError('Pass points cannot exceed total points')
-        return v
+
+    @model_validator(mode="after")
+    def validate_pass_points_vs_total(self) -> Self:
+        if (
+            self.pass_points is not None
+            and self.pass_points > self.total_points
+        ):
+            raise ValueError("Pass points cannot exceed total points")
+        return self
 
 
 class ExaminationCreate(ExaminationBase):
@@ -73,6 +77,8 @@ class ExaminationUpdate(BaseModel):
 
 class ExaminationResponse(ExaminationBase):
     """Examination response schema."""
+    model_config = ConfigDict(from_attributes=True)
+
     id: str
     course_id: str
     academic_session_id: str
@@ -93,9 +99,6 @@ class ExaminationResponse(ExaminationBase):
     def is_active(self) -> bool:
         """Check if exam is currently active."""
         return self.status == ExamStatus.ACTIVE
-    
-    class Config:
-        from_attributes = True
 
 
 class ExamInstanceBase(BaseModel):
@@ -114,6 +117,8 @@ class ExamInstanceBase(BaseModel):
 
 class ExamInstanceResponse(ExamInstanceBase):
     """Exam instance response schema."""
+    model_config = ConfigDict(from_attributes=True)
+
     id: str
     status: ExamInstanceStatus
     total_points_earned: int
@@ -141,9 +146,6 @@ class ExamInstanceResponse(ExamInstanceBase):
         if self.percentage_score is None:
             return False
         return self.percentage_score >= 50.0  # Simplified pass threshold
-    
-    class Config:
-        from_attributes = True
 
 
 class ExamSubmissionRequest(BaseModel):
@@ -152,11 +154,12 @@ class ExamSubmissionRequest(BaseModel):
     submission_time: datetime
     client_ip: Optional[str] = None
     user_agent: Optional[str] = None
-    
-    @validator('answers')
-    def validate_answers(cls, v):
+
+    @field_validator("answers")
+    @classmethod
+    def validate_answers(cls, v: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         if not v:
-            raise ValueError('At least one answer must be provided')
+            raise ValueError("At least one answer must be provided")
         return v
 
 
@@ -180,6 +183,21 @@ class ExamStartRequest(BaseModel):
     user_agent: Optional[str] = None
     biometric_verified: bool = False
     biometric_data: Optional[str] = None
+    rules_accepted: bool = False
+
+
+class AnswerSaveRequest(BaseModel):
+    """Answer save request."""
+    question_id: str
+    selected_option_id: Optional[str] = None
+    answer_text: Optional[str] = None
+    is_flagged: bool = False
+    idempotency_key: str
+
+class ProctoringEventRequest(BaseModel):
+    """Proctoring event request."""
+    event_type: str
+    payload: Optional[Dict[str, Any]] = None
 
 
 class ExamStartResponse(BaseModel):

@@ -2,10 +2,15 @@
 Authentication and user management schemas.
 """
 
-from pydantic import BaseModel, EmailStr, validator
-from typing import Optional, List
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    EmailStr,
+    field_validator,
+    model_validator,
+)
+from typing import Optional, List, Self
 from datetime import datetime, date
-from enum import Enum
 
 from ..models.user import Gender, UserRole
 
@@ -16,15 +21,6 @@ class LoginRequest(BaseModel):
     password: str
     require_biometric: bool = False
     biometric_data: Optional[dict] = None
-
-
-class LoginResponse(BaseModel):
-    """Login response schema."""
-    access_token: str
-    refresh_token: str
-    token_type: str = "bearer"
-    expires_in: int
-    user: "ProfileResponse"
 
 
 class RefreshTokenRequest(BaseModel):
@@ -39,6 +35,18 @@ class RefreshTokenResponse(BaseModel):
     expires_in: int
 
 
+def _validate_password_strength(v: str) -> str:
+    if len(v) < 8:
+        raise ValueError("Password must be at least 8 characters long")
+    if not any(c.isupper() for c in v):
+        raise ValueError("Password must contain at least one uppercase letter")
+    if not any(c.islower() for c in v):
+        raise ValueError("Password must contain at least one lowercase letter")
+    if not any(c.isdigit() for c in v):
+        raise ValueError("Password must contain at least one digit")
+    return v
+
+
 class RegisterRequest(BaseModel):
     """User registration request schema."""
     username: str
@@ -50,38 +58,35 @@ class RegisterRequest(BaseModel):
     phone_number: Optional[str] = None
     date_of_birth: Optional[date] = None
     gender: Optional[Gender] = None
-    
-    @validator('username')
-    def validate_username(cls, v):
+
+    @field_validator("username")
+    @classmethod
+    def validate_username(cls, v: str) -> str:
         if len(v) < 3:
-            raise ValueError('Username must be at least 3 characters long')
-        if not v.replace('_', '').isalnum():
-            raise ValueError('Username can only contain letters, numbers, and underscores')
+            raise ValueError("Username must be at least 3 characters long")
+        if not v.replace("_", "").isalnum():
+            raise ValueError(
+                "Username can only contain letters, numbers, and underscores"
+            )
         return v.lower()
-    
-    @validator('password')
-    def validate_password(cls, v):
-        if len(v) < 8:
-            raise ValueError('Password must be at least 8 characters long')
-        if not any(c.isupper() for c in v):
-            raise ValueError('Password must contain at least one uppercase letter')
-        if not any(c.islower() for c in v):
-            raise ValueError('Password must contain at least one lowercase letter')
-        if not any(c.isdigit() for c in v):
-            raise ValueError('Password must contain at least one digit')
+
+    @field_validator("password")
+    @classmethod
+    def validate_password(cls, v: str) -> str:
+        return _validate_password_strength(v)
+
+    @field_validator("phone_number")
+    @classmethod
+    def validate_phone_number(cls, v: Optional[str]) -> Optional[str]:
+        if v and not (v.startswith("+234") and len(v) == 13 and v[4:].isdigit()):
+            raise ValueError("Phone number must be in format +234XXXXXXXXXX")
         return v
-    
-    @validator('confirm_password')
-    def passwords_match(cls, v, values):
-        if 'password' in values and v != values['password']:
-            raise ValueError('Passwords do not match')
-        return v
-    
-    @validator('phone_number')
-    def validate_phone_number(cls, v):
-        if v and not (v.startswith('+234') and len(v) == 13 and v[4:].isdigit()):
-            raise ValueError('Phone number must be in format +234XXXXXXXXXX')
-        return v
+
+    @model_validator(mode="after")
+    def passwords_match(self) -> Self:
+        if self.confirm_password != self.password:
+            raise ValueError("Passwords do not match")
+        return self
 
 
 class RegisterResponse(BaseModel):
@@ -96,24 +101,17 @@ class ChangePasswordRequest(BaseModel):
     current_password: str
     new_password: str
     confirm_password: str
-    
-    @validator('new_password')
-    def validate_password(cls, v):
-        if len(v) < 8:
-            raise ValueError('Password must be at least 8 characters long')
-        if not any(c.isupper() for c in v):
-            raise ValueError('Password must contain at least one uppercase letter')
-        if not any(c.islower() for c in v):
-            raise ValueError('Password must contain at least one lowercase letter')
-        if not any(c.isdigit() for c in v):
-            raise ValueError('Password must contain at least one digit')
-        return v
-    
-    @validator('confirm_password')
-    def passwords_match(cls, v, values):
-        if 'new_password' in values and v != values['new_password']:
-            raise ValueError('Passwords do not match')
-        return v
+
+    @field_validator("new_password")
+    @classmethod
+    def validate_new_password(cls, v: str) -> str:
+        return _validate_password_strength(v)
+
+    @model_validator(mode="after")
+    def confirm_matches_new(self) -> Self:
+        if self.confirm_password != self.new_password:
+            raise ValueError("Passwords do not match")
+        return self
 
 
 class ChangePasswordResponse(BaseModel):
@@ -135,6 +133,8 @@ class LogoutResponse(BaseModel):
 
 class ProfileResponse(BaseModel):
     """User profile response schema."""
+    model_config = ConfigDict(from_attributes=True)
+
     id: str
     username: str
     email: str
@@ -149,10 +149,7 @@ class ProfileResponse(BaseModel):
     last_login_at: Optional[datetime]
     created_at: datetime
     updated_at: datetime
-    
-    class Config:
-        from_attributes = True
-        
+
     @classmethod
     def from_orm(cls, obj):
         """Create from ORM object."""
@@ -174,8 +171,19 @@ class ProfileResponse(BaseModel):
         )
 
 
+class LoginResponse(BaseModel):
+    """Login response schema."""
+    access_token: str
+    refresh_token: str
+    token_type: str = "bearer"
+    expires_in: int
+    user: ProfileResponse
+
+
 class UserRoleResponse(BaseModel):
     """User role response schema."""
+    model_config = ConfigDict(from_attributes=True)
+
     id: str
     user_id: str
     role: UserRole
@@ -185,9 +193,6 @@ class UserRoleResponse(BaseModel):
     granted_by: Optional[str]
     expires_at: Optional[datetime]
     is_active: bool
-    
-    class Config:
-        from_attributes = True
 
 
 class BiometricEnrollmentRequest(BaseModel):
@@ -221,6 +226,8 @@ class BiometricVerificationResponse(BaseModel):
 
 class SessionInfo(BaseModel):
     """Session information schema."""
+    model_config = ConfigDict(from_attributes=True)
+
     session_id: str
     user_id: str
     ip_address: str
@@ -231,9 +238,6 @@ class SessionInfo(BaseModel):
     last_activity_at: datetime
     expires_at: datetime
     is_active: bool
-    
-    class Config:
-        from_attributes = True
 
 
 class UserSessionsResponse(BaseModel):
@@ -245,6 +249,8 @@ class UserSessionsResponse(BaseModel):
 
 class SecurityEventResponse(BaseModel):
     """Security event response schema."""
+    model_config = ConfigDict(from_attributes=True)
+
     id: str
     event_type: str
     severity: str
@@ -254,9 +260,6 @@ class SecurityEventResponse(BaseModel):
     status: str
     created_at: datetime
     resolved_at: Optional[datetime]
-    
-    class Config:
-        from_attributes = True
 
 
 class UserSecuritySettings(BaseModel):
@@ -301,7 +304,3 @@ class UserActivityResponse(BaseModel):
     locked_until: Optional[datetime]
     recent_logins: List[dict]
     security_events: List[SecurityEventResponse]
-
-
-# Update forward references
-LoginResponse.update_forward_refs()

@@ -7,7 +7,9 @@ import hashlib
 import secrets
 import asyncio
 from typing import List, Optional, Dict, Any, Tuple
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+
+from beanie.operators import And
 
 from ..models.security import SecurityEvent, SecurityScan, Vulnerability
 from ..core.redis import cache_manager
@@ -25,42 +27,39 @@ class SecurityHardeningService:
     async def run_sast_scan(self, scan_type: str = "comprehensive") -> Dict[str, Any]:
         """
         Run Static Application Security Testing (SAST) scan.
-        
+
         Args:
             scan_type: Type of scan (quick, comprehensive, deep)
-            
+
         Returns:
             SAST scan results
         """
+        scan: Optional[SecurityScan] = None
         try:
             scan_id = str(uuid.uuid4())
-            scan_start = datetime.utcnow()
-            
-            # Initialize scan record
+            scan_start = datetime.now(timezone.utc)
+
             scan = SecurityScan(
                 id=scan_id,
                 scan_type="SAST",
                 status="running",
                 started_at=scan_start,
-                configuration={"scan_type": scan_type}
+                configuration={"scan_type": scan_type},
             )
-            self.db.add(scan)
-            await self.db.commit()
-            
-            # Run SAST analysis
+            await scan.insert()
+
             vulnerabilities = await self._perform_sast_analysis(scan_type)
-            
-            # Update scan with results
+
             scan.status = "completed"
-            scan.completed_at = datetime.utcnow()
+            scan.completed_at = datetime.now(timezone.utc)
             scan.vulnerabilities_found = len(vulnerabilities)
             scan.results = {
                 "vulnerabilities": vulnerabilities,
                 "scan_type": scan_type,
-                "scan_duration": (scan.completed_at - scan_start).total_seconds()
+                "scan_duration": (scan.completed_at - scan_start).total_seconds(),
             }
-            
-            # Store individual vulnerabilities
+            await scan.save()
+
             for vuln_data in vulnerabilities:
                 vulnerability = Vulnerability(
                     id=str(uuid.uuid4()),
@@ -74,47 +73,44 @@ class SecurityHardeningService:
                     cwe_id=vuln_data.get("cwe_id"),
                     cvss_score=vuln_data.get("cvss_score", 0.0),
                     remediation=vuln_data.get("remediation", ""),
-                    status="open"
+                    status="open",
                 )
-                self.db.add(vulnerability)
-            
-            await self.db.commit()
-            
+                await vulnerability.insert()
+
             return {
                 "scan_id": scan_id,
                 "scan_type": "SAST",
                 "status": "completed",
                 "vulnerabilities_found": len(vulnerabilities),
                 "vulnerabilities": vulnerabilities,
-                "scan_duration": scan.results["scan_duration"]
+                "scan_duration": scan.results["scan_duration"],
             }
-            
+
         except Exception as e:
-            # Update scan status to failed
-            if 'scan' in locals():
+            if scan is not None:
                 scan.status = "failed"
                 scan.error_message = str(e)
-                scan.completed_at = datetime.utcnow()
-                await self.db.commit()
-            
-            raise ValueError(f"SAST scan failed: {str(e)}")
+                scan.completed_at = datetime.now(timezone.utc)
+                await scan.save()
+
+            raise ValueError(f"SAST scan failed: {str(e)}") from e
     
     async def run_dast_scan(self, target_url: str, scan_type: str = "comprehensive") -> Dict[str, Any]:
         """
         Run Dynamic Application Security Testing (DAST) scan.
-        
+
         Args:
             target_url: Target URL for scanning
             scan_type: Type of scan (quick, comprehensive, deep)
-            
+
         Returns:
             DAST scan results
         """
+        scan: Optional[SecurityScan] = None
         try:
             scan_id = str(uuid.uuid4())
-            scan_start = datetime.utcnow()
-            
-            # Initialize scan record
+            scan_start = datetime.now(timezone.utc)
+
             scan = SecurityScan(
                 id=scan_id,
                 scan_type="DAST",
@@ -122,27 +118,24 @@ class SecurityHardeningService:
                 started_at=scan_start,
                 configuration={
                     "target_url": target_url,
-                    "scan_type": scan_type
-                }
+                    "scan_type": scan_type,
+                },
             )
-            self.db.add(scan)
-            await self.db.commit()
-            
-            # Run DAST analysis
+            await scan.insert()
+
             vulnerabilities = await self._perform_dast_analysis(target_url, scan_type)
-            
-            # Update scan with results
+
             scan.status = "completed"
-            scan.completed_at = datetime.utcnow()
+            scan.completed_at = datetime.now(timezone.utc)
             scan.vulnerabilities_found = len(vulnerabilities)
             scan.results = {
                 "vulnerabilities": vulnerabilities,
                 "target_url": target_url,
                 "scan_type": scan_type,
-                "scan_duration": (scan.completed_at - scan_start).total_seconds()
+                "scan_duration": (scan.completed_at - scan_start).total_seconds(),
             }
-            
-            # Store individual vulnerabilities
+            await scan.save()
+
             for vuln_data in vulnerabilities:
                 vulnerability = Vulnerability(
                     id=str(uuid.uuid4()),
@@ -156,12 +149,10 @@ class SecurityHardeningService:
                     cwe_id=vuln_data.get("cwe_id"),
                     cvss_score=vuln_data.get("cvss_score", 0.0),
                     remediation=vuln_data.get("remediation", ""),
-                    status="open"
+                    status="open",
                 )
-                self.db.add(vulnerability)
-            
-            await self.db.commit()
-            
+                await vulnerability.insert()
+
             return {
                 "scan_id": scan_id,
                 "scan_type": "DAST",
@@ -169,73 +160,67 @@ class SecurityHardeningService:
                 "status": "completed",
                 "vulnerabilities_found": len(vulnerabilities),
                 "vulnerabilities": vulnerabilities,
-                "scan_duration": scan.results["scan_duration"]
+                "scan_duration": scan.results["scan_duration"],
             }
-            
+
         except Exception as e:
-            # Update scan status to failed
-            if 'scan' in locals():
+            if scan is not None:
                 scan.status = "failed"
                 scan.error_message = str(e)
-                scan.completed_at = datetime.utcnow()
-                await self.db.commit()
-            
-            raise ValueError(f"DAST scan failed: {str(e)}")
+                scan.completed_at = datetime.now(timezone.utc)
+                await scan.save()
+
+            raise ValueError(f"DAST scan failed: {str(e)}") from e
     
     async def run_penetration_test(self, test_scope: Dict[str, Any]) -> Dict[str, Any]:
         """
         Run comprehensive penetration test.
-        
+
         Args:
             test_scope: Test scope and configuration
-            
+
         Returns:
             Penetration test results
         """
+        scan: Optional[SecurityScan] = None
         try:
             test_id = str(uuid.uuid4())
-            test_start = datetime.utcnow()
-            
-            # Initialize test record
+            test_start = datetime.now(timezone.utc)
+
             scan = SecurityScan(
                 id=test_id,
                 scan_type="PENETRATION_TEST",
                 status="running",
                 started_at=test_start,
-                configuration=test_scope
+                configuration=test_scope,
             )
-            self.db.add(scan)
-            await self.db.commit()
-            
-            # Run penetration test phases
+            await scan.insert()
+
             results = {
                 "reconnaissance": await self._perform_reconnaissance(test_scope),
                 "vulnerability_assessment": await self._perform_vulnerability_assessment(test_scope),
                 "exploitation": await self._perform_exploitation(test_scope),
-                "post_exploitation": await self._perform_post_exploitation(test_scope)
+                "post_exploitation": await self._perform_post_exploitation(test_scope),
             }
-            
-            # Consolidate all vulnerabilities
-            all_vulnerabilities = []
+
+            all_vulnerabilities: List[Dict[str, Any]] = []
             for phase, phase_results in results.items():
                 if isinstance(phase_results, dict) and "vulnerabilities" in phase_results:
                     all_vulnerabilities.extend(phase_results["vulnerabilities"])
-            
-            # Calculate overall risk score
+
             risk_score = self._calculate_overall_risk_score(all_vulnerabilities)
-            
-            # Update test with results
+
             scan.status = "completed"
-            scan.completed_at = datetime.utcnow()
+            scan.completed_at = datetime.now(timezone.utc)
             scan.vulnerabilities_found = len(all_vulnerabilities)
             scan.results = {
                 **results,
                 "total_vulnerabilities": len(all_vulnerabilities),
                 "risk_score": risk_score,
-                "test_duration": (scan.completed_at - test_start).total_seconds()
+                "test_duration": (scan.completed_at - test_start).total_seconds(),
             }
-            
-            # Store vulnerabilities
+            await scan.save()
+
             for vuln_data in all_vulnerabilities:
                 vulnerability = Vulnerability(
                     id=str(uuid.uuid4()),
@@ -248,12 +233,10 @@ class SecurityHardeningService:
                     cvss_score=vuln_data.get("cvss_score", 0.0),
                     remediation=vuln_data.get("remediation", ""),
                     status="open",
-                    exploit_available=vuln_data.get("exploit_available", False)
+                    exploit_available=vuln_data.get("exploit_available", False),
                 )
-                self.db.add(vulnerability)
-            
-            await self.db.commit()
-            
+                await vulnerability.insert()
+
             return {
                 "test_id": test_id,
                 "scan_type": "PENETRATION_TEST",
@@ -261,274 +244,258 @@ class SecurityHardeningService:
                 "vulnerabilities_found": len(all_vulnerabilities),
                 "risk_score": risk_score,
                 "results": results,
-                "test_duration": scan.results["test_duration"]
+                "test_duration": scan.results["test_duration"],
             }
-            
+
         except Exception as e:
-            # Update test status to failed
-            if 'scan' in locals():
+            if scan is not None:
                 scan.status = "failed"
                 scan.error_message = str(e)
-                scan.completed_at = datetime.utcnow()
-                await self.db.commit()
-            
-            raise ValueError(f"Penetration test failed: {str(e)}")
+                scan.completed_at = datetime.now(timezone.utc)
+                await scan.save()
+
+            raise ValueError(f"Penetration test failed: {str(e)}") from e
     
     async def harden_server_security(self, server_config: Dict[str, Any]) -> Dict[str, Any]:
         """
         Apply server security hardening measures.
-        
+
         Args:
             server_config: Server configuration and hardening options
-            
+
         Returns:
             Hardening results
         """
+        scan: Optional[SecurityScan] = None
         try:
             hardening_id = str(uuid.uuid4())
-            hardening_start = datetime.utcnow()
-            
-            # Initialize hardening record
+            hardening_start = datetime.now(timezone.utc)
+
             scan = SecurityScan(
                 id=hardening_id,
                 scan_type="SERVER_HARDENING",
                 status="running",
                 started_at=hardening_start,
-                configuration=server_config
+                configuration=server_config,
             )
-            self.db.add(scan)
-            await self.db.commit()
-            
-            # Apply hardening measures
+            await scan.insert()
+
             hardening_results = {
                 "ssh_hardening": await self._harden_ssh(server_config),
                 "firewall_configuration": await self._configure_firewall(server_config),
                 "system_updates": await self._apply_system_updates(server_config),
                 "service_hardening": await self._harden_services(server_config),
                 "file_permissions": await self._secure_file_permissions(server_config),
-                "kernel_parameters": await self._harden_kernel_parameters(server_config)
+                "kernel_parameters": await self._harden_kernel_parameters(server_config),
             }
-            
-            # Calculate hardening score
+
             hardening_score = self._calculate_hardening_score(hardening_results)
-            
-            # Update hardening record
+
             scan.status = "completed"
-            scan.completed_at = datetime.utcnow()
+            scan.completed_at = datetime.now(timezone.utc)
             scan.results = {
                 **hardening_results,
                 "hardening_score": hardening_score,
-                "hardening_duration": (scan.completed_at - hardening_start).total_seconds()
+                "hardening_duration": (scan.completed_at - hardening_start).total_seconds(),
             }
-            
-            await self.db.commit()
-            
+            await scan.save()
+
             return {
                 "hardening_id": hardening_id,
                 "scan_type": "SERVER_HARDENING",
                 "status": "completed",
                 "hardening_score": hardening_score,
                 "results": hardening_results,
-                "hardening_duration": scan.results["hardening_duration"]
+                "hardening_duration": scan.results["hardening_duration"],
             }
-            
+
         except Exception as e:
-            # Update status to failed
-            if 'scan' in locals():
+            if scan is not None:
                 scan.status = "failed"
                 scan.error_message = str(e)
-                scan.completed_at = datetime.utcnow()
-                await self.db.commit()
-            
-            raise ValueError(f"Server hardening failed: {str(e)}")
+                scan.completed_at = datetime.now(timezone.utc)
+                await scan.save()
+
+            raise ValueError(f"Server hardening failed: {str(e)}") from e
     
     async def configure_waf(self, waf_config: Dict[str, Any]) -> Dict[str, Any]:
         """
         Configure Web Application Firewall (WAF).
-        
+
         Args:
             waf_config: WAF configuration
-            
+
         Returns:
             WAF configuration results
         """
+        scan: Optional[SecurityScan] = None
         try:
             config_id = str(uuid.uuid4())
-            config_start = datetime.utcnow()
-            
-            # Initialize configuration record
+            config_start = datetime.now(timezone.utc)
+
             scan = SecurityScan(
                 id=config_id,
                 scan_type="WAF_CONFIGURATION",
                 status="running",
                 started_at=config_start,
-                configuration=waf_config
+                configuration=waf_config,
             )
-            self.db.add(scan)
-            await self.db.commit()
-            
-            # Configure WAF rules
+            await scan.insert()
+
             waf_results = {
                 "owasp_rules": await self._configure_owasp_rules(waf_config),
                 "rate_limiting": await self._configure_rate_limiting(waf_config),
                 "ip_whitelist_blacklist": await self._configure_ip_lists(waf_config),
                 "custom_rules": await self._configure_custom_rules(waf_config),
-                "logging_monitoring": await self._configure_waf_logging(waf_config)
+                "logging_monitoring": await self._configure_waf_logging(waf_config),
             }
-            
-            # Test WAF configuration
+
             test_results = await self._test_waf_configuration(waf_config)
-            
-            # Update configuration record
+
             scan.status = "completed"
-            scan.completed_at = datetime.utcnow()
+            scan.completed_at = datetime.now(timezone.utc)
             scan.results = {
                 **waf_results,
                 "test_results": test_results,
-                "configuration_duration": (scan.completed_at - config_start).total_seconds()
+                "configuration_duration": (scan.completed_at - config_start).total_seconds(),
             }
-            
-            await self.db.commit()
-            
+            await scan.save()
+
             return {
                 "config_id": config_id,
                 "scan_type": "WAF_CONFIGURATION",
                 "status": "completed",
                 "results": waf_results,
                 "test_results": test_results,
-                "configuration_duration": scan.results["configuration_duration"]
+                "configuration_duration": scan.results["configuration_duration"],
             }
-            
+
         except Exception as e:
-            # Update status to failed
-            if 'scan' in locals():
+            if scan is not None:
                 scan.status = "failed"
                 scan.error_message = str(e)
-                scan.completed_at = datetime.utcnow()
-                await self.db.commit()
-            
-            raise ValueError(f"WAF configuration failed: {str(e)}")
+                scan.completed_at = datetime.now(timezone.utc)
+                await scan.save()
+
+            raise ValueError(f"WAF configuration failed: {str(e)}") from e
     
     async def audit_secrets_management(self) -> Dict[str, Any]:
         """
         Audit secrets management and configuration.
-        
+
         Returns:
             Secrets audit results
         """
+        scan: Optional[SecurityScan] = None
         try:
             audit_id = str(uuid.uuid4())
-            audit_start = datetime.utcnow()
-            
-            # Initialize audit record
+            audit_start = datetime.now(timezone.utc)
+
             scan = SecurityScan(
                 id=audit_id,
                 scan_type="SECRETS_AUDIT",
                 status="running",
-                started_at=audit_start
+                started_at=audit_start,
+                configuration={},
             )
-            self.db.add(scan)
-            await self.db.commit()
-            
-            # Perform secrets audit
+            await scan.insert()
+
             audit_results = {
                 "environment_variables": await self._audit_environment_variables(),
                 "configuration_files": await self._audit_configuration_files(),
                 "database_credentials": await self._audit_database_credentials(),
                 "api_keys": await self._audit_api_keys(),
                 "certificate_management": await self._audit_certificates(),
-                "vault_integration": await self._audit_vault_integration()
+                "vault_integration": await self._audit_vault_integration(),
             }
-            
-            # Calculate security score
+
             security_score = self._calculate_secrets_security_score(audit_results)
-            
-            # Update audit record
+
             scan.status = "completed"
-            scan.completed_at = datetime.utcnow()
+            scan.completed_at = datetime.now(timezone.utc)
             scan.results = {
                 **audit_results,
                 "security_score": security_score,
-                "audit_duration": (scan.completed_at - audit_start).total_seconds()
+                "audit_duration": (scan.completed_at - audit_start).total_seconds(),
             }
-            
-            await self.db.commit()
-            
+            await scan.save()
+
             return {
                 "audit_id": audit_id,
                 "scan_type": "SECRETS_AUDIT",
                 "status": "completed",
                 "security_score": security_score,
                 "results": audit_results,
-                "audit_duration": scan.results["audit_duration"]
+                "audit_duration": scan.results["audit_duration"],
             }
-            
+
         except Exception as e:
-            # Update status to failed
-            if 'scan' in locals():
+            if scan is not None:
                 scan.status = "failed"
                 scan.error_message = str(e)
-                scan.completed_at = datetime.utcnow()
-                await self.db.commit()
-            
-            raise ValueError(f"Secrets audit failed: {str(e)}")
+                scan.completed_at = datetime.now(timezone.utc)
+                await scan.save()
+
+            raise ValueError(f"Secrets audit failed: {str(e)}") from e
     
-    async def get_vulnerability_report(self, scan_id: Optional[str] = None, 
-                                     severity: Optional[str] = None,
-                                     status: Optional[str] = None) -> Dict[str, Any]:
+    async def get_vulnerability_report(
+        self,
+        scan_id: Optional[str] = None,
+        severity: Optional[str] = None,
+        status: Optional[str] = None,
+    ) -> Dict[str, Any]:
         """
         Get comprehensive vulnerability report.
-        
+
         Args:
             scan_id: Optional scan ID filter
             severity: Optional severity filter
             status: Optional status filter
-            
+
         Returns:
             Vulnerability report
         """
         try:
-            # Build query
-            query = select(Vulnerability)
-            
+            filters: List[Any] = []
             if scan_id:
-                query = query.where(Vulnerability.scan_id == scan_id)
-            
+                filters.append(Vulnerability.scan_id == scan_id)
             if severity:
-                query = query.where(Vulnerability.severity == severity)
-            
+                filters.append(Vulnerability.severity == severity)
             if status:
-                query = query.where(Vulnerability.status == status)
-            
-            # Execute query
-            result = await self.db.execute(query.order_by(Vulnerability.severity.desc()))
-            vulnerabilities = result.scalars().all()
-            
-            # Group by severity
-            severity_groups = {}
+                filters.append(Vulnerability.status == status)
+
+            query = Vulnerability.find(And(*filters)) if filters else Vulnerability.find()
+            vulnerabilities = await query.to_list()
+            severity_rank = {"critical": 0, "high": 1, "medium": 2, "low": 3}
+            vulnerabilities.sort(
+                key=lambda v: severity_rank.get(str(v.severity).lower(), 99)
+            )
+
+            severity_groups: Dict[str, List[Dict[str, Any]]] = {}
             for vuln in vulnerabilities:
                 if vuln.severity not in severity_groups:
                     severity_groups[vuln.severity] = []
-                severity_groups[vuln.severity].append({
-                    "id": vuln.id,
-                    "title": vuln.title,
-                    "description": vuln.description,
-                    "category": vuln.category,
-                    "cvss_score": vuln.cvss_score,
-                    "cwe_id": vuln.cwe_id,
-                    "remediation": vuln.remediation,
-                    "status": vuln.status,
-                    "file_path": vuln.file_path,
-                    "url": vuln.url
-                })
-            
-            # Calculate statistics
+                severity_groups[vuln.severity].append(
+                    {
+                        "id": vuln.id,
+                        "title": vuln.title,
+                        "description": vuln.description,
+                        "category": vuln.category,
+                        "cvss_score": vuln.cvss_score,
+                        "cwe_id": vuln.cwe_id,
+                        "remediation": vuln.remediation,
+                        "status": vuln.status,
+                        "file_path": vuln.file_path,
+                        "url": vuln.url,
+                    }
+                )
+
             total_vulnerabilities = len(vulnerabilities)
             critical_count = len(severity_groups.get("critical", []))
             high_count = len(severity_groups.get("high", []))
             medium_count = len(severity_groups.get("medium", []))
             low_count = len(severity_groups.get("low", []))
-            
+
             return {
                 "scan_id": scan_id,
                 "total_vulnerabilities": total_vulnerabilities,
@@ -536,14 +503,14 @@ class SecurityHardeningService:
                     "critical": critical_count,
                     "high": high_count,
                     "medium": medium_count,
-                    "low": low_count
+                    "low": low_count,
                 },
                 "vulnerabilities": severity_groups,
-                "generated_at": datetime.utcnow()
+                "generated_at": datetime.now(timezone.utc),
             }
-            
+
         except Exception as e:
-            raise ValueError(f"Failed to generate vulnerability report: {str(e)}")
+            raise ValueError(f"Failed to generate vulnerability report: {str(e)}") from e
     
     # Private helper methods
     

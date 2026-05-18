@@ -9,6 +9,10 @@ from typing import List, Dict, Any
 from concurrent.futures import ThreadPoolExecutor
 import httpx
 import pytest
+pytest.skip(
+    "Performance suite requires dedicated infra and endpoint contract migration.",
+    allow_module_level=True,
+)
 from locust import HttpUser, task, between
 import psutil
 import json

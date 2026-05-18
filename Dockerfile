@@ -10,7 +10,6 @@ ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y \
     gcc \
     g++ \
-    libpq-dev \
     libffi-dev \
     libssl-dev \
     curl \
@@ -35,10 +34,10 @@ ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 ENV DEBIAN_FRONTEND=noninteractive
 ENV PATH="/opt/venv/bin:$PATH"
+ENV PYTHONPATH="/app/src"
 
 # Install runtime dependencies
 RUN apt-get update && apt-get install -y \
-    libpq5 \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
@@ -53,8 +52,6 @@ WORKDIR /app
 
 # Copy application code
 COPY src/ /app/src/
-COPY alembic/ /app/alembic/
-COPY alembic.ini /app/
 COPY pyproject.toml /app/
 COPY README.md /app/
 
@@ -74,5 +71,5 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 # Expose port
 EXPOSE 8000
 
-# Run the application
-CMD ["python", "-m", "cbt.main"]
+# Run the application (uvicorn entrypoint; do not use `python -m cbt.main` alone)
+CMD ["uvicorn", "cbt.main:app", "--host", "0.0.0.0", "--port", "8000"]

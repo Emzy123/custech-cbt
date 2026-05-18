@@ -9,7 +9,9 @@ import base64
 import json
 import logging
 from typing import List, Optional, Dict, Any, Tuple
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+
+from beanie.operators import And
 
 from ..models.user import User
 from ..models.biometric import BiometricTemplate, BiometricVerification, BiometricDevice
@@ -39,67 +41,61 @@ class BiometricService:
         """
         try:
             # Validate user exists
-            user_result = await self.db.execute(
-                select(User).where(User.id == user_id)
-            )
-            user = user_result.scalar_one_or_none()
+            user = await User.get(user_id)
             if not user:
                 raise ValidationError("User not found")
-            
+
             # Check if biometric type already exists for user
-            existing_template = await self.db.execute(
-                select(BiometricTemplate).where(
-                    and_(
-                        BiometricTemplate.user_id == user_id,
-                        BiometricTemplate.biometric_type == biometric_data["biometric_type"],
-                        BiometricTemplate.is_active == True
-                    )
+            existing = await BiometricTemplate.find_one(
+                And(
+                    BiometricTemplate.user_id == user_id,
+                    BiometricTemplate.biometric_type == biometric_data["biometric_type"],
+                    BiometricTemplate.is_active == True,
                 )
             )
-            if existing_template.scalar_one_or_none():
-                raise ValidationError(f"Biometric template of type {biometric_data['biometric_type']} already exists for user")
-            
+            if existing:
+                raise ValidationError(
+                    f"Biometric template of type {biometric_data['biometric_type']} already exists for user"
+                )
+
             # Process and encrypt biometric template
             processed_template = await self._process_biometric_template(biometric_data)
-            
+
             # Create biometric template record
             template = BiometricTemplate(
-                id=str(uuid.uuid4()),
                 user_id=user_id,
                 biometric_type=biometric_data["biometric_type"],
                 template_data=processed_template["encrypted_template"],
                 template_hash=processed_template["template_hash"],
                 device_id=biometric_data.get("device_id"),
                 quality_score=biometric_data.get("quality_score", 0.0),
-                enrollment_date=datetime.utcnow(),
+                enrollment_date=datetime.now(timezone.utc),
                 is_active=True,
-                metadata=biometric_data.get("metadata", {})
+                metadata=biometric_data.get("metadata", {}),
             )
-            
-            self.db.add(template)
-            await self.db.commit()
-            
+            await template.insert()
+
             # Log biometric registration
             await self._log_biometric_event(
-                user_id, "BIOMETRIC_TEMPLATE_REGISTERED",
+                user_id,
+                "BIOMETRIC_TEMPLATE_REGISTERED",
                 {
                     "template_id": template.id,
                     "biometric_type": biometric_data["biometric_type"],
-                    "device_id": biometric_data.get("device_id")
-                }
+                    "device_id": biometric_data.get("device_id"),
+                },
             )
-            
+
             return {
                 "template_id": template.id,
                 "user_id": user_id,
                 "biometric_type": biometric_data["biometric_type"],
                 "enrollment_date": template.enrollment_date,
                 "quality_score": template.quality_score,
-                "status": "registered"
+                "status": "registered",
             }
-            
+
         except Exception as e:
-            await self.db.rollback()
             raise ValueError(f"Failed to register biometric template: {str(e)}")
     
     async def verify_biometric(self, user_id: str, biometric_data: Dict[str, Any]) -> Dict[str, Any]:
@@ -115,82 +111,83 @@ class BiometricService:
         """
         try:
             # Get active biometric templates for user
-            templates_result = await self.db.execute(
-                select(BiometricTemplate).where(
-                    and_(
-                        BiometricTemplate.user_id == user_id,
-                        BiometricTemplate.biometric_type == biometric_data["biometric_type"],
-                        BiometricTemplate.is_active == True
-                    )
+            templates = await BiometricTemplate.find(
+                And(
+                    BiometricTemplate.user_id == user_id,
+                    BiometricTemplate.biometric_type == biometric_data["biometric_type"],
+                    BiometricTemplate.is_active == True,
                 )
-            )
-            templates = templates_result.scalars().all()
-            
+            ).to_list()
+
             if not templates:
-                raise ValidationError(f"No active biometric template found for type {biometric_data['biometric_type']}")
-            
+                raise ValidationError(
+                    f"No active biometric template found for type {biometric_data['biometric_type']}"
+                )
+
             # Process verification data
             processed_verification = await self._process_verification_data(biometric_data)
-            
+
             # Verify against each template
             best_match = None
             best_score = 0.0
-            
+
             for template in templates:
                 # Decrypt template
                 decrypted_template = await self._decrypt_template(template.template_data)
-                
+
                 # Perform biometric matching
                 match_result = await self._match_biometric_data(
                     processed_verification["processed_data"],
                     decrypted_template,
-                    biometric_data["biometric_type"]
+                    biometric_data["biometric_type"],
                 )
-                
+
                 if match_result["match_score"] > best_score:
                     best_score = match_result["match_score"]
                     best_match = {
                         "template_id": template.id,
                         "match_score": match_result["match_score"],
-                        "confidence": match_result["confidence"],
-                        "verification_method": match_result["method"]
+                        "confidence": float(match_result.get("confidence", 0.0)),
+                        "verification_method": match_result.get("method", "feature_matching"),
                     }
-            
+
             # Determine verification result
             threshold = self._get_verification_threshold(biometric_data["biometric_type"])
             verification_passed = best_score >= threshold
-            
+
+            confidence_label = (
+                "high" if best_score >= 0.8 else "medium" if best_score >= 0.5 else "low"
+            )
+
             # Create verification record
             verification = BiometricVerification(
-                id=str(uuid.uuid4()),
                 user_id=user_id,
                 template_id=best_match["template_id"] if best_match else None,
                 biometric_type=biometric_data["biometric_type"],
                 verification_data=processed_verification["encrypted_data"],
                 verification_hash=processed_verification["verification_hash"],
                 match_score=best_score,
-                confidence=best_match["confidence"] if best_match else 0.0,
-                verification_method=best_match["verification_method"] if best_match else "none",
+                confidence=confidence_label,
+                verification_method=(best_match["verification_method"] if best_match else "none"),
                 passed=verification_passed,
-                verification_date=datetime.utcnow(),
+                verification_date=datetime.now(timezone.utc),
                 device_id=biometric_data.get("device_id"),
-                metadata=biometric_data.get("metadata", {})
+                metadata=biometric_data.get("metadata", {}),
             )
-            
-            self.db.add(verification)
-            await self.db.commit()
-            
+            await verification.insert()
+
             # Log verification attempt
             await self._log_biometric_event(
-                user_id, "BIOMETRIC_VERIFICATION_ATTEMPT",
+                user_id,
+                "BIOMETRIC_VERIFICATION_ATTEMPT",
                 {
                     "verification_id": verification.id,
                     "biometric_type": biometric_data["biometric_type"],
                     "match_score": best_score,
-                    "passed": verification_passed
-                }
+                    "passed": verification_passed,
+                },
             )
-            
+
             return {
                 "verification_id": verification.id,
                 "user_id": user_id,
@@ -199,11 +196,10 @@ class BiometricService:
                 "match_score": best_score,
                 "confidence": best_match["confidence"] if best_match else 0.0,
                 "verification_date": verification.verification_date,
-                "threshold": threshold
+                "threshold": threshold,
             }
-            
+
         except Exception as e:
-            await self.db.rollback()
             raise ValueError(f"Failed to verify biometric: {str(e)}")
     
     async def update_biometric_template(self, template_id: str, biometric_data: Dict[str, Any]) -> Dict[str, Any]:
@@ -219,24 +215,19 @@ class BiometricService:
         """
         try:
             # Get existing template
-            template_result = await self.db.execute(
-                select(BiometricTemplate).where(BiometricTemplate.id == template_id)
-            )
-            template = template_result.scalar_one_or_none()
+            template = await BiometricTemplate.get(template_id)
             if not template:
                 raise ValidationError("Biometric template not found")
-            
+
             # Process and encrypt new template data
             processed_template = await self._process_biometric_template(biometric_data)
-            
+
             # Update template
             template.template_data = processed_template["encrypted_template"]
             template.template_hash = processed_template["template_hash"]
             template.quality_score = biometric_data.get("quality_score", template.quality_score)
-            template.updated_at = datetime.utcnow()
-            template.metadata.update(biometric_data.get("metadata", {}))
-            
-            await self.db.commit()
+            template.metadata = {**template.metadata, **biometric_data.get("metadata", {})}
+            await template.save()
             
             # Log template update
             await self._log_biometric_event(
@@ -257,7 +248,6 @@ class BiometricService:
             }
             
         except Exception as e:
-            await self.db.rollback()
             raise ValueError(f"Failed to update biometric template: {str(e)}")
     
     async def deactivate_biometric_template(self, template_id: str, reason: str) -> Dict[str, Any]:
@@ -273,19 +263,15 @@ class BiometricService:
         """
         try:
             # Get existing template
-            template_result = await self.db.execute(
-                select(BiometricTemplate).where(BiometricTemplate.id == template_id)
-            )
-            template = template_result.scalar_one_or_none()
+            template = await BiometricTemplate.get(template_id)
             if not template:
                 raise ValidationError("Biometric template not found")
-            
+
             # Deactivate template
             template.is_active = False
-            template.deactivated_at = datetime.utcnow()
+            template.deactivated_at = datetime.now(timezone.utc)
             template.deactivation_reason = reason
-            
-            await self.db.commit()
+            await template.save()
             
             # Log template deactivation
             await self._log_biometric_event(
@@ -307,7 +293,6 @@ class BiometricService:
             }
             
         except Exception as e:
-            await self.db.rollback()
             raise ValueError(f"Failed to deactivate biometric template: {str(e)}")
     
     async def get_user_biometric_templates(self, user_id: str) -> List[Dict[str, Any]]:
@@ -321,10 +306,9 @@ class BiometricService:
             List of biometric templates
         """
         try:
-            templates_result = await self.db.execute(
-                select(BiometricTemplate).where(BiometricTemplate.user_id == user_id)
-            )
-            templates = templates_result.scalars().all()
+            templates = await BiometricTemplate.find(
+                BiometricTemplate.user_id == user_id
+            ).to_list()
             
             return [
                 {
@@ -356,13 +340,12 @@ class BiometricService:
             List of verification records
         """
         try:
-            verifications_result = await self.db.execute(
-                select(BiometricVerification)
-                .where(BiometricVerification.user_id == user_id)
-                .order_by(BiometricVerification.verification_date.desc())
+            verifications = (
+                await BiometricVerification.find(BiometricVerification.user_id == user_id)
+                .sort(-BiometricVerification.verification_date)
                 .limit(limit)
+                .to_list()
             )
-            verifications = verifications_result.scalars().all()
             
             return [
                 {
@@ -392,17 +375,14 @@ class BiometricService:
         """
         try:
             # Check if device already exists
-            existing_device = await self.db.execute(
-                select(BiometricDevice).where(
-                    BiometricDevice.device_identifier == device_data["device_identifier"]
-                )
+            existing = await BiometricDevice.find_one(
+                BiometricDevice.device_identifier == device_data["device_identifier"]
             )
-            if existing_device.scalar_one_or_none():
+            if existing:
                 raise ValidationError("Device already registered")
-            
+
             # Create device record
             device = BiometricDevice(
-                id=str(uuid.uuid4()),
                 device_name=device_data["device_name"],
                 device_identifier=device_data["device_identifier"],
                 device_type=device_data["device_type"],
@@ -410,13 +390,11 @@ class BiometricService:
                 model=device_data.get("model"),
                 firmware_version=device_data.get("firmware_version"),
                 supported_biometric_types=device_data.get("supported_biometric_types", []),
-                registration_date=datetime.utcnow(),
+                registration_date=datetime.now(timezone.utc),
                 is_active=True,
-                metadata=device_data.get("metadata", {})
+                metadata=device_data.get("metadata", {}),
             )
-            
-            self.db.add(device)
-            await self.db.commit()
+            await device.insert()
             
             return {
                 "device_id": device.id,
@@ -428,7 +406,6 @@ class BiometricService:
             }
             
         except Exception as e:
-            await self.db.rollback()
             raise ValueError(f"Failed to register biometric device: {str(e)}")
     
     async def get_biometric_statistics(self, user_id: Optional[str] = None) -> Dict[str, Any]:
@@ -442,14 +419,14 @@ class BiometricService:
             Biometric statistics
         """
         try:
-            base_query = select(BiometricTemplate)
             if user_id:
-                base_query = base_query.where(BiometricTemplate.user_id == user_id)
-            
+                templates = await BiometricTemplate.find(
+                    BiometricTemplate.user_id == user_id
+                ).to_list()
+            else:
+                templates = await BiometricTemplate.find().to_list()
+
             # Template statistics
-            templates_result = await self.db.execute(base_query)
-            templates = templates_result.scalars().all()
-            
             active_templates = [t for t in templates if t.is_active]
             template_types = {}
             for template in templates:
@@ -459,19 +436,17 @@ class BiometricService:
                 template_types[biometric_type]["total"] += 1
                 if template.is_active:
                     template_types[biometric_type]["active"] += 1
-            
+
             # Verification statistics
-            verification_query = select(BiometricVerification)
             if user_id:
-                verification_query = verification_query.where(BiometricVerification.user_id == user_id)
-            
-            verifications_result = await self.db.execute(verification_query)
-            verifications = verifications_result.scalars().all()
-            
-            recent_verifications = [
-                v for v in verifications 
-                if v.verification_date >= datetime.utcnow() - timedelta(days=30)
-            ]
+                verifications = await BiometricVerification.find(
+                    BiometricVerification.user_id == user_id
+                ).to_list()
+            else:
+                verifications = await BiometricVerification.find().to_list()
+
+            cutoff = datetime.now(timezone.utc) - timedelta(days=30)
+            recent_verifications = [v for v in verifications if v.verification_date >= cutoff]
             
             successful_verifications = [v for v in recent_verifications if v.passed]
             failed_verifications = [v for v in recent_verifications if not v.passed]

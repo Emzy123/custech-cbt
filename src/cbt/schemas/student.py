@@ -2,10 +2,11 @@
 Student management schemas.
 """
 
-from pydantic import BaseModel, EmailStr, validator
+import re
+
+from pydantic import BaseModel, ConfigDict, EmailStr, field_validator
 from typing import Optional, List, Dict, Any
 from datetime import datetime, date
-from enum import Enum
 
 from ..models.student import StudentStatus
 
@@ -23,24 +24,28 @@ class StudentBase(BaseModel):
     current_level: int
     department_id: str
     academic_session_id: str
-    
-    @validator('matric_number')
-    def validate_matric_number(cls, v):
-        import re
-        if not re.match(r'^20\d{2}/\d{6}$', v):
-            raise ValueError('Matric number must follow format: 20XX/XXXXXX')
+
+    @field_validator("matric_number")
+    @classmethod
+    def validate_matric_number(cls, v: str) -> str:
+        if not re.match(r"^20\d{2}/\d{6}$", v):
+            raise ValueError("Matric number must follow format: 20XX/XXXXXX")
         return v
-    
-    @validator('phone_number')
-    def validate_phone_number(cls, v):
-        if v and not (v.startswith('+234') and len(v) == 13 and v[4:].isdigit()):
-            raise ValueError('Phone number must be in format +234XXXXXXXXXX')
+
+    @field_validator("phone_number")
+    @classmethod
+    def validate_phone_number(cls, v: Optional[str]) -> Optional[str]:
+        if v and not (v.startswith("+234") and len(v) == 13 and v[4:].isdigit()):
+            raise ValueError("Phone number must be in format +234XXXXXXXXXX")
         return v
-    
-    @validator('current_level')
-    def validate_level(cls, v):
+
+    @field_validator("current_level")
+    @classmethod
+    def validate_level(cls, v: int) -> int:
         if not 100 <= v <= 900 or v % 100 != 0:
-            raise ValueError('Level must be one of 100, 200, 300, 400, 500, 600, 700, 800, 900')
+            raise ValueError(
+                "Level must be one of 100, 200, 300, 400, 500, 600, 700, 800, 900"
+            )
         return v
 
 
@@ -62,6 +67,8 @@ class StudentUpdate(BaseModel):
 
 class StudentResponse(StudentBase):
     """Student response schema."""
+    model_config = ConfigDict(from_attributes=True)
+
     id: str
     user_id: str
     is_active: bool
@@ -69,9 +76,6 @@ class StudentResponse(StudentBase):
     graduation_year: Optional[int] = None
     created_at: datetime
     updated_at: datetime
-    
-    class Config:
-        from_attributes = True
 
 
 class StudentSearch(BaseModel):
@@ -119,6 +123,8 @@ class StudentStatusUpdate(BaseModel):
 
 class StudentCourseResponse(BaseModel):
     """Student course response schema."""
+    model_config = ConfigDict(from_attributes=True)
+
     id: str
     course_id: str
     course_code: str
@@ -126,13 +132,12 @@ class StudentCourseResponse(BaseModel):
     credit_units: int
     registration_date: date
     status: str
-    
-    class Config:
-        from_attributes = True
 
 
 class StudentProfileResponse(BaseModel):
     """Student profile response schema."""
+    model_config = ConfigDict(from_attributes=True)
+
     id: str
     user_id: str
     matric_number: str
@@ -154,9 +159,6 @@ class StudentProfileResponse(BaseModel):
     graduation_year: Optional[int]
     created_at: datetime
     updated_at: datetime
-    
-    class Config:
-        from_attributes = True
 
 
 class StudentSummaryResponse(BaseModel):

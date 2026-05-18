@@ -1,22 +1,13 @@
 """
-Security and audit models for user sessions, biometrics, and logging using Beanie (MongoDB).
+Security and audit models for user sessions, audit logs, and logging using Beanie (MongoDB).
 """
 
 from typing import Optional, Dict, Any
 import enum
 from datetime import datetime, timezone
-from beanie import Document
 from pydantic import Field
 
 from .base import BaseDocument
-
-
-class BiometricType(str, enum.Enum):
-    """Biometric authentication types."""
-    FINGERPRINT = "FINGERPRINT"
-    FACIAL = "FACIAL"
-    VOICE = "VOICE"
-    IRIS = "IRIS"
 
 
 class UserSession(BaseDocument):
@@ -42,24 +33,6 @@ class UserSession(BaseDocument):
 
     class Settings:
         name = "user_sessions"
-
-
-class BiometricTemplate(BaseDocument):
-    """Biometric template storage for authentication."""
-    user_id: str
-    template_type: BiometricType
-    template_data: str  # Encrypted biometric template
-    device_id: Optional[str] = None
-    enrollment_date: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    last_verified: Optional[datetime] = None
-    verification_count: int = 0
-
-    @property
-    def template_size(self) -> int:
-        return len(self.template_data.encode()) if self.template_data else 0
-
-    class Settings:
-        name = "biometric_templates"
 
 
 class AuditAction(str, enum.Enum):
@@ -109,3 +82,47 @@ class SecurityEvent(BaseDocument):
 
     class Settings:
         name = "security_events"
+
+
+class SecurityScan(BaseDocument):
+    """Recorded security scan or hardening run (SAST, DAST, WAF, audits, etc.)."""
+
+    scan_type: str
+    status: str
+    started_at: datetime
+    completed_at: Optional[datetime] = None
+    vulnerabilities_found: int = 0
+    configuration: Dict[str, Any] = Field(default_factory=dict)
+    results: Optional[Dict[str, Any]] = None
+    error_message: Optional[str] = None
+
+    class Settings:
+        name = "security_scans"
+
+
+class Vulnerability(BaseDocument):
+    """Individual vulnerability finding linked to a security scan."""
+
+    scan_id: str
+    severity: str
+    category: str
+    title: str
+    description: str
+    file_path: Optional[str] = None
+    line_number: Optional[int] = None
+    url: Optional[str] = None
+    parameter: Optional[str] = None
+    cwe_id: Optional[str] = None
+    cvss_score: float = 0.0
+    remediation: Optional[str] = None
+    status: str = "open"
+    exploit_available: bool = False
+    remediated_by: Optional[str] = None
+    remediated_at: Optional[datetime] = None
+    acknowledged_by: Optional[str] = None
+    acknowledged_at: Optional[datetime] = None
+    remediation_notes: Optional[str] = None
+    acknowledgment_notes: Optional[str] = None
+
+    class Settings:
+        name = "vulnerabilities"

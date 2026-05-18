@@ -2,7 +2,7 @@
 Production deployment and operational handover schemas.
 """
 
-from pydantic import BaseModel, validator
+from pydantic import BaseModel, ConfigDict, field_validator
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 from enum import Enum
@@ -56,12 +56,15 @@ class DeploymentPlanCreate(BaseModel):
     success_criteria: Dict[str, Any] = {}
     risk_assessment: Dict[str, Any] = {}
     
-    @validator('target_date')
-    def validate_target_date(cls, v):
+    @field_validator("target_date")
+    @classmethod
+    def validate_target_date(cls, v: str) -> str:
         try:
             datetime.fromisoformat(v)
         except ValueError:
-            raise ValueError('Target date must be in ISO format (YYYY-MM-DDTHH:MM:SS)')
+            raise ValueError(
+                "Target date must be in ISO format (YYYY-MM-DDTHH:MM:SS)"
+            )
         return v
 
 
@@ -82,8 +85,7 @@ class DeploymentPlanResponse(BaseModel):
     phases: List[Dict[str, Any]]
     configuration: Dict[str, Any]
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class DeploymentExecutionResponse(BaseModel):
@@ -95,8 +97,7 @@ class DeploymentExecutionResponse(BaseModel):
     execution_results: Optional[Dict[str, Any]] = None
     message: Optional[str] = None
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class DeploymentRollbackResponse(BaseModel):
@@ -108,8 +109,7 @@ class DeploymentRollbackResponse(BaseModel):
     status: str
     message: Optional[str] = None
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class OperationalHandoverCreate(BaseModel):
@@ -136,8 +136,7 @@ class OperationalHandoverResponse(BaseModel):
     contact_information: Dict[str, Any]
     checklists: Dict[str, Any]
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class HandoverExecutionResponse(BaseModel):
@@ -149,8 +148,7 @@ class HandoverExecutionResponse(BaseModel):
     handover_results: Optional[Dict[str, Any]] = None
     message: Optional[str] = None
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ProjectClosureResponse(BaseModel):
@@ -168,8 +166,7 @@ class ProjectClosureResponse(BaseModel):
     recommendations: List[Dict[str, Any]]
     appendices: Dict[str, Any]
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class DeploymentStatusResponse(BaseModel):
@@ -186,8 +183,7 @@ class DeploymentStatusResponse(BaseModel):
     current_phase: Optional[str] = None
     progress_percentage: float
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class DeploymentEvent(BaseModel):
@@ -197,8 +193,7 @@ class DeploymentEvent(BaseModel):
     details: Dict[str, Any]
     timestamp: datetime
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class DeploymentPhase(BaseModel):
@@ -214,8 +209,7 @@ class DeploymentPhase(BaseModel):
     end_time: Optional[datetime] = None
     execution_duration: Optional[float] = None
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class DeploymentMetrics(BaseModel):
@@ -226,8 +220,7 @@ class DeploymentMetrics(BaseModel):
     metrics: Dict[str, Any]
     generated_at: datetime
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class DeploymentHealth(BaseModel):
@@ -238,8 +231,7 @@ class DeploymentHealth(BaseModel):
     health_metrics: Dict[str, Any]
     last_updated: datetime
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class DeploymentBackup(BaseModel):
@@ -253,8 +245,7 @@ class DeploymentBackup(BaseModel):
     backup_location: str
     checksum: str
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class InfrastructureComponent(BaseModel):
@@ -269,8 +260,7 @@ class InfrastructureComponent(BaseModel):
     created_at: datetime
     updated_at: datetime
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ServiceConfiguration(BaseModel):
@@ -284,8 +274,7 @@ class ServiceConfiguration(BaseModel):
     health_check_url: str
     resource_requirements: Dict[str, Any]
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class DatabaseConfiguration(BaseModel):
@@ -300,8 +289,7 @@ class DatabaseConfiguration(BaseModel):
     migration_status: str
     schema_version: str
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class SecurityConfiguration(BaseModel):
@@ -315,8 +303,7 @@ class SecurityConfiguration(BaseModel):
     last_audit_date: datetime
     vulnerabilities: List[Dict[str, Any]]
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class MonitoringConfiguration(BaseModel):
@@ -329,8 +316,7 @@ class MonitoringConfiguration(BaseModel):
     log_aggregation: Dict[str, Any]
     metrics_collection: Dict[str, Any]
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class DeploymentTemplate(BaseModel):
@@ -348,8 +334,7 @@ class DeploymentTemplate(BaseModel):
     updated_at: datetime
     usage_count: int = 0
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class DeploymentEnvironment(BaseModel):
@@ -364,8 +349,7 @@ class DeploymentEnvironment(BaseModel):
     security: SecurityConfiguration
     monitoring: MonitoringConfiguration
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class DeploymentPipeline(BaseModel):
@@ -381,8 +365,7 @@ class DeploymentPipeline(BaseModel):
     created_at: datetime
     last_execution: Optional[datetime] = None
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class DeploymentApproval(BaseModel):
@@ -395,8 +378,7 @@ class DeploymentApproval(BaseModel):
     comments: Optional[str] = None
     approved_at: Optional[datetime] = None
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class DeploymentNotification(BaseModel):
@@ -409,8 +391,7 @@ class DeploymentNotification(BaseModel):
     sent_at: datetime
     delivery_status: str
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class DeploymentRisk(BaseModel):
@@ -425,8 +406,7 @@ class DeploymentRisk(BaseModel):
     owner: str
     status: str  # open, mitigated, accepted
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class DeploymentChecklist(BaseModel):
@@ -440,8 +420,7 @@ class DeploymentChecklist(BaseModel):
     verified_by: Optional[str] = None
     verified_at: Optional[datetime] = None
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class DeploymentTest(BaseModel):
@@ -455,8 +434,7 @@ class DeploymentTest(BaseModel):
     execution_time: Optional[float] = None
     executed_at: Optional[datetime] = None
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class DeploymentArtifact(BaseModel):
@@ -471,8 +449,7 @@ class DeploymentArtifact(BaseModel):
     created_at: datetime
     size: Optional[str] = None
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class DeploymentSchedule(BaseModel):
@@ -487,8 +464,7 @@ class DeploymentSchedule(BaseModel):
     created_at: datetime
     created_by: str
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class DeploymentLog(BaseModel):
@@ -501,8 +477,7 @@ class DeploymentLog(BaseModel):
     timestamp: datetime
     source: str
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class DeploymentRollback(BaseModel):
@@ -517,8 +492,7 @@ class DeploymentRollback(BaseModel):
     status: str  # in_progress, completed, failed
     results: Dict[str, Any]
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class DeploymentVerification(BaseModel):
@@ -531,8 +505,7 @@ class DeploymentVerification(BaseModel):
     results: Dict[str, Any]
     executed_at: datetime
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class DeploymentDashboard(BaseModel):
@@ -545,8 +518,7 @@ class DeploymentDashboard(BaseModel):
     metrics: Dict[str, Any]
     last_updated: datetime
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class DeploymentComparison(BaseModel):
@@ -559,8 +531,7 @@ class DeploymentComparison(BaseModel):
     recommendations: List[str]
     generated_at: datetime
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class DeploymentStatistics(BaseModel):
@@ -576,8 +547,7 @@ class DeploymentStatistics(BaseModel):
     failure_rate: float
     deployment_frequency: Dict[str, int]
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class DeploymentRecommendation(BaseModel):
@@ -594,8 +564,7 @@ class DeploymentRecommendation(BaseModel):
     dependencies: List[str]
     status: str  # pending, in_progress, completed, rejected
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class DeploymentLesson(BaseModel):
@@ -610,5 +579,4 @@ class DeploymentLesson(BaseModel):
     recommendations: List[str]
     created_at: datetime
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

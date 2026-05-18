@@ -37,29 +37,22 @@ class InvigilatorDashboardService:
         """
         try:
             # Get examination details
-            exam_result = await self.db.execute(
-                select(Examination).where(Examination.id == examination_id)
-            )
-            exam = exam_result.scalar_one_or_none()
+            exam = await Examination.get(examination_id)
             if not exam:
                 raise ValueError("Examination not found")
-            
+
             # Get active exam instances
-            instances_result = await self.db.execute(
-                select(ExamInstance, Student)
-                .join(Student, ExamInstance.student_id == Student.id)
-                .where(
-                    and_(
-                        ExamInstance.examination_id == examination_id,
-                        ExamInstance.status == ExamInstanceStatus.IN_PROGRESS
-                    )
-                )
-            )
-            instances = instances_result.all()
-            
+            instances = await ExamInstance.find(
+                ExamInstance.examination_id == examination_id,
+                ExamInstance.status == ExamInstanceStatus.IN_PROGRESS,
+            ).to_list()
+
             # Get student session data
             student_sessions = []
-            for instance, student in instances:
+            for instance in instances:
+                student = await Student.get(instance.student_id)
+                if not student:
+                    continue
                 session_data = await self._get_student_session_data(
                     examination_id, student.id, instance.id
                 )
@@ -111,22 +104,17 @@ class InvigilatorDashboardService:
         """
         try:
             # Get student and instance
-            result = await self.db.execute(
-                select(ExamInstance, Student)
-                .join(Student, ExamInstance.student_id == Student.id)
-                .where(
-                    and_(
-                        ExamInstance.examination_id == examination_id,
-                        ExamInstance.student_id == student_id,
-                        ExamInstance.status == ExamInstanceStatus.IN_PROGRESS
-                    )
-                )
+            instance = await ExamInstance.find_one(
+                ExamInstance.examination_id == examination_id,
+                ExamInstance.student_id == student_id,
+                ExamInstance.status == ExamInstanceStatus.IN_PROGRESS,
             )
-            instance_student = result.first()
-            if not instance_student:
+            if not instance:
                 raise ValueError("Student not found in active examination")
-            
-            instance, student = instance_student
+
+            student = await Student.get(student_id)
+            if not student:
+                raise ValueError("Student not found")
             
             # Get comprehensive session data
             session_data = await self._get_student_session_data(
@@ -164,9 +152,11 @@ class InvigilatorDashboardService:
                     "id": instance.id,
                     "start_time": instance.start_time,
                     "time_remaining": self._calculate_time_remaining(instance),
-                    "answered_questions": instance.get("answered_questions", 0),
-                    "total_questions": instance.get("total_questions", 0),
+                    "answered_questions": getattr(instance, "answered_questions", 0),
+                    "total_questions": getattr(instance, "total_questions", 0),
                     "status": instance.status.value
+                    if hasattr(instance.status, "value")
+                    else str(instance.status),
                 },
                 "proctoring_session": session_data,
                 "proctoring_events": proctoring_events,
@@ -378,23 +368,20 @@ class InvigilatorDashboardService:
         """
         try:
             # Get exam instance
-            instance_result = await self.db.execute(
-                select(ExamInstance).where(
-                    and_(
-                        ExamInstance.examination_id == examination_id,
-                        ExamInstance.student_id == student_id,
-                        ExamInstance.status == ExamInstanceStatus.IN_PROGRESS
-                    )
-                )
+            instance = await ExamInstance.find_one(
+                ExamInstance.examination_id == examination_id,
+                ExamInstance.student_id == student_id,
+                ExamInstance.status == ExamInstanceStatus.IN_PROGRESS,
             )
-            instance = instance_result.scalar_one_or_none()
             if not instance:
                 raise ValueError("Active exam instance not found")
-            
-            # Update instance status
-            instance.status = ExamInstanceStatus.TERMINATED
-            instance.end_time = datetime.utcnow()
-            await self.db.commit()
+
+            await instance.set(
+                {
+                    "status": ExamInstanceStatus.TERMINATED,
+                    "end_time": datetime.utcnow(),
+                }
+            )
             
             # End proctoring sessions
             student_session_key = f"proctoring_student:{examination_id}:{student_id}"
@@ -684,21 +671,20 @@ class InvigilatorDashboardService:
         """Get security events for student."""
         try:
             # Query security events for student
-            result = await self.db.execute(
-                select(SecurityEvent)
-                .where(SecurityEvent.user_id == student_id)
-                .order_by(SecurityEvent.created_at.desc())
+            events = (
+                await SecurityEvent.find(SecurityEvent.user_id == student_id)
+                .sort(-SecurityEvent.created_at)
                 .limit(20)
+                .to_list()
             )
-            events = result.scalars().all()
-            
+
             return [
                 {
                     "id": event.id,
                     "event_type": event.event_type,
-                    "details": event.details,
+                    "details": {"description": event.description},
                     "severity": event.severity,
-                    "created_at": event.created_at
+                    "created_at": event.created_at,
                 }
                 for event in events
             ]

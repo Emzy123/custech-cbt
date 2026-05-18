@@ -2,7 +2,7 @@
 Biometric integration schemas for secure template handling.
 """
 
-from pydantic import BaseModel, validator
+from pydantic import BaseModel, ConfigDict, field_validator
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 from enum import Enum
@@ -42,31 +42,39 @@ class BiometricTemplateRegister(BaseModel):
     quality_score: float = 0.0
     metadata: Optional[Dict[str, Any]] = {}
     
-    @validator('quality_score')
-    def validate_quality_score(cls, v):
+    @field_validator("quality_score")
+    @classmethod
+    def validate_quality_score(cls, v: float) -> float:
         if not 0.0 <= v <= 1.0:
-            raise ValueError('Quality score must be between 0.0 and 1.0')
+            raise ValueError("Quality score must be between 0.0 and 1.0")
         return v
-    
-    @validator('biometric_type')
-    def validate_biometric_type(cls, v):
-        allowed_types = ['fingerprint', 'facial_recognition', 'iris', 'voice', 'palm', 'vein']
+
+    @field_validator("biometric_type")
+    @classmethod
+    def validate_biometric_type(cls, v: BiometricType) -> BiometricType:
+        allowed_types = [
+            "fingerprint",
+            "facial_recognition",
+            "iris",
+            "voice",
+            "palm",
+            "vein",
+        ]
         if v.value not in allowed_types:
-            raise ValueError(f'Biometric type must be one of: {allowed_types}')
+            raise ValueError(f"Biometric type must be one of: {allowed_types}")
         return v
 
 
 class BiometricTemplateResponse(BaseModel):
     """Biometric template response."""
+    model_config = ConfigDict(from_attributes=True)
+
     template_id: str
     user_id: str
     biometric_type: BiometricType
     enrollment_date: datetime
     quality_score: float
     status: str
-    
-    class Config:
-        from_attributes = True
 
 
 class BiometricVerificationRequest(BaseModel):
@@ -77,16 +85,26 @@ class BiometricVerificationRequest(BaseModel):
     device_id: Optional[str] = None
     metadata: Optional[Dict[str, Any]] = {}
     
-    @validator('biometric_type')
-    def validate_biometric_type(cls, v):
-        allowed_types = ['fingerprint', 'facial_recognition', 'iris', 'voice', 'palm', 'vein']
+    @field_validator("biometric_type")
+    @classmethod
+    def validate_biometric_type_verify(cls, v: BiometricType) -> BiometricType:
+        allowed_types = [
+            "fingerprint",
+            "facial_recognition",
+            "iris",
+            "voice",
+            "palm",
+            "vein",
+        ]
         if v.value not in allowed_types:
-            raise ValueError(f'Biometric type must be one of: {allowed_types}')
+            raise ValueError(f"Biometric type must be one of: {allowed_types}")
         return v
 
 
 class BiometricVerificationResponse(BaseModel):
     """Biometric verification response."""
+    model_config = ConfigDict(from_attributes=True)
+
     verification_id: str
     user_id: str
     biometric_type: BiometricType
@@ -95,9 +113,6 @@ class BiometricVerificationResponse(BaseModel):
     confidence: ConfidenceLevel
     verification_date: datetime
     threshold: float
-    
-    class Config:
-        from_attributes = True
 
 
 class BiometricTemplateUpdate(BaseModel):
@@ -106,10 +121,11 @@ class BiometricTemplateUpdate(BaseModel):
     quality_score: Optional[float] = None
     metadata: Optional[Dict[str, Any]] = {}
     
-    @validator('quality_score')
-    def validate_quality_score(cls, v):
+    @field_validator("quality_score")
+    @classmethod
+    def validate_quality_score_optional(cls, v: Optional[float]) -> Optional[float]:
         if v is not None and not 0.0 <= v <= 1.0:
-            raise ValueError('Quality score must be between 0.0 and 1.0')
+            raise ValueError("Quality score must be between 0.0 and 1.0")
         return v
 
 
@@ -132,26 +148,24 @@ class BiometricDeviceRegister(BaseModel):
 
 class BiometricDeviceResponse(BaseModel):
     """Biometric device response."""
+    model_config = ConfigDict(from_attributes=True)
+
     device_id: str
     device_name: str
     device_identifier: str
     device_type: str
     registration_date: datetime
     status: str
-    
-    class Config:
-        from_attributes = True
 
 
 class BiometricStatisticsResponse(BaseModel):
     """Biometric statistics response."""
+    model_config = ConfigDict(from_attributes=True)
+
     template_statistics: Dict[str, Any]
     verification_statistics: Dict[str, Any]
     period: str
     generated_at: datetime
-    
-    class Config:
-        from_attributes = True
 
 
 class BiometricQualityCheck(BaseModel):
@@ -177,8 +191,7 @@ class BiometricSession(BaseModel):
     anomaly_detected: bool
     anomaly_details: Dict[str, Any]
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class BiometricAnomaly(BaseModel):
@@ -194,8 +207,7 @@ class BiometricAnomaly(BaseModel):
     resolved_at: Optional[datetime] = None
     resolution_method: Optional[str] = None
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class BiometricConfiguration(BaseModel):
@@ -208,8 +220,7 @@ class BiometricConfiguration(BaseModel):
     template_retention_days: int
     encryption_algorithm: str
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class BiometricAuditLog(BaseModel):
@@ -227,8 +238,7 @@ class BiometricAuditLog(BaseModel):
     user_agent: Optional[str] = None
     timestamp: datetime
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class BiometricComplianceReport(BaseModel):
@@ -243,8 +253,7 @@ class BiometricComplianceReport(BaseModel):
     recommendations: List[str]
     generated_at: datetime
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class BiometricKeyRotation(BaseModel):
@@ -259,8 +268,7 @@ class BiometricKeyRotation(BaseModel):
     deprecated_at: Optional[datetime] = None
     rotation_reason: Optional[str] = None
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class BiometricEnrollmentResult(BaseModel):

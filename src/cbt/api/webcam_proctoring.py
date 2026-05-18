@@ -17,8 +17,7 @@ from .deps import get_current_active_user, require_permission
 router = APIRouter(prefix="/webcam-proctoring", tags=["webcam-proctoring"])
 
 
-@router.post("/session/start", response_model=ProctoringSessionResponse)
-@require_permission("exam.start")
+@router.post("/session/start", response_model=ProctoringSessionResponse, dependencies=[Depends(require_permission("exam.start"))])
 async def start_webcam_session(
     session_data: ProctoringSessionStart,
     db: Any = Depends(get_db),
@@ -45,8 +44,7 @@ async def start_webcam_session(
         )
 
 
-@router.post("/session/{session_id}/capture", response_model=WebcamCaptureResponse)
-@require_permission("exam.active")
+@router.post("/session/{session_id}/capture", response_model=WebcamCaptureResponse, dependencies=[Depends(require_permission("exam.active"))])
 async def capture_snapshot(
     session_id: str,
     capture_data: WebcamCaptureRequest,
@@ -72,8 +70,7 @@ async def capture_snapshot(
         )
 
 
-@router.post("/session/{session_id}/verify-identity", response_model=IdentityVerificationResponse)
-@require_permission("exam.active")
+@router.post("/session/{session_id}/verify-identity", response_model=IdentityVerificationResponse, dependencies=[Depends(require_permission("exam.active"))])
 async def verify_identity(
     session_id: str,
     verification_data: IdentityVerificationRequest,
@@ -99,8 +96,7 @@ async def verify_identity(
         )
 
 
-@router.get("/session/{session_id}/summary", response_model=ProctoringSummary)
-@require_permission("exam.read")
+@router.get("/session/{session_id}/summary", response_model=ProctoringSummary, dependencies=[Depends(require_permission("exam.read"))])
 async def get_session_summary(
     session_id: str,
     db: Any = Depends(get_db),
@@ -123,8 +119,7 @@ async def get_session_summary(
         )
 
 
-@router.post("/session/{session_id}/end")
-@require_permission("exam.manage")
+@router.post("/session/{session_id}/end", dependencies=[Depends(require_permission("exam.manage"))])
 async def end_webcam_session(
     session_id: str,
     reason: Optional[str] = "exam_completed",
@@ -148,8 +143,7 @@ async def end_webcam_session(
         )
 
 
-@router.get("/session/{session_id}")
-@require_permission("exam.read")
+@router.get("/session/{session_id}", dependencies=[Depends(require_permission("exam.read"))])
 async def get_webcam_session(
     session_id: str,
     db: Any = Depends(get_db),
@@ -174,8 +168,7 @@ async def get_webcam_session(
         )
 
 
-@router.get("/examination/{examination_id}/active-sessions")
-@require_permission("exam.manage")
+@router.get("/examination/{examination_id}/active-sessions", dependencies=[Depends(require_permission("exam.manage"))])
 async def get_active_sessions(
     examination_id: str,
     db: Any = Depends(get_db),
@@ -197,8 +190,7 @@ async def get_active_sessions(
         )
 
 
-@router.get("/examination/{examination_id}/alerts")
-@require_permission("exam.manage")
+@router.get("/examination/{examination_id}/alerts", dependencies=[Depends(require_permission("exam.manage"))])
 async def get_proctoring_alerts(
     examination_id: str,
     severity: Optional[str] = None,
@@ -217,8 +209,7 @@ async def get_proctoring_alerts(
         )
 
 
-@router.post("/alert/{alert_id}/acknowledge")
-@require_permission("exam.manage")
+@router.post("/alert/{alert_id}/acknowledge", dependencies=[Depends(require_permission("exam.manage"))])
 async def acknowledge_alert(
     alert_id: str,
     db: Any = Depends(get_db),
@@ -243,8 +234,7 @@ async def acknowledge_alert(
         )
 
 
-@router.post("/session/{session_id}/capture/upload")
-@require_permission("exam.active")
+@router.post("/session/{session_id}/capture/upload", dependencies=[Depends(require_permission("exam.active"))])
 async def upload_snapshot(
     session_id: str,
     file: UploadFile = File(...),
@@ -298,8 +288,7 @@ async def upload_snapshot(
         )
 
 
-@router.post("/session/{session_id}/verify-identity/upload")
-@require_permission("exam.active")
+@router.post("/session/{session_id}/verify-identity/upload", dependencies=[Depends(require_permission("exam.active"))])
 async def upload_identity_verification(
     session_id: str,
     current_image: UploadFile = File(...),
@@ -348,8 +337,7 @@ async def upload_identity_verification(
         )
 
 
-@router.get("/session/{session_id}/snapshots")
-@require_permission("exam.read")
+@router.get("/session/{session_id}/snapshots", dependencies=[Depends(require_permission("exam.read"))])
 async def get_session_snapshots(
     session_id: str,
     limit: int = 50,
@@ -387,8 +375,7 @@ async def get_session_snapshots(
         )
 
 
-@router.get("/session/{session_id}/anomalies")
-@require_permission("exam.read")
+@router.get("/session/{session_id}/anomalies", dependencies=[Depends(require_permission("exam.read"))])
 async def get_session_anomalies(
     session_id: str,
     anomaly_type: Optional[str] = None,
@@ -435,8 +422,7 @@ async def get_session_anomalies(
         )
 
 
-@router.get("/examination/{examination_id}/statistics")
-@require_permission("exam.manage")
+@router.get("/examination/{examination_id}/statistics", dependencies=[Depends(require_permission("exam.manage"))])
 async def get_proctoring_statistics(
     examination_id: str,
     db: Any = Depends(get_db),
@@ -470,8 +456,7 @@ async def get_proctoring_statistics(
         )
 
 
-@router.post("/session/{session_id}/force-capture")
-@require_permission("exam.manage")
+@router.post("/session/{session_id}/force-capture", dependencies=[Depends(require_permission("exam.manage"))])
 async def force_capture(
     session_id: str,
     reason: str,

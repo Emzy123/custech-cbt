@@ -18,8 +18,7 @@ from .deps import get_current_active_user, require_permission
 router = APIRouter(prefix="/pilot-examination", tags=["pilot-examination"])
 
 
-@router.post("/create", response_model=PilotExaminationResponse)
-@require_permission("pilot.manage")
+@router.post("/create", response_model=PilotExaminationResponse, dependencies=[Depends(require_permission("pilot.manage"))])
 async def create_pilot_examination(
     pilot_data: PilotExaminationCreate,
     db: Any = Depends(get_db),
@@ -28,7 +27,7 @@ async def create_pilot_examination(
     """Create a new pilot examination."""
     try:
         pilot_service = PilotExaminationService(db)
-        pilot = await pilot_service.create_pilot_examination(pilot_data.dict())
+        pilot = await pilot_service.create_pilot_examination(pilot_data.model_dump())
         return PilotExaminationResponse(**pilot)
     except ValueError as e:
         raise HTTPException(
@@ -42,8 +41,7 @@ async def create_pilot_examination(
         )
 
 
-@router.post("/{pilot_id}/enroll-participants", response_model=PilotEnrollmentResponse)
-@require_permission("pilot.manage")
+@router.post("/{pilot_id}/enroll-participants", response_model=PilotEnrollmentResponse, dependencies=[Depends(require_permission("pilot.manage"))])
 async def enroll_pilot_participants(
     pilot_id: str,
     enrollment_data: PilotEnrollmentRequest,
@@ -69,8 +67,7 @@ async def enroll_pilot_participants(
         )
 
 
-@router.post("/{pilot_id}/prepare-environment", response_model=PilotEnvironmentResponse)
-@require_permission("pilot.manage")
+@router.post("/{pilot_id}/prepare-environment", response_model=PilotEnvironmentResponse, dependencies=[Depends(require_permission("pilot.manage"))])
 async def prepare_pilot_environment(
     pilot_id: str,
     db: Any = Depends(get_db),
@@ -93,8 +90,7 @@ async def prepare_pilot_environment(
         )
 
 
-@router.post("/{pilot_id}/execute", response_model=PilotExecutionResponse)
-@require_permission("pilot.manage")
+@router.post("/{pilot_id}/execute", response_model=PilotExecutionResponse, dependencies=[Depends(require_permission("pilot.manage"))])
 async def execute_pilot_examination(
     pilot_id: str,
     background_tasks: BackgroundTasks,
@@ -125,8 +121,7 @@ async def execute_pilot_examination(
         )
 
 
-@router.post("/{pilot_id}/collect-feedback", response_model=PilotFeedbackResponse)
-@require_permission("pilot.manage")
+@router.post("/{pilot_id}/collect-feedback", response_model=PilotFeedbackResponse, dependencies=[Depends(require_permission("pilot.manage"))])
 async def collect_pilot_feedback(
     pilot_id: str,
     db: Any = Depends(get_db),
@@ -149,8 +144,7 @@ async def collect_pilot_feedback(
         )
 
 
-@router.post("/{pilot_id}/analyze", response_model=PilotAnalysisResponse)
-@require_permission("pilot.manage")
+@router.post("/{pilot_id}/analyze", response_model=PilotAnalysisResponse, dependencies=[Depends(require_permission("pilot.manage"))])
 async def analyze_pilot_results(
     pilot_id: str,
     db: Any = Depends(get_db),
@@ -173,8 +167,7 @@ async def analyze_pilot_results(
         )
 
 
-@router.post("/{pilot_id}/implement-improvements", response_model=PilotImprovementResponse)
-@require_permission("pilot.manage")
+@router.post("/{pilot_id}/implement-improvements", response_model=PilotImprovementResponse, dependencies=[Depends(require_permission("pilot.manage"))])
 async def implement_improvements(
     pilot_id: str,
     improvement_data: PilotImprovementRequest,
@@ -210,8 +203,7 @@ async def implement_improvements(
         )
 
 
-@router.get("/{pilot_id}/report", response_model=PilotReportResponse)
-@require_permission("pilot.read")
+@router.get("/{pilot_id}/report", response_model=PilotReportResponse, dependencies=[Depends(require_permission("pilot.read"))])
 async def generate_pilot_report(
     pilot_id: str,
     db: Any = Depends(get_db),
@@ -234,8 +226,7 @@ async def generate_pilot_report(
         )
 
 
-@router.get("/{pilot_id}/summary", response_model=PilotSummaryResponse)
-@require_permission("pilot.read")
+@router.get("/{pilot_id}/summary", response_model=PilotSummaryResponse, dependencies=[Depends(require_permission("pilot.read"))])
 async def get_pilot_summary(
     pilot_id: str,
     db: Any = Depends(get_db),
@@ -258,8 +249,7 @@ async def get_pilot_summary(
         )
 
 
-@router.get("/{pilot_id}")
-@require_permission("pilot.read")
+@router.get("/{pilot_id}", dependencies=[Depends(require_permission("pilot.read"))])
 async def get_pilot_examination(
     pilot_id: str,
     db: Any = Depends(get_db),
@@ -284,8 +274,7 @@ async def get_pilot_examination(
         )
 
 
-@router.get("/")
-@require_permission("pilot.read")
+@router.get("/", dependencies=[Depends(require_permission("pilot.read"))])
 async def list_pilot_examinations(
     status: Optional[str] = None,
     limit: int = 50,
@@ -311,8 +300,7 @@ async def list_pilot_examinations(
         )
 
 
-@router.get("/{pilot_id}/events")
-@require_permission("pilot.read")
+@router.get("/{pilot_id}/events", dependencies=[Depends(require_permission("pilot.read"))])
 async def get_pilot_events(
     pilot_id: str,
     event_type: Optional[str] = None,
@@ -352,8 +340,7 @@ async def get_pilot_events(
         )
 
 
-@router.post("/{pilot_id}/cancel")
-@require_permission("pilot.manage")
+@router.post("/{pilot_id}/cancel", dependencies=[Depends(require_permission("pilot.manage"))])
 async def cancel_pilot_examination(
     pilot_id: str,
     reason: str,
@@ -398,8 +385,7 @@ async def cancel_pilot_examination(
         )
 
 
-@router.post("/{pilot_id}/pause")
-@require_permission("pilot.manage")
+@router.post("/{pilot_id}/pause", dependencies=[Depends(require_permission("pilot.manage"))])
 async def pause_pilot_examination(
     pilot_id: str,
     reason: str,
@@ -450,8 +436,7 @@ async def pause_pilot_examination(
         )
 
 
-@router.post("/{pilot_id}/resume")
-@require_permission("pilot.manage")
+@router.post("/{pilot_id}/resume", dependencies=[Depends(require_permission("pilot.manage"))])
 async def resume_pilot_examination(
     pilot_id: str,
     db: Any = Depends(get_db),
@@ -499,8 +484,7 @@ async def resume_pilot_examination(
         )
 
 
-@router.get("/{pilot_id}/participants")
-@require_permission("pilot.read")
+@router.get("/{pilot_id}/participants", dependencies=[Depends(require_permission("pilot.read"))])
 async def get_pilot_participants(
     pilot_id: str,
     status: Optional[str] = None,
@@ -534,8 +518,7 @@ async def get_pilot_participants(
         )
 
 
-@router.post("/{pilot_id}/participants/{enrollment_id}/communicate")
-@require_permission("pilot.manage")
+@router.post("/{pilot_id}/participants/{enrollment_id}/communicate", dependencies=[Depends(require_permission("pilot.manage"))])
 async def communicate_with_participant(
     pilot_id: str,
     enrollment_id: str,
@@ -586,8 +569,7 @@ async def communicate_with_participant(
         )
 
 
-@router.get("/{pilot_id}/metrics")
-@require_permission("pilot.read")
+@router.get("/{pilot_id}/metrics", dependencies=[Depends(require_permission("pilot.read"))])
 async def get_pilot_metrics(
     pilot_id: str,
     metric_type: Optional[str] = None,
@@ -643,8 +625,7 @@ async def get_pilot_metrics(
         )
 
 
-@router.post("/{pilot_id}/duplicate")
-@require_permission("pilot.manage")
+@router.post("/{pilot_id}/duplicate", dependencies=[Depends(require_permission("pilot.manage"))])
 async def duplicate_pilot_examination(
     pilot_id: str,
     new_title: str,

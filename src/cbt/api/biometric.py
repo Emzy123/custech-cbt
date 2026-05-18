@@ -2,23 +2,28 @@
 Biometric integration API endpoints.
 """
 
+import json
+from datetime import datetime, timezone
 from typing import List, Optional, Dict, Any
+
+from beanie.operators import And
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 
+from ..models.user import User
 from ..schemas.biometric import (
     BiometricTemplateRegister, BiometricTemplateResponse, BiometricVerificationRequest,
     BiometricVerificationResponse, BiometricTemplateUpdate, BiometricTemplateDeactivate,
     BiometricDeviceRegister, BiometricDeviceResponse, BiometricStatisticsResponse
 )
 from ..services.biometric_service import BiometricService
+from ..services.authorization_service import AuthorizationService
 from ..core.database import get_db
-from .deps import get_current_active_user, require_permission
+from .deps import get_current_active_user, require_permission, get_authorization_service
 
 router = APIRouter(prefix="/biometric", tags=["biometric"])
 
 
-@router.post("/templates/register", response_model=BiometricTemplateResponse)
-@require_permission("biometric.register")
+@router.post("/templates/register", response_model=BiometricTemplateResponse, dependencies=[Depends(require_permission("biometric.register"))])
 async def register_biometric_template(
     template_data: BiometricTemplateRegister,
     db: Any = Depends(get_db),
@@ -28,7 +33,7 @@ async def register_biometric_template(
     try:
         biometric_service = BiometricService(db)
         result = await biometric_service.register_biometric_template(
-            current_user.id, template_data.dict()
+            current_user.id, template_data.model_dump(mode="json")
         )
         return BiometricTemplateResponse(**result)
     except ValueError as e:
@@ -43,8 +48,7 @@ async def register_biometric_template(
         )
 
 
-@router.post("/verify", response_model=BiometricVerificationResponse)
-@require_permission("biometric.verify")
+@router.post("/verify", response_model=BiometricVerificationResponse, dependencies=[Depends(require_permission("biometric.verify"))])
 async def verify_biometric(
     verification_data: BiometricVerificationRequest,
     db: Any = Depends(get_db),
@@ -54,7 +58,7 @@ async def verify_biometric(
     try:
         biometric_service = BiometricService(db)
         result = await biometric_service.verify_biometric(
-            verification_data.user_id, verification_data.dict()
+            verification_data.user_id, verification_data.model_dump(mode="json")
         )
         return BiometricVerificationResponse(**result)
     except ValueError as e:
@@ -69,8 +73,7 @@ async def verify_biometric(
         )
 
 
-@router.put("/templates/{template_id}", response_model=BiometricTemplateResponse)
-@require_permission("biometric.update")
+@router.put("/templates/{template_id}", response_model=BiometricTemplateResponse, dependencies=[Depends(require_permission("biometric.update"))])
 async def update_biometric_template(
     template_id: str,
     template_data: BiometricTemplateUpdate,
@@ -81,7 +84,7 @@ async def update_biometric_template(
     try:
         biometric_service = BiometricService(db)
         result = await biometric_service.update_biometric_template(
-            template_id, template_data.dict()
+            template_id, template_data.model_dump(mode="json")
         )
         return BiometricTemplateResponse(**result)
     except ValueError as e:
@@ -96,8 +99,7 @@ async def update_biometric_template(
         )
 
 
-@router.post("/templates/{template_id}/deactivate")
-@require_permission("biometric.deactivate")
+@router.post("/templates/{template_id}/deactivate", dependencies=[Depends(require_permission("biometric.deactivate"))])
 async def deactivate_biometric_template(
     template_id: str,
     deactivation_data: BiometricTemplateDeactivate,
@@ -123,8 +125,7 @@ async def deactivate_biometric_template(
         )
 
 
-@router.get("/templates")
-@require_permission("biometric.read")
+@router.get("/templates", dependencies=[Depends(require_permission("biometric.read"))])
 async def get_user_biometric_templates(
     user_id: Optional[str] = None,
     db: Any = Depends(get_db),
@@ -163,8 +164,7 @@ async def get_user_biometric_templates(
         )
 
 
-@router.get("/verifications/history")
-@require_permission("biometric.read")
+@router.get("/verifications/history", dependencies=[Depends(require_permission("biometric.read"))])
 async def get_verification_history(
     user_id: Optional[str] = None,
     limit: int = 50,
@@ -205,8 +205,7 @@ async def get_verification_history(
         )
 
 
-@router.post("/devices/register", response_model=BiometricDeviceResponse)
-@require_permission("biometric.admin")
+@router.post("/devices/register", response_model=BiometricDeviceResponse, dependencies=[Depends(require_permission("biometric.admin"))])
 async def register_biometric_device(
     device_data: BiometricDeviceRegister,
     db: Any = Depends(get_db),
@@ -215,7 +214,7 @@ async def register_biometric_device(
     """Register a biometric device."""
     try:
         biometric_service = BiometricService(db)
-        result = await biometric_service.register_biometric_device(device_data.dict())
+        result = await biometric_service.register_biometric_device(device_data.model_dump(mode="json"))
         return BiometricDeviceResponse(**result)
     except ValueError as e:
         raise HTTPException(
@@ -229,8 +228,7 @@ async def register_biometric_device(
         )
 
 
-@router.get("/statistics", response_model=BiometricStatisticsResponse)
-@require_permission("biometric.read")
+@router.get("/statistics", response_model=BiometricStatisticsResponse, dependencies=[Depends(require_permission("biometric.read"))])
 async def get_biometric_statistics(
     user_id: Optional[str] = None,
     db: Any = Depends(get_db),
@@ -261,8 +259,7 @@ async def get_biometric_statistics(
         )
 
 
-@router.post("/templates/upload")
-@require_permission("biometric.register")
+@router.post("/templates/upload", dependencies=[Depends(require_permission("biometric.register"))])
 async def upload_biometric_template(
     biometric_type: str,
     device_id: Optional[str] = None,
@@ -317,8 +314,7 @@ async def upload_biometric_template(
         )
 
 
-@router.post("/verify/upload")
-@require_permission("biometric.verify")
+@router.post("/verify/upload", dependencies=[Depends(require_permission("biometric.verify"))])
 async def verify_biometric_upload(
     user_id: str,
     biometric_type: str,
@@ -373,36 +369,34 @@ async def verify_biometric_upload(
         )
 
 
-@router.get("/templates/{template_id}")
-@require_permission("biometric.read")
+@router.get("/templates/{template_id}", dependencies=[Depends(require_permission("biometric.read"))])
 async def get_biometric_template(
     template_id: str,
     db: Any = Depends(get_db),
-    current_user = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user),
+    authz: AuthorizationService = Depends(get_authorization_service),
 ):
     """Get biometric template details."""
     try:
         from ..models.biometric import BiometricTemplate
-        
-        # Get template
-        result = await db.execute(
-            select(BiometricTemplate).where(BiometricTemplate.id == template_id)
-        )
-        template = result.scalar_one_or_none()
-        
+
+        template = await BiometricTemplate.get(template_id)
+
         if not template:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Biometric template not found"
+                detail="Biometric template not found",
             )
-        
-        # Check permissions
-        if template.user_id != current_user.id and not current_user.has_permission("biometric.admin"):
+
+        is_admin = await authz.check_permission(
+            current_user.id, "biometric.admin", "biometric", None
+        )
+        if template.user_id != current_user.id and not is_admin:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Insufficient permissions to access this template"
+                detail="Insufficient permissions to access this template",
             )
-        
+
         return {
             "template_id": template.id,
             "user_id": template.user_id,
@@ -413,43 +407,38 @@ async def get_biometric_template(
             "updated_at": template.updated_at,
             "is_active": template.is_active,
             "deactivated_at": template.deactivated_at,
-            "metadata": template.metadata
+            "metadata": template.metadata,
         }
     except HTTPException:
         raise
-    except Exception as e:
+    except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to get biometric template"
+            detail="Failed to get biometric template",
         )
 
 
-@router.get("/devices")
-@require_permission("biometric.admin")
+@router.get("/devices", dependencies=[Depends(require_permission("biometric.admin"))])
 async def list_biometric_devices(
     device_type: Optional[str] = None,
     is_active: Optional[bool] = None,
     limit: int = 50,
     db: Any = Depends(get_db),
-    current_user = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user),
 ):
     """List biometric devices."""
     try:
         from ..models.biometric import BiometricDevice
-        
-        # Build query
-        query = select(BiometricDevice)
-        
+
+        filters = []
         if device_type:
-            query = query.where(BiometricDevice.device_type == device_type)
-        
+            filters.append(BiometricDevice.device_type == device_type)
         if is_active is not None:
-            query = query.where(BiometricDevice.is_active == is_active)
-        
-        # Execute query
-        result = await db.execute(query.limit(limit))
-        devices = result.scalars().all()
-        
+            filters.append(BiometricDevice.is_active == is_active)
+
+        find_query = BiometricDevice.find(And(*filters)) if filters else BiometricDevice.find()
+        devices = await find_query.sort(-BiometricDevice.created_at).limit(limit).to_list()
+
         return {
             "devices": [
                 {
@@ -463,7 +452,7 @@ async def list_biometric_devices(
                     "supported_biometric_types": device.supported_biometric_types,
                     "registration_date": device.registration_date,
                     "is_active": device.is_active,
-                    "location": device.location
+                    "location": device.location,
                 }
                 for device in devices
             ],
@@ -471,39 +460,34 @@ async def list_biometric_devices(
             "filters": {
                 "device_type": device_type,
                 "is_active": is_active,
-                "limit": limit
-            }
+                "limit": limit,
+            },
         }
-    except Exception as e:
+    except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to list biometric devices"
+            detail="Failed to list biometric devices",
         )
 
 
-@router.get("/devices/{device_id}")
-@require_permission("biometric.admin")
+@router.get("/devices/{device_id}", dependencies=[Depends(require_permission("biometric.admin"))])
 async def get_biometric_device(
     device_id: str,
     db: Any = Depends(get_db),
-    current_user = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user),
 ):
     """Get biometric device details."""
     try:
         from ..models.biometric import BiometricDevice
-        
-        # Get device
-        result = await db.execute(
-            select(BiometricDevice).where(BiometricDevice.id == device_id)
-        )
-        device = result.scalar_one_or_none()
-        
+
+        device = await BiometricDevice.get(device_id)
+
         if not device:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Biometric device not found"
+                detail="Biometric device not found",
             )
-        
+
         return {
             "device_id": device.id,
             "device_name": device.device_name,
@@ -518,68 +502,67 @@ async def get_biometric_device(
             "next_maintenance": device.next_maintenance,
             "is_active": device.is_active,
             "location": device.location,
-            "metadata": device.metadata
+            "metadata": device.metadata,
         }
     except HTTPException:
         raise
-    except Exception as e:
+    except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to get biometric device"
+            detail="Failed to get biometric device",
         )
 
 
-@router.post("/devices/{device_id}/maintenance")
-@require_permission("biometric.admin")
+@router.post("/devices/{device_id}/maintenance", dependencies=[Depends(require_permission("biometric.admin"))])
 async def schedule_device_maintenance(
     device_id: str,
     maintenance_date: str,
     db: Any = Depends(get_db),
-    current_user = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user),
 ):
     """Schedule device maintenance."""
     try:
         from ..models.biometric import BiometricDevice
-        from datetime import datetime
-        
-        # Parse maintenance date
+
         try:
-            maintenance_dt = datetime.fromisoformat(maintenance_date)
+            maintenance_dt = datetime.fromisoformat(maintenance_date.replace("Z", "+00:00"))
         except ValueError:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid maintenance date format. Use ISO format."
+                detail="Invalid maintenance date format. Use ISO format.",
             )
-        
-        # Update device
-        await db.execute(
-            update(BiometricDevice)
-            .where(BiometricDevice.id == device_id)
-            .values(
-                last_maintenance=datetime.utcnow(),
-                next_maintenance=maintenance_dt
+
+        device = await BiometricDevice.get(device_id)
+        if not device:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Biometric device not found",
             )
+
+        now = datetime.now(timezone.utc)
+        await device.set(
+            {
+                "last_maintenance": now,
+                "next_maintenance": maintenance_dt,
+            }
         )
-        await db.commit()
-        
+
         return {
             "device_id": device_id,
             "maintenance_scheduled": True,
             "next_maintenance": maintenance_dt,
-            "scheduled_by": current_user.id
+            "scheduled_by": current_user.id,
         }
     except HTTPException:
         raise
-    except Exception as e:
-        await db.rollback()
+    except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to schedule device maintenance"
+            detail="Failed to schedule device maintenance",
         )
 
 
-@router.get("/compliance/report")
-@require_permission("biometric.admin")
+@router.get("/compliance/report", dependencies=[Depends(require_permission("biometric.admin"))])
 async def get_compliance_report(
     report_type: str = "monthly",
     db: Any = Depends(get_db),
@@ -591,8 +574,8 @@ async def get_compliance_report(
         stats = await biometric_service.get_biometric_statistics()
         
         # Generate compliance report
-        compliance_score = self._calculate_compliance_score(stats)
-        
+        compliance_score = _calculate_compliance_score(stats)
+
         return {
             "report_type": report_type,
             "period": stats["period"],
@@ -603,58 +586,53 @@ async def get_compliance_report(
                 "encryption_standards": "compliant",
                 "audit_logging": "compliant",
                 "retention_policy": "compliant",
-                "access_controls": "compliant"
+                "access_controls": "compliant",
             },
-            "recommendations": self._generate_compliance_recommendations(stats),
-            "generated_at": stats["generated_at"]
+            "recommendations": _generate_compliance_recommendations(stats),
+            "generated_at": stats["generated_at"],
         }
-    except Exception as e:
+    except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to generate compliance report"
+            detail="Failed to generate compliance report",
         )
 
 
-@router.post("/templates/{template_id}/quality-check")
-@require_permission("biometric.update")
+@router.post("/templates/{template_id}/quality-check", dependencies=[Depends(require_permission("biometric.update"))])
 async def check_template_quality(
     template_id: str,
     db: Any = Depends(get_db),
-    current_user = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user),
+    authz: AuthorizationService = Depends(get_authorization_service),
 ):
     """Check biometric template quality."""
     try:
         from ..models.biometric import BiometricTemplate
-        
-        # Get template
-        result = await db.execute(
-            select(BiometricTemplate).where(BiometricTemplate.id == template_id)
-        )
-        template = result.scalar_one_or_none()
-        
+
+        template = await BiometricTemplate.get(template_id)
+
         if not template:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Biometric template not found"
+                detail="Biometric template not found",
             )
-        
-        # Check permissions
-        if template.user_id != current_user.id and not current_user.has_permission("biometric.admin"):
+
+        is_admin = await authz.check_permission(
+            current_user.id, "biometric.admin", "biometric", None
+        )
+        if template.user_id != current_user.id and not is_admin:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Insufficient permissions to access this template"
+                detail="Insufficient permissions to access this template",
             )
-        
-        # Perform quality check (simulated)
-        quality_result = await self._perform_quality_check(template)
-        
-        return quality_result
+
+        return await _perform_quality_check(template)
     except HTTPException:
         raise
-    except Exception as e:
+    except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to check template quality"
+            detail="Failed to check template quality",
         )
 
 
@@ -684,7 +662,7 @@ def _calculate_compliance_score(stats: Dict[str, Any]) -> float:
             score -= (0.9 - active_ratio) * 20
         
         return max(0.0, score)
-    except:
+    except Exception:
         return 0.0
 
 
@@ -716,7 +694,7 @@ def _generate_compliance_recommendations(stats: Dict[str, Any]) -> List[str]:
             recommendations.append("System is compliant with current biometric standards")
         
         return recommendations
-    except:
+    except Exception:
         return ["Unable to generate recommendations due to insufficient data"]
 
 
@@ -750,13 +728,13 @@ async def _perform_quality_check(template) -> Dict[str, Any]:
             "quality_score": quality_score,
             "quality_level": quality_level,
             "recommendations": recommendations,
-            "check_date": datetime.utcnow(),
-            "passed": quality_score >= 0.5
+            "check_date": datetime.now(timezone.utc),
+            "passed": quality_score >= 0.5,
         }
     except Exception as e:
         return {
-            "template_id": template.id,
+            "template_id": getattr(template, "id", None),
             "error": str(e),
-            "check_date": datetime.utcnow(),
-            "passed": False
+            "check_date": datetime.now(timezone.utc),
+            "passed": False,
         }

@@ -2,7 +2,7 @@
 Proctoring system schemas for browser lockdown and monitoring.
 """
 
-from pydantic import BaseModel, validator
+from pydantic import BaseModel, ConfigDict, field_validator
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 from enum import Enum
@@ -19,6 +19,8 @@ class ProctoringSessionStart(BaseModel):
 
 class ProctoringSessionResponse(BaseModel):
     """Proctoring session response."""
+    model_config = ConfigDict(from_attributes=True)
+
     session_id: str
     examination_id: str
     student_id: str
@@ -34,9 +36,6 @@ class ProctoringSessionResponse(BaseModel):
     security_events: List[Dict[str, Any]]
     last_heartbeat: datetime
     watermark_visible: bool
-    
-    class Config:
-        from_attributes = True
 
 
 class FocusLossEvent(BaseModel):
@@ -44,10 +43,11 @@ class FocusLossEvent(BaseModel):
     duration: float
     reason: str  # "tab_switch", "window_minimize", "notification", "other"
     
-    @validator('duration')
-    def validate_duration(cls, v):
+    @field_validator("duration")
+    @classmethod
+    def validate_duration(cls, v: float) -> float:
         if v < 0 or v > 300:  # Max 5 minutes
-            raise ValueError('Duration must be between 0 and 300 seconds')
+            raise ValueError("Duration must be between 0 and 300 seconds")
         return v
 
 
@@ -61,11 +61,12 @@ class KeyboardViolationEvent(BaseModel):
     key_combination: str
     action: str  # "copy", "paste", "cut", "print", "save", "screenshot"
     
-    @validator('action')
-    def validate_action(cls, v):
+    @field_validator("action")
+    @classmethod
+    def validate_action(cls, v: str) -> str:
         allowed_actions = ["copy", "paste", "cut", "print", "save", "screenshot"]
         if v not in allowed_actions:
-            raise ValueError(f'Action must be one of: {allowed_actions}')
+            raise ValueError(f"Action must be one of: {allowed_actions}")
         return v
 
 
@@ -74,11 +75,12 @@ class ClipboardEvent(BaseModel):
     event_type: str  # "copy", "paste", "cut"
     data_length: int
     
-    @validator('event_type')
-    def validate_event_type(cls, v):
+    @field_validator("event_type")
+    @classmethod
+    def validate_event_type(cls, v: str) -> str:
         allowed_types = ["copy", "paste", "cut"]
         if v not in allowed_types:
-            raise ValueError(f'Event type must be one of: {allowed_types}')
+            raise ValueError(f"Event type must be one of: {allowed_types}")
         return v
 
 
@@ -98,8 +100,7 @@ class ProctoringSummary(BaseModel):
     average_session_duration: float
     generated_at: datetime
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ScreenRecordingDetection(BaseModel):
@@ -109,8 +110,7 @@ class ScreenRecordingDetection(BaseModel):
     indicators: List[str]
     detection_time: datetime
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class BrowserInfo(BaseModel):
@@ -144,8 +144,7 @@ class ProctoringEvent(BaseModel):
     acknowledged_by: Optional[str] = None
     acknowledged_at: Optional[datetime] = None
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ProctoringAlert(BaseModel):
@@ -165,8 +164,7 @@ class ProctoringAlert(BaseModel):
     resolved_by: Optional[str] = None
     resolved_at: Optional[datetime] = None
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class InvigilatorAction(BaseModel):
@@ -176,11 +174,12 @@ class InvigilatorAction(BaseModel):
     message: Optional[str] = None
     reason: Optional[str] = None
     
-    @validator('action_type')
-    def validate_action_type(cls, v):
+    @field_validator("action_type")
+    @classmethod
+    def validate_action_type(cls, v: str) -> str:
         allowed_actions = ["message", "pause", "terminate", "warn"]
         if v not in allowed_actions:
-            raise ValueError(f'Action type must be one of: {allowed_actions}')
+            raise ValueError(f"Action type must be one of: {allowed_actions}")
         return v
 
 
@@ -200,8 +199,7 @@ class ProctoringConfiguration(BaseModel):
     escalation_threshold: int = 5
     auto_escalation: bool = True
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ProctoringStatistics(BaseModel):
@@ -219,8 +217,7 @@ class ProctoringStatistics(BaseModel):
     alerts_pending: int
     generated_at: datetime
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ProctoringReport(BaseModel):
@@ -235,8 +232,7 @@ class ProctoringReport(BaseModel):
     generated_at: datetime
     generated_by: str
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ProctoringSessionStatus(BaseModel):
@@ -254,8 +250,7 @@ class ProctoringSessionStatus(BaseModel):
     current_question: Optional[int] = None
     connection_status: str  # "connected", "disconnected", "reconnecting"
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ProctoringDashboard(BaseModel):
@@ -267,8 +262,7 @@ class ProctoringDashboard(BaseModel):
     system_status: Dict[str, Any]
     last_updated: datetime
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class BiometricVerificationResult(BaseModel):
@@ -281,8 +275,7 @@ class BiometricVerificationResult(BaseModel):
     verification_data: Dict[str, Any]
     requires_manual_review: bool = False
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class AudioMonitoringEvent(BaseModel):
@@ -295,8 +288,7 @@ class AudioMonitoringEvent(BaseModel):
     timestamp: datetime
     flagged_words: List[str] = []
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ProctoringIntervention(BaseModel):
@@ -312,8 +304,7 @@ class ProctoringIntervention(BaseModel):
     resolved: bool = False
     resolution: Optional[str] = None
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ProctoringSessionEnd(BaseModel):
@@ -331,5 +322,36 @@ class ProctoringSessionEnd(BaseModel):
     terminated_by_invigilator: bool
     ended_at: datetime
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
+
+
+class WebcamCaptureRequest(BaseModel):
+    """Webcam capture request."""
+    image_data: str
+    timestamp: datetime
+
+
+class WebcamCaptureResponse(BaseModel):
+    """Webcam capture response."""
+    capture_number: int
+    analysis: Dict[str, Any]
+    alerts: List[Dict[str, Any]]
+    next_capture_time: datetime
+
+
+class IdentityVerificationRequest(BaseModel):
+    """Identity verification request."""
+    current_image: str
+    reference_photo: str
+
+
+class IdentityVerificationResponse(BaseModel):
+    """Identity verification response."""
+    verified: bool
+    confidence: float
+    match_score: Optional[float] = None
+    requires_manual_review: bool
+    facial_landmarks: Optional[Dict[str, List[int]]] = None
+    embedding_similarity: Optional[float] = None
+    error: Optional[str] = None
+

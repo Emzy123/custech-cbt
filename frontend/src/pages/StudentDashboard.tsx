@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Question,
   ChartBar,
@@ -12,6 +13,7 @@ import {
 import Button from '../components/ui/Button';
 import Card from '../components/ui/Card';
 import Timer from '../components/ui/Timer';
+import { apiRequest, clearAuthStorage } from '../lib/api';
 
 interface Exam {
   id: string;
@@ -28,24 +30,49 @@ interface Result {
   id: string;
   courseCode: string;
   courseTitle: string;
-  score: number;
-  grade: string;
+  score: number | null;
+  grade: string | null;
   dateTaken: string;
   maxScore: number;
+  status: 'released' | 'embargoed';
+  message: string | null;
+}
+
+interface ResultApi {
+  instance_id: string;
+  exam_id: string;
+  exam_title: string;
+  course_id: string;
+  status: 'released' | 'embargoed';
+  submitted_at: string | null;
+  score: number | null;
+  max_score?: number;
+  grade: string | null;
+  percentage: number | null;
+  message: string | null;
+}
+
+interface ExaminationApi {
+  id: string;
+  title: string;
+  course_id: string;
+  exam_date: string;
+  start_time: string;
+  duration_minutes: number;
 }
 
 const StudentDashboard: React.FC = () => {
+  const navigate = useNavigate();
   const [currentTime, setCurrentTime] = useState(new Date());
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   
-  // Mock data - replace with actual API calls
   const [nextExam, setNextExam] = useState<Exam | null>(null);
   const [upcomingExams, setUpcomingExams] = useState<Exam[]>([]);
   const [recentResults, setRecentResults] = useState<Result[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const studentName = "Chiamaka Okafor"; // Get from auth context
-  const matricNumber = "MIC/2024/023"; // Get from auth context
+  const [studentName, setStudentName] = useState('Student');
+  const [matricNumber, setMatricNumber] = useState('');
 
   useEffect(() => {
     // Update current time every minute
@@ -54,69 +81,57 @@ const StudentDashboard: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    // Load dashboard data
     const loadDashboardData = async () => {
       try {
-        // TODO: Replace with actual API calls
-        // const examsResponse = await fetch('/api/v1/exams/student/upcoming');
-        // const resultsResponse = await fetch('/api/v1/results/student/recent');
-        
-        // Mock data for demonstration
-        setNextExam({
-          id: '1',
-          courseCode: 'GST 111',
-          courseTitle: 'Communication in English',
-          date: '2026-05-08',
-          time: '09:00',
-          venue: 'Computer Lab 1',
-          duration: 120,
-          isWithin24Hours: true
+        const storedUserRaw = localStorage.getItem('authUser');
+        if (storedUserRaw) {
+          const storedUser = JSON.parse(storedUserRaw) as { first_name?: string; last_name?: string; username?: string };
+          const fullName = `${storedUser.first_name || ''} ${storedUser.last_name || ''}`.trim();
+          setStudentName(fullName || storedUser.username || 'Student');
+          setMatricNumber(storedUser.username || '');
+        }
+
+        const exams = await apiRequest<ExaminationApi[]>('/api/v1/examinations?limit=10');
+        const mapped: Exam[] = exams.map((exam) => {
+          const startAt = new Date(exam.start_time);
+          return {
+            id: exam.id,
+            courseCode: exam.course_id || 'GST',
+            courseTitle: exam.title,
+            date: exam.exam_date || startAt.toISOString().slice(0, 10),
+            time: startAt.toTimeString().slice(0, 5),
+            venue: 'TBA',
+            duration: exam.duration_minutes,
+          };
         });
-        
-        setUpcomingExams([
-          {
-            id: '2',
-            courseCode: 'GST 112',
-            courseTitle: 'Nigerian Peoples and Culture',
-            date: '2026-05-10',
-            time: '14:00',
-            venue: 'Computer Lab 2',
-            duration: 90
-          },
-          {
-            id: '3',
-            courseCode: 'GST 113',
-            courseTitle: 'Introduction to Entrepreneurship',
-            date: '2026-05-12',
-            time: '10:00',
-            venue: 'Computer Lab 1',
-            duration: 120
-          }
-        ]);
-        
-        setRecentResults([
-          {
-            id: '1',
-            courseCode: 'GST 110',
-            courseTitle: 'Use of Library',
-            score: 85,
-            grade: 'A',
-            dateTaken: '2026-04-28',
-            maxScore: 100
-          },
-          {
-            id: '2',
-            courseCode: 'GST 115',
-            courseTitle: 'Philosophy of Science',
-            score: 72,
-            grade: 'B',
-            dateTaken: '2026-04-25',
-            maxScore: 100
-          }
-        ]);
-        
+
+        const now = new Date();
+        const upcoming = mapped.filter((exam) => new Date(`${exam.date}T${exam.time}`) > now);
+        setNextExam(upcoming.length > 0 ? { ...upcoming[0], isWithin24Hours: true } : null);
+        setUpcomingExams(upcoming.slice(0, 5));
+
+        // Fetch real results (embargo-aware)
+        try {
+          const rawResults = await apiRequest<ResultApi[]>('/api/v1/examinations/my/results');
+          const mappedResults: Result[] = rawResults.map((r) => ({
+            id: r.instance_id,
+            courseCode: r.course_id || 'GST',
+            courseTitle: r.exam_title,
+            score: r.score,
+            grade: r.grade,
+            dateTaken: r.submitted_at || new Date().toISOString(),
+            maxScore: r.max_score ?? 100,
+            status: r.status,
+            message: r.message,
+          }));
+          setRecentResults(mappedResults.slice(0, 6));
+        } catch {
+          setRecentResults([]);
+        }
       } catch (error) {
-        console.error('Failed to load dashboard data:', error);
+        setNextExam(null);
+        setUpcomingExams([]);
+        setRecentResults([]);
       } finally {
         setLoading(false);
       }
@@ -151,8 +166,8 @@ const StudentDashboard: React.FC = () => {
   };
 
   const handleSignOut = () => {
-    // TODO: Implement sign out logic
-    console.log('Sign out clicked');
+    clearAuthStorage();
+    navigate('/', { replace: true });
   };
 
   if (loading) {
@@ -286,8 +301,8 @@ const StudentDashboard: React.FC = () => {
                   </div>
                   <div className="text-sm text-text-secondary">until exam starts</div>
                 </div>
-                <Button variant="primary" size="md">
-                  View Exam Details
+                <Button variant="primary" size="md" onClick={() => navigate(`/exam/${nextExam.id}`)}>
+                  Start Exam
                 </Button>
               </div>
             </div>
@@ -315,25 +330,33 @@ const StudentDashboard: React.FC = () => {
                           {result.courseTitle}
                         </p>
                       </div>
-                      <div className="text-right">
-                        <div className={`text-2xl font-bold ${getScoreColor(result.score, result.maxScore)}`}>
-                          {result.score}
+                      {result.status === 'released' ? (
+                        <div className="text-right">
+                          <div className={`text-2xl font-bold ${getScoreColor(result.score ?? 0, result.maxScore)}`}>
+                            {result.score}
+                          </div>
+                          <div className="text-sm text-text-secondary">/ {result.maxScore}</div>
                         </div>
-                        <div className="text-sm text-text-secondary">/ {result.maxScore}</div>
-                      </div>
+                      ) : (
+                        <span className="badge badge-warning text-xs">Embargoed</span>
+                      )}
                     </div>
                     
-                    <div className="flex justify-between items-center">
-                      <span className={`badge badge-${result.grade === 'A' ? 'success' : result.grade === 'B' ? 'warning' : 'info'}`}>
-                        Grade: {result.grade}
-                      </span>
-                      <span className="text-xs text-text-secondary">
-                        {new Date(result.dateTaken).toLocaleDateString('en-NG', {
-                          month: 'short',
-                          day: 'numeric'
-                        })}
-                      </span>
-                    </div>
+                    {result.status === 'released' ? (
+                      <div className="flex justify-between items-center">
+                        <span className={`badge badge-${result.grade === 'A' ? 'success' : result.grade === 'B' ? 'warning' : 'info'}`}>
+                          Grade: {result.grade}
+                        </span>
+                        <span className="text-xs text-text-secondary">
+                          {new Date(result.dateTaken).toLocaleDateString('en-NG', {
+                            month: 'short',
+                            day: 'numeric'
+                          })}
+                        </span>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-text-secondary mt-2">{result.message}</p>
+                    )}
                   </Card>
                 ))}
               </div>
@@ -360,7 +383,12 @@ const StudentDashboard: React.FC = () => {
             {upcomingExams.length > 0 ? (
               <div className="space-y-3">
                 {upcomingExams.map((exam) => (
-                  <Card key={exam.id} elevation={1} className="p-4">
+                  <Card
+                    key={exam.id}
+                    elevation={1}
+                    className="p-4 cursor-pointer hover:shadow-elevation-2 transition-shadow duration-150"
+                    onClick={() => navigate(`/exam/${exam.id}`)}
+                  >
                     <div className="flex justify-between items-start mb-2">
                       <div>
                         <h3 className="font-semibold text-text-primary">

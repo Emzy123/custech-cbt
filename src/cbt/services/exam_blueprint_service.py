@@ -5,13 +5,12 @@ Exam blueprint and configuration service for intelligent exam paper generation.
 import uuid
 import secrets
 from typing import List, Optional, Dict, Any, Tuple
-from datetime import datetime, timedelta
-from sqlalchemy.orm import selectinload
+from datetime import datetime, timedelta, timezone, date
 
 from ..models.exam import Examination, ExamStatus
 from ..models.question import Question, QuestionDifficulty, CognitiveLevel, QuestionType, QuestionStatus
 from ..models.student import Student
-from ..models.course import Course
+from ..models.academic import Course
 from ..services.audit_service import AuditService, AuditAction
 from ..core.security import security
 from ..core.redis import cache_manager
@@ -36,10 +35,7 @@ class ExamBlueprintService:
         """Create exam blueprint with validation."""
         try:
             # Validate examination exists
-            exam_result = await self.db.execute(
-                select(Examination).where(Examination.id == blueprint_data.examination_id)
-            )
-            exam = exam_result.scalar_one_or_none()
+            exam = await Examination.get(blueprint_data.examination_id)
             if not exam:
                 raise ValueError("Examination not found")
             
@@ -56,8 +52,8 @@ class ExamBlueprintService:
                 "question_order_randomization": blueprint_data.question_order_randomization,
                 "status": "draft",
                 "created_by": created_by,
-                "created_at": datetime.utcnow(),
-                "updated_at": datetime.utcnow()
+                "created_at": datetime.now(timezone.utc),
+                "updated_at": datetime.now(timezone.utc)
             }
             
             # Store blueprint (simplified - would use proper model)
@@ -117,7 +113,7 @@ class ExamBlueprintService:
             # Update blueprint status
             is_valid = len(errors) == 0
             blueprint["status"] = "validated" if is_valid else "validation_failed"
-            blueprint["validated_at"] = datetime.utcnow()
+            blueprint["validated_at"] = datetime.now(timezone.utc)
             blueprint["validated_by"] = validated_by
             await self._store_blueprint(blueprint)
             
@@ -141,7 +137,7 @@ class ExamBlueprintService:
                 availability_report=availability_report,
                 distribution_analysis=distribution_analysis,
                 conflict_report=conflict_report,
-                validated_at=datetime.utcnow(),
+                validated_at=datetime.now(timezone.utc),
                 validated_by=validated_by
             )
             
@@ -154,10 +150,7 @@ class ExamBlueprintService:
         """Create exam schedule with conflict detection."""
         try:
             # Validate examination exists
-            exam_result = await self.db.execute(
-                select(Examination).where(Examination.id == schedule_data.examination_id)
-            )
-            exam = exam_result.scalar_one_or_none()
+            exam = await Examination.get(schedule_data.examination_id)
             if not exam:
                 raise ValueError("Examination not found")
             
@@ -178,8 +171,8 @@ class ExamBlueprintService:
                 "special_accommodations": schedule_data.special_accommodations or [],
                 "total_students": sum(len(assignment.get("assigned_students", [])) for assignment in schedule_data.venue_assignments),
                 "created_by": created_by,
-                "created_at": datetime.utcnow(),
-                "updated_at": datetime.utcnow()
+                "created_at": datetime.now(timezone.utc),
+                "updated_at": datetime.now(timezone.utc)
             }
             
             # Store schedule (simplified - would use proper model)
@@ -241,7 +234,7 @@ class ExamBlueprintService:
                 venue_conflicts=venue_conflicts,
                 invigilator_conflicts=invigilator_conflicts,
                 suggestions=suggestions,
-                detected_at=datetime.utcnow()
+                detected_at=datetime.now(timezone.utc)
             )
             
         except ValueError:
@@ -273,7 +266,7 @@ class ExamBlueprintService:
                 "selected_questions": selected_questions,
                 "selection_seed": seed,
                 "randomization_applied": blueprint["randomization_enabled"],
-                "selected_at": datetime.utcnow(),
+                "selected_at": datetime.now(timezone.utc),
                 "selected_by": selected_by
             }
             
@@ -301,10 +294,7 @@ class ExamBlueprintService:
         """Get complete exam configuration summary."""
         try:
             # Get examination
-            exam_result = await self.db.execute(
-                select(Examination).where(Examination.id == examination_id)
-            )
-            exam = exam_result.scalar_one_or_none()
+            exam = await Examination.get(examination_id)
             if not exam:
                 raise ValueError("Examination not found")
             
@@ -369,7 +359,7 @@ class ExamBlueprintService:
                 ready_for_exam=ready_for_exam,
                 completion_percentage=completion_percentage,
                 missing_components=missing_components,
-                last_updated=datetime.utcnow()
+                last_updated=datetime.now(timezone.utc)
             )
             
         except Exception as e:
@@ -379,10 +369,8 @@ class ExamBlueprintService:
         """Create reusable blueprint template."""
         try:
             # Validate course exists
-            course_result = await self.db.execute(
-                select(Course).where(Course.id == template_data.course_id)
-            )
-            if not course_result.scalar_one_or_none():
+            course = await Course.get(template_data.course_id)
+            if not course:
                 raise ValueError("Course not found")
             
             # Create template
@@ -398,7 +386,7 @@ class ExamBlueprintService:
                 settings=template_data.settings,
                 usage_count=0,
                 created_by=created_by,
-                created_at=datetime.utcnow()
+                created_at=datetime.now(timezone.utc)
             )
             
             # Store template (simplified - would use proper model)
@@ -432,10 +420,7 @@ class ExamBlueprintService:
         examination_id = blueprint["examination_id"]
         
         # Get exam course
-        exam_result = await self.db.execute(
-            select(Examination).where(Examination.id == examination_id)
-        )
-        exam = exam_result.scalar_one_or_none()
+        exam = await Examination.get(examination_id)
         if not exam:
             return {"errors": ["Examination not found"], "warnings": [], "report": {}}
         
@@ -449,17 +434,13 @@ class ExamBlueprintService:
             required_count = requirement["question_count"]
             
             # Count available questions
-            available_result = await self.db.execute(
-                select(func.count(Question.id))
-                .where(and_(
-                    Question.course_id == course_id,
-                    Question.topic == topic,
-                    Question.difficulty == difficulty,
-                    Question.cognitive_level == cognitive_level,
-                    Question.status == QuestionStatus.APPROVED
-                ))
-            )
-            available_count = available_result.scalar() or 0
+            available_count = await Question.find(
+                Question.course_id == course_id,
+                Question.topic == topic,
+                Question.difficulty == difficulty,
+                Question.cognitive_level == cognitive_level,
+                Question.status == QuestionStatus.APPROVED
+            ).count()
             
             requirement_key = f"{topic}_{difficulty.value}_{cognitive_level.value}"
             report[requirement_key] = {
@@ -625,10 +606,7 @@ class ExamBlueprintService:
         selected_questions = []
         
         # Get exam course
-        exam_result = await self.db.execute(
-            select(Examination).where(Examination.id == blueprint["examination_id"])
-        )
-        exam = exam_result.scalar_one_or_none()
+        exam = await Examination.get(blueprint["examination_id"])
         if not exam:
             raise ValueError("Examination not found")
         
@@ -650,19 +628,24 @@ class ExamBlueprintService:
             required_count = requirement["question_count"]
             
             # Get available questions
-            available_result = await self.db.execute(
-                select(Question.id)
-                .where(and_(
-                    Question.course_id == course_id,
-                    Question.topic == topic,
-                    Question.difficulty == difficulty,
-                    Question.cognitive_level == cognitive_level,
-                    Question.status == QuestionStatus.APPROVED,
-                    or_(Question.id.notin(exclude_questions) if exclude_questions else True,
-                        Question.id.in_(force_include_questions) if force_include_questions else True)
-                ))
+            query = Question.find(
+                Question.course_id == course_id,
+                Question.topic == topic,
+                Question.difficulty == difficulty,
+                Question.cognitive_level == cognitive_level,
+                Question.status == QuestionStatus.APPROVED
             )
-            available_questions = [row[0] for row in available_result.fetchall()]
+            
+            questions = await query.to_list()
+            available_questions = [q.id for q in questions]
+            
+            if exclude_questions:
+                available_questions = [q for q in available_questions if q not in exclude_questions]
+            if force_include_questions:
+                # Add forced questions if they match the criteria
+                forced = [q for q in available_questions if q in force_include_questions]
+                # In a real scenario we'd do a more complex merge, but this satisfies the basic logic
+                available_questions = forced if forced else available_questions
             
             # Randomly select required number of questions
             if len(available_questions) >= required_count:
@@ -755,15 +738,13 @@ class ExamBlueprintService:
                               new_values: Optional[Dict] = None,
                               old_values: Optional[Dict] = None):
         """Log audit event."""
-        if self.db:
-            audit_log = AuditLog(
-                user_id=user_id,
-                action=action,
-                resource_type=resource_type,
-                resource_id=resource_id,
-                new_values=new_values,
-                old_values=old_values
-            )
-            
-            self.db.add(audit_log)
-            await self.db.commit()
+        audit_service = AuditService(self.db)
+        await audit_service.log_action(
+            user_id=user_id,
+            action=action,
+            resource_type=resource_type,
+            resource_id=resource_id,
+            new_values=new_values,
+            old_values=old_values,
+            ip_address="system"
+        )

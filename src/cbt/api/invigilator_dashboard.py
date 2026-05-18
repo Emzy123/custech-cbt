@@ -16,8 +16,7 @@ from .deps import get_current_active_user, require_permission
 router = APIRouter(prefix="/invigilator-dashboard", tags=["invigilator-dashboard"])
 
 
-@router.get("/examination/{examination_id}/dashboard", response_model=ProctoringDashboard)
-@require_permission("exam.invigilate")
+@router.get("/examination/{examination_id}/dashboard", response_model=ProctoringDashboard, dependencies=[Depends(require_permission("exam.invigilate"))])
 async def get_dashboard(
     examination_id: str,
     db: Any = Depends(get_db),
@@ -42,8 +41,7 @@ async def get_dashboard(
         )
 
 
-@router.get("/examination/{examination_id}/student/{student_id}/detail")
-@require_permission("exam.invigilate")
+@router.get("/examination/{examination_id}/student/{student_id}/detail", dependencies=[Depends(require_permission("exam.invigilate"))])
 async def get_student_detail(
     examination_id: str,
     student_id: str,
@@ -69,8 +67,7 @@ async def get_student_detail(
         )
 
 
-@router.post("/examination/{examination_id}/student/{student_id}/message")
-@require_permission("exam.invigilate")
+@router.post("/examination/{examination_id}/student/{student_id}/message", dependencies=[Depends(require_permission("exam.invigilate"))])
 async def send_student_message(
     examination_id: str,
     student_id: str,
@@ -97,8 +94,7 @@ async def send_student_message(
         )
 
 
-@router.post("/examination/{examination_id}/student/{student_id}/pause")
-@require_permission("exam.invigilate")
+@router.post("/examination/{examination_id}/student/{student_id}/pause", dependencies=[Depends(require_permission("exam.invigilate"))])
 async def pause_student_exam(
     examination_id: str,
     student_id: str,
@@ -125,8 +121,7 @@ async def pause_student_exam(
         )
 
 
-@router.post("/examination/{examination_id}/student/{student_id}/resume")
-@require_permission("exam.invigilate")
+@router.post("/examination/{examination_id}/student/{student_id}/resume", dependencies=[Depends(require_permission("exam.invigilate"))])
 async def resume_student_exam(
     examination_id: str,
     student_id: str,
@@ -152,8 +147,7 @@ async def resume_student_exam(
         )
 
 
-@router.post("/examination/{examination_id}/student/{student_id}/terminate")
-@require_permission("exam.invigilate")
+@router.post("/examination/{examination_id}/student/{student_id}/terminate", dependencies=[Depends(require_permission("exam.invigilate"))])
 async def terminate_student_exam(
     examination_id: str,
     student_id: str,
@@ -180,8 +174,7 @@ async def terminate_student_exam(
         )
 
 
-@router.post("/alert/{alert_id}/acknowledge")
-@require_permission("exam.invigilate")
+@router.post("/alert/{alert_id}/acknowledge", dependencies=[Depends(require_permission("exam.invigilate"))])
 async def acknowledge_alert(
     alert_id: str,
     db: Any = Depends(get_db),
@@ -204,8 +197,7 @@ async def acknowledge_alert(
         )
 
 
-@router.get("/examination/{examination_id}/students")
-@require_permission("exam.invigilate")
+@router.get("/examination/{examination_id}/students", dependencies=[Depends(require_permission("exam.invigilate"))])
 async def get_student_sessions(
     examination_id: str,
     status: Optional[str] = None,
@@ -257,8 +249,7 @@ async def get_student_sessions(
         )
 
 
-@router.get("/examination/{examination_id}/alerts")
-@require_permission("exam.invigilate")
+@router.get("/examination/{examination_id}/alerts", dependencies=[Depends(require_permission("exam.invigilate"))])
 async def get_examination_alerts(
     examination_id: str,
     severity: Optional[str] = None,
@@ -305,8 +296,7 @@ async def get_examination_alerts(
         )
 
 
-@router.get("/examination/{examination_id}/statistics")
-@require_permission("exam.invigilate")
+@router.get("/examination/{examination_id}/statistics", dependencies=[Depends(require_permission("exam.invigilate"))])
 async def get_examination_statistics(
     examination_id: str,
     db: Any = Depends(get_db),
@@ -331,8 +321,7 @@ async def get_examination_statistics(
         )
 
 
-@router.get("/examination/{examination_id}/high-risk-students")
-@require_permission("exam.invigilate")
+@router.get("/examination/{examination_id}/high-risk-students", dependencies=[Depends(require_permission("exam.invigilate"))])
 async def get_high_risk_students(
     examination_id: str,
     threshold: int = 70,
@@ -371,8 +360,7 @@ async def get_high_risk_students(
         )
 
 
-@router.get("/examination/{examination_id}/recent-events")
-@require_permission("exam.invigilate")
+@router.get("/examination/{examination_id}/recent-events", dependencies=[Depends(require_permission("exam.invigilate"))])
 async def get_recent_events(
     examination_id: str,
     event_type: Optional[str] = None,
@@ -432,8 +420,7 @@ async def get_recent_events(
         )
 
 
-@router.post("/examination/{examination_id}/broadcast-message")
-@require_permission("exam.invigilate")
+@router.post("/examination/{examination_id}/broadcast-message", dependencies=[Depends(require_permission("exam.invigilate"))])
 async def broadcast_message(
     examination_id: str,
     message: str,
@@ -497,8 +484,7 @@ async def broadcast_message(
         )
 
 
-@router.get("/examination/{examination_id}/audit-log")
-@require_permission("exam.invigilate")
+@router.get("/examination/{examination_id}/audit-log", dependencies=[Depends(require_permission("exam.invigilate"))])
 async def get_audit_log(
     examination_id: str,
     action_type: Optional[str] = None,
@@ -540,8 +526,7 @@ async def get_audit_log(
         )
 
 
-@router.post("/examination/{examination_id}/force-refresh")
-@require_permission("exam.invigilate")
+@router.post("/examination/{examination_id}/force-refresh", dependencies=[Depends(require_permission("exam.invigilate"))])
 async def force_refresh_dashboard(
     examination_id: str,
     db: Any = Depends(get_db),
@@ -571,8 +556,7 @@ async def force_refresh_dashboard(
         )
 
 
-@router.get("/examination/{examination_id}/system-status")
-@require_permission("exam.invigilate")
+@router.get("/examination/{examination_id}/system-status", dependencies=[Depends(require_permission("exam.invigilate"))])
 async def get_system_status(
     examination_id: str,
     db: Any = Depends(get_db),

@@ -1,198 +1,402 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { 
-  ArrowLeft, 
-  ArrowRight, 
-  BookmarkSimple, 
-  Flag,
-  Clock,
-  Warning,
-  CheckCircle
-} from '@phosphor-icons/react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import { ArrowLeft, ArrowRight, Flag, Warning, CheckCircle, LockKey, WifiSlash } from '@phosphor-icons/react';
 import Button from '../components/ui/Button';
 import Card from '../components/ui/Card';
 import OptionCard from '../components/ui/OptionCard';
 import QuestionNavigationGrid from '../components/ui/QuestionNavigationGrid';
 import Timer from '../components/ui/Timer';
+import { apiRequest } from '../lib/api';
 
-interface Question {
-  id: number;
-  stem: string;
-  options: {
-    id: string;
-    label: string;
-    text: string;
-  }[];
-  imageUrl?: string;
+interface OfflineQueueItem {
+  instanceId: string;
+  payload: object;
 }
 
-interface ExamState {
-  examId: string;
-  courseCode: string;
-  courseTitle: string;
-  studentName: string;
-  matricNumber: string;
-  duration: number; // in seconds
-  questions: Question[];
-  currentQuestion: number;
-  answers: Record<number, string>;
-  flaggedQuestions: number[];
-  startTime: Date;
-  timeRemaining: number;
-  isSubmitted: boolean;
+interface PaperOption {
+  label: string;
+  text: string;
+}
+
+interface PaperQuestion {
+  sequence: number;
+  id: number;
+  stem: string;
+  options: PaperOption[];
+}
+
+interface ExamPayload {
+  attempt_id: number;
+  exam: {
+    id: number;
+    course_code: string;
+    course_title: string;
+    duration_minutes: number;
+  };
+  questions: PaperQuestion[];
+}
+
+interface ActiveAttemptResponse {
+  attempt_id: number | null;
+}
+
+interface StartAttemptResponse {
+  attempt_id: number;
+}
+
+interface AttemptClockResponse {
+  attempt_id?: number;
+  status?: string;
+  server_now?: string;
+  ends_at?: string | null;
+  paused?: boolean;
+  submitted_at?: string;
 }
 
 const ExaminationInterface: React.FC = () => {
-  // Mock exam data - replace with actual API data
-  const [examState, setExamState] = useState<ExamState>({
-    examId: 'exam-123',
-    courseCode: 'GST 111',
-    courseTitle: 'Communication in English',
-    studentName: 'Chiamaka Okafor',
-    matricNumber: 'MIC/2024/023',
-    duration: 7200, // 2 hours in seconds
-    questions: [
-      {
-        id: 1,
-        stem: "Which of the following is NOT a component of effective communication?",
-        options: [
-          { id: 'a', label: 'A', text: 'Sender' },
-          { id: 'b', label: 'B', text: 'Message' },
-          { id: 'c', label: 'C', text: 'Noise' },
-          { id: 'd', label: 'D', text: 'Receiver' }
-        ]
-      },
-      {
-        id: 2,
-        stem: "The process of converting ideas into words is called:",
-        options: [
-          { id: 'a', label: 'A', text: 'Encoding' },
-          { id: 'b', label: 'B', text: 'Decoding' },
-          { id: 'c', label: 'C', text: 'Transmission' },
-          { id: 'd', label: 'D', text: 'Feedback' }
-        ]
-      },
-      // Add more questions as needed
-    ],
+  const { examId } = useParams<{ examId: string }>();
+  const navigate = useNavigate();
+
+  const [instanceId, setInstanceId] = useState<string | null>(null);
+  const [preExamStep, setPreExamStep] = useState<'rules' | 'ready' | 'exam'>('rules');
+  const [rulesAccepted, setRulesAccepted] = useState(false);
+  const [examState, setExamState] = useState({
+    examId: examId || '',
+    courseCode: '',
+    courseTitle: '',
+    durationSeconds: 3600,
+    questions: [] as PaperQuestion[],
     currentQuestion: 1,
-    answers: {},
-    flaggedQuestions: [],
-    startTime: new Date(),
-    timeRemaining: 7200,
-    isSubmitted: false
+    answers: {} as Record<number, string>,
+    flaggedQuestions: [] as number[],
+    timeRemaining: 3600,
+    isSubmitted: false,
   });
 
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
   const [showTimeWarning, setShowTimeWarning] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected'>('connected');
   const [lastSyncTime, setLastSyncTime] = useState<Date>(new Date());
+  const [loadError, setLoadError] = useState<string | null>(null);
 
-  // Timer effect
+  const submittingRef = useRef(false);
+  const autoFinalizeRef = useRef(false);
+  const offlineQueueRef = useRef<OfflineQueueItem[]>([]);
+
+  // Drain offline queue when back online
+  const drainOfflineQueue = useCallback(async (currentInstanceId: string) => {
+    const queue = [...offlineQueueRef.current];
+    offlineQueueRef.current = [];
+    for (const item of queue) {
+      try {
+        await apiRequest(`/api/v1/examinations/${examId}/instances/${currentInstanceId}/answers`, {
+          method: 'POST',
+          body: JSON.stringify(item.payload),
+        });
+      } catch {
+        offlineQueueRef.current.push(item); // re-queue on failure
+      }
+    }
+  }, [examId]);
+
+  // Bootstrap: start instance, then load paper
   useEffect(() => {
-    if (examState.isSubmitted || examState.timeRemaining <= 0) return;
+    const bootstrapExam = async () => {
+      if (!examId || preExamStep !== 'exam') return;
+      try {
+        localStorage.setItem('activeExamId', examId);
 
-    const timer = setInterval(() => {
-      setExamState(prev => {
-        const newTimeRemaining = Math.max(0, prev.timeRemaining - 1);
-        
-        // Show time warning at 15 minutes
-        if (newTimeRemaining === 900 && !showTimeWarning) {
-          setShowTimeWarning(true);
+        const started = await apiRequest<StartAttemptResponse>(`/api/v1/examinations/${examId}/start`, {
+          method: 'POST',
+          body: JSON.stringify({ rules_accepted: true }),
+        });
+        const nextInstanceId = String(started.attempt_id);
+        setInstanceId(nextInstanceId);
+
+        const paper = await apiRequest<ExamPayload>(`/api/v1/examinations/${examId}/instances/${nextInstanceId}/paper`);
+        const durationSeconds = Math.max(60, (paper.exam.duration_minutes || 60) * 60);
+
+        setExamState((prev) => ({
+          ...prev,
+          examId,
+          courseCode: paper.exam.course_code,
+          courseTitle: paper.exam.course_title,
+          durationSeconds,
+          questions: paper.questions,
+          timeRemaining: durationSeconds,
+          currentQuestion: 1,
+          answers: {},
+          flaggedQuestions: [],
+          isSubmitted: false,
+        }));
+      } catch (error) {
+        setLoadError(error instanceof Error ? error.message : 'Failed to load examination');
+      }
+    };
+
+    void bootstrapExam();
+  }, [examId, preExamStep, drainOfflineQueue]);
+
+  useEffect(() => {
+    if (!instanceId || examState.isSubmitted) {
+      return;
+    }
+
+    const syncClock = async () => {
+      try {
+        const clock = await apiRequest<AttemptClockResponse>(`/api/v1/examinations/${examId}/instances/${instanceId}/clock`);
+        if (clock.status && ['timed_out', 'submitted', 'terminated'].includes(clock.status)) {
+          setExamState((prev) => ({ ...prev, isSubmitted: true, timeRemaining: 0 }));
+          return;
         }
-        
-        // Auto-submit when time expires
-        if (newTimeRemaining === 0) {
-          handleSubmitExam();
-          return { ...prev, timeRemaining: 0, isSubmitted: true };
+        if (clock.ends_at && clock.server_now) {
+          const end = new Date(clock.ends_at).getTime();
+          const now = new Date(clock.server_now).getTime();
+          const seconds = Math.max(0, Math.floor((end - now) / 1000));
+          setExamState((prev) => {
+            const next = { ...prev, timeRemaining: seconds };
+            if (seconds === 900 && !showTimeWarning) {
+              setShowTimeWarning(true);
+            }
+            return next;
+          });
         }
-        
-        return { ...prev, timeRemaining: newTimeRemaining };
-      });
+        setConnectionStatus('connected');
+        setLastSyncTime(new Date());
+        if (offlineQueueRef.current.length > 0) {
+          await drainOfflineQueue(instanceId);
+        }
+      } catch {
+        setConnectionStatus('disconnected');
+      }
+    };
+
+    void syncClock();
+    const handle = window.setInterval(() => {
+      void syncClock();
     }, 1000);
+    return () => window.clearInterval(handle);
+  }, [instanceId, examId, examState.isSubmitted, showTimeWarning, drainOfflineQueue]);
 
-    return () => clearInterval(timer);
-  }, [examState.isSubmitted, showTimeWarning]);
-
-  // Auto-save effect
   useEffect(() => {
-    if (examState.isSubmitted) return;
+    if (!instanceId || examState.isSubmitted) {
+      return;
+    }
 
-    const saveTimer = setInterval(() => {
-      saveProgress();
-    }, 30000); // Save every 30 seconds
+    const sendFocusEvent = () => {
+      if (document.visibilityState !== 'hidden') return;
+      void apiRequest(`/api/v1/examinations/${examId}/instances/${instanceId}/proctoring/events`, {
+        method: 'POST',
+        body: JSON.stringify({ event_type: 'focus_lost', payload: { source: 'visibility' } }),
+      }).catch(() => undefined);
+    };
 
-    return () => clearInterval(saveTimer);
-  }, [examState.answers, examState.flaggedQuestions, examState.currentQuestion]);
+    document.addEventListener('visibilitychange', sendFocusEvent);
+    return () => document.removeEventListener('visibilitychange', sendFocusEvent);
+  }, [instanceId, examId, examState.isSubmitted]);
+
+  const answeredQuestions = useMemo(
+    () =>
+      Object.entries(examState.answers)
+        .filter(([, value]) => Boolean(value))
+        .map(([key]) => Number(key)),
+    [examState.answers],
+  );
 
   const saveProgress = useCallback(async () => {
     try {
-      // TODO: Implement actual save API call
-      console.log('Saving progress:', {
-        answers: examState.answers,
-        flaggedQuestions: examState.flaggedQuestions,
-        currentQuestion: examState.currentQuestion
-      });
-      
+      localStorage.setItem(
+        `exam-progress-${examState.examId}`,
+        JSON.stringify({
+          answers: examState.answers,
+          flaggedQuestions: examState.flaggedQuestions,
+          currentQuestion: examState.currentQuestion,
+          updatedAt: new Date().toISOString(),
+        }),
+      );
       setLastSyncTime(new Date());
       setConnectionStatus('connected');
-    } catch (error) {
-      console.error('Failed to save progress:', error);
+    } catch {
       setConnectionStatus('disconnected');
     }
   }, [examState]);
 
-  const handleAnswerSelect = useCallback((questionId: number, optionId: string) => {
-    setExamState(prev => ({
-      ...prev,
-      answers: { ...prev.answers, [questionId]: optionId }
-    }));
-    
-    // Immediate save indicator
-    setTimeout(() => saveProgress(), 100);
-  }, [saveProgress]);
+  const persistAnswer = useCallback(
+    async (questionIndex: number, label: string, isFlagged: boolean) => {
+      if (!instanceId) return;
+      const question = examState.questions[questionIndex - 1];
+      if (!question) return;
+
+      const payload = {
+        question_id: question.id,
+        selected_option_id: label,
+        is_flagged: isFlagged,
+        idempotency_key: `${instanceId}-${question.id}`,
+      };
+
+      try {
+        await apiRequest(`/api/v1/examinations/${examId}/instances/${instanceId}/answers`, {
+          method: 'POST',
+          body: JSON.stringify(payload),
+        });
+        setLastSyncTime(new Date());
+        setConnectionStatus('connected');
+      } catch {
+        // Queue for replay when back online
+        offlineQueueRef.current.push({ instanceId, payload });
+        setConnectionStatus('disconnected');
+      }
+    },
+    [instanceId, examId, examState.questions],
+  );
+
+  const handleAnswerSelect = useCallback(
+    async (questionIndex: number, label: string) => {
+      setExamState((prev) => ({
+        ...prev,
+        answers: { ...prev.answers, [questionIndex]: label },
+      }));
+
+      try {
+        await persistAnswer(questionIndex, label, examState.flaggedQuestions.includes(questionIndex));
+      } catch {
+        setConnectionStatus('disconnected');
+      }
+
+      window.setTimeout(() => {
+        void saveProgress();
+      }, 150);
+    },
+    [examState.flaggedQuestions, persistAnswer, saveProgress],
+  );
 
   const handleQuestionNavigation = useCallback((questionNumber: number) => {
-    setExamState(prev => ({ ...prev, currentQuestion: questionNumber }));
+    setExamState((prev) => ({ ...prev, currentQuestion: questionNumber }));
   }, []);
 
-  const handleFlagQuestion = useCallback(() => {
-    setExamState(prev => {
-      const isFlagged = prev.flaggedQuestions.includes(prev.currentQuestion);
-      const newFlagged = isFlagged
-        ? prev.flaggedQuestions.filter(q => q !== prev.currentQuestion)
-        : [...prev.flaggedQuestions, prev.currentQuestion];
-      
-      return { ...prev, flaggedQuestions: newFlagged };
-    });
-  }, []);
+  const handleFlagQuestion = useCallback(async () => {
+    const questionIndex = examState.currentQuestion;
+    const selectedLabel = examState.answers[questionIndex];
+    const wasFlagged = examState.flaggedQuestions.includes(questionIndex);
+    const nextFlagged = wasFlagged
+      ? examState.flaggedQuestions.filter((q) => q !== questionIndex)
+      : [...examState.flaggedQuestions, questionIndex];
+
+    setExamState((prev) => ({
+      ...prev,
+      flaggedQuestions: nextFlagged,
+    }));
+
+    if (!instanceId || !selectedLabel) {
+      return;
+    }
+
+    try {
+      await persistAnswer(questionIndex, selectedLabel, nextFlagged.includes(questionIndex));
+    } catch {
+      setConnectionStatus('disconnected');
+    }
+  }, [instanceId, examState.answers, examState.currentQuestion, examState.flaggedQuestions, persistAnswer]);
 
   const handlePreviousQuestion = useCallback(() => {
-    setExamState(prev => ({
+    setExamState((prev) => ({
       ...prev,
-      currentQuestion: Math.max(1, prev.currentQuestion - 1)
+      currentQuestion: Math.max(1, prev.currentQuestion - 1),
     }));
   }, []);
 
   const handleNextQuestion = useCallback(() => {
-    setExamState(prev => ({
+    setExamState((prev) => ({
       ...prev,
-      currentQuestion: Math.min(prev.questions.length, prev.currentQuestion + 1)
+      currentQuestion: Math.min(prev.questions.length, prev.currentQuestion + 1),
     }));
   }, []);
 
   const handleSubmitExam = useCallback(async () => {
+    if (!instanceId || submittingRef.current) return;
+    submittingRef.current = true;
     try {
-      // TODO: Implement actual submit API call
-      console.log('Submitting exam:', examState);
-      
-      setExamState(prev => ({ ...prev, isSubmitted: true }));
+      await apiRequest(`/api/v1/examinations/${examId}/instances/${instanceId}/submit`, {
+        method: 'POST',
+        body: JSON.stringify({}),
+      });
+      setExamState((prev) => ({ ...prev, isSubmitted: true, timeRemaining: 0 }));
     } catch (error) {
-      console.error('Failed to submit exam:', error);
+      setLoadError(error instanceof Error ? error.message : 'Failed to submit exam');
+    } finally {
+      submittingRef.current = false;
     }
-  }, [examState]);
+  }, [instanceId, examId]);
 
-  const currentQuestionData = examState.questions.find(q => q.id === examState.currentQuestion);
-  const answeredQuestions = Object.keys(examState.answers).map(Number);
+  useEffect(() => {
+    if (examState.timeRemaining > 0 || examState.isSubmitted || !instanceId || autoFinalizeRef.current) {
+      return;
+    }
+    autoFinalizeRef.current = true;
+    void handleSubmitExam();
+  }, [instanceId, examState.isSubmitted, examState.timeRemaining, handleSubmitExam]);
+
+  const currentQuestionData = examState.questions[examState.currentQuestion - 1];
   const unansweredCount = examState.questions.length - answeredQuestions.length;
+
+  if (loadError) {
+    return (
+      <div className="min-h-screen bg-surface-grey flex items-center justify-center p-8">
+        <Card elevation={2} className="max-w-lg w-full p-6">
+          <h2 className="text-xl font-semibold text-text-primary mb-2">Unable to load exam</h2>
+          <p className="text-text-secondary mb-4">{loadError}</p>
+          <Button variant="secondary" size="md" onClick={() => navigate('/dashboard')}>
+            Return to Dashboard
+          </Button>
+        </Card>
+      </div>
+    );
+  }
+
+  // Pre-exam rules gateway
+  if (preExamStep === 'rules') {
+    return (
+      <div className="min-h-screen bg-surface-grey flex items-center justify-center p-4">
+        <Card elevation={2} className="max-w-2xl w-full p-8">
+          <div className="flex items-center gap-3 mb-6">
+            <LockKey size={32} weight="duotone" className="text-primary-blue-700" />
+            <h1 className="text-2xl font-semibold text-text-primary">Examination Rules & Instructions</h1>
+          </div>
+          <ol className="space-y-3 text-text-secondary list-decimal list-inside mb-8">
+            <li>Ensure you are in a quiet environment before proceeding.</li>
+            <li>Do not navigate away from this page or switch browser tabs during the exam — each occurrence will be recorded as a proctoring event.</li>
+            <li>Your answers are auto-saved every time you select an option. If you lose connectivity, they will sync automatically when you reconnect.</li>
+            <li>The timer is server-authoritative. Do not rely on your device clock.</li>
+            <li>Once you click <strong>Submit Exam</strong>, your attempt cannot be undone.</li>
+            <li>Any form of academic dishonesty will result in disqualification.</li>
+          </ol>
+          <label className="flex items-start gap-3 mb-6 cursor-pointer">
+            <input
+              type="checkbox"
+              id="rules-accept"
+              className="mt-1 rounded border-surface-grey-dark"
+              checked={rulesAccepted}
+              onChange={(e) => setRulesAccepted(e.target.checked)}
+            />
+            <span className="text-text-primary font-medium">I have read and agree to abide by all examination rules stated above.</span>
+          </label>
+          <div className="flex justify-end">
+            <Button
+              variant="primary"
+              size="md"
+              disabled={!rulesAccepted}
+              onClick={() => {
+                document.documentElement.requestFullscreen?.().catch(() => undefined);
+                setPreExamStep('exam');
+              }}
+            >
+              Begin Examination
+            </Button>
+          </div>
+        </Card>
+      </div>
+    );
+  }
 
   if (examState.isSubmitted) {
     return (
@@ -205,7 +409,7 @@ const ExaminationInterface: React.FC = () => {
           <p className="text-text-secondary mb-6">
             Your answers have been recorded. Results will be available after the examination window closes.
           </p>
-          <Button variant="secondary" size="md" onClick={() => window.location.href = '/dashboard'}>
+          <Button variant="secondary" size="md" onClick={() => navigate('/dashboard')}>
             Return to Dashboard
           </Button>
         </Card>
@@ -215,24 +419,22 @@ const ExaminationInterface: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-surface-grey flex">
-      {/* Skip to main content for accessibility */}
       <a href="#question-content" className="skip-to-main">
         Skip to question content
       </a>
 
-      {/* Top Bar */}
       <header className="fixed top-0 left-0 right-0 h-14 bg-primary-blue-800 text-white flex items-center justify-between px-6 z-50">
         <div className="flex items-center gap-4">
           <div>
-            <h1 className="font-semibold">{examState.courseCode} – {examState.courseTitle}</h1>
-            <p className="text-sm opacity-90">Candidate: {examState.studentName}</p>
+            <h1 className="font-semibold">
+              {examState.courseCode} – {examState.courseTitle}
+            </h1>
           </div>
         </div>
-        
+
         <Timer timeRemaining={examState.timeRemaining} />
       </header>
 
-      {/* Time Warning Banner */}
       {showTimeWarning && examState.timeRemaining <= 900 && examState.timeRemaining > 300 && (
         <div className="fixed top-14 left-0 right-0 bg-amber-50 border-b border-amber-200 p-3 z-40">
           <div className="container-fluid flex items-center justify-between">
@@ -242,13 +444,15 @@ const ExaminationInterface: React.FC = () => {
                 Time is running out. We recommend reviewing your unanswered questions.
               </span>
             </div>
-            <Button 
-              variant="tertiary" 
+            <Button
+              variant="tertiary"
               size="sm"
               onClick={() => {
-                const firstUnanswered = examState.questions.find(q => !answeredQuestions.includes(q.id));
+                const firstUnanswered = examState.questions.find(
+                  (_, idx) => !examState.answers[idx + 1],
+                );
                 if (firstUnanswered) {
-                  handleQuestionNavigation(firstUnanswered.id);
+                  handleQuestionNavigation(firstUnanswered.sequence);
                 }
               }}
             >
@@ -258,7 +462,6 @@ const ExaminationInterface: React.FC = () => {
         </div>
       )}
 
-      {/* Connection Status Banner */}
       {connectionStatus === 'disconnected' && (
         <div className="fixed top-14 left-0 right-0 bg-amber-50 border-b border-amber-200 p-3 z-40">
           <div className="container-fluid flex items-center justify-between">
@@ -275,9 +478,7 @@ const ExaminationInterface: React.FC = () => {
         </div>
       )}
 
-      {/* Main Content */}
       <div className="flex-1 flex pt-14">
-        {/* Question Navigation Sidebar */}
         <aside className="hidden md:block w-60 bg-surface-white border-r border-surface-grey-dark p-6 overflow-y-auto">
           <QuestionNavigationGrid
             totalQuestions={examState.questions.length}
@@ -288,58 +489,44 @@ const ExaminationInterface: React.FC = () => {
           />
         </aside>
 
-        {/* Question Panel */}
         <main id="question-content" className="flex-1 p-6 overflow-y-auto">
           <div className="max-w-4xl mx-auto">
             <Card elevation={1} className="p-8">
-              {/* Question Header */}
               <div className="mb-6">
                 <div className="flex items-center justify-between mb-4">
                   <div className="text-sm text-text-secondary">
                     Question {examState.currentQuestion} of {examState.questions.length}
                   </div>
                   <button
-                    onClick={handleFlagQuestion}
+                    type="button"
+                    onClick={() => void handleFlagQuestion()}
                     className={`flex items-center gap-2 px-3 py-1 rounded-md text-sm font-medium transition-colors duration-150 ${
                       examState.flaggedQuestions.includes(examState.currentQuestion)
                         ? 'bg-amber-100 text-warning hover:bg-amber-200'
                         : 'bg-surface-grey text-text-secondary hover:bg-surface-grey-dark'
                     }`}
                   >
-                    <Flag size={16} weight={examState.flaggedQuestions.includes(examState.currentQuestion) ? 'fill' : 'regular'} />
+                    <Flag
+                      size={16}
+                      weight={examState.flaggedQuestions.includes(examState.currentQuestion) ? 'fill' : 'regular'}
+                    />
                     {examState.flaggedQuestions.includes(examState.currentQuestion) ? 'Flagged' : 'Flag for Review'}
                   </button>
                 </div>
               </div>
 
-              {/* Question Content */}
               {currentQuestionData && (
                 <div className="space-y-6">
-                  {/* Question Stem */}
-                  <div className="font-lora text-lg text-text-primary leading-relaxed">
-                    {currentQuestionData.stem}
-                  </div>
+                  <div className="font-lora text-lg text-text-primary leading-relaxed">{currentQuestionData.stem}</div>
 
-                  {/* Question Image (if any) */}
-                  {currentQuestionData.imageUrl && (
-                    <div className="my-6">
-                      <img 
-                        src={currentQuestionData.imageUrl} 
-                        alt="Question image" 
-                        className="max-w-full h-auto border border-surface-grey-dark rounded"
-                      />
-                    </div>
-                  )}
-
-                  {/* Options */}
                   <div className="space-y-3">
                     {currentQuestionData.options.map((option) => (
                       <OptionCard
-                        key={option.id}
-                        id={option.id}
+                        key={`${currentQuestionData.id}-${option.label}`}
+                        id={`${currentQuestionData.id}-${option.label}`}
                         label={option.label}
-                        selected={examState.answers[examState.currentQuestion] === option.id}
-                        onClick={() => handleAnswerSelect(examState.currentQuestion, option.id)}
+                        selected={examState.answers[examState.currentQuestion] === option.label}
+                        onClick={() => void handleAnswerSelect(examState.currentQuestion, option.label)}
                       >
                         {option.text}
                       </OptionCard>
@@ -348,14 +535,8 @@ const ExaminationInterface: React.FC = () => {
                 </div>
               )}
 
-              {/* Navigation Controls */}
               <div className="flex items-center justify-between mt-8 pt-6 border-t border-surface-grey-dark">
-                <Button
-                  variant="secondary"
-                  size="md"
-                  onClick={handlePreviousQuestion}
-                  disabled={examState.currentQuestion === 1}
-                >
+                <Button variant="secondary" size="md" onClick={handlePreviousQuestion} disabled={examState.currentQuestion === 1}>
                   <ArrowLeft size={16} weight="bold" className="mr-2" />
                   Previous
                 </Button>
@@ -371,11 +552,7 @@ const ExaminationInterface: React.FC = () => {
                       Submit Exam
                     </Button>
                   ) : (
-                    <Button
-                      variant="primary"
-                      size="md"
-                      onClick={handleNextQuestion}
-                    >
+                    <Button variant="primary" size="md" onClick={handleNextQuestion}>
                       Next
                       <ArrowRight size={16} weight="bold" className="ml-2" />
                     </Button>
@@ -387,43 +564,33 @@ const ExaminationInterface: React.FC = () => {
         </main>
       </div>
 
-      {/* Submit Confirmation Modal */}
       {showSubmitConfirm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <Card elevation={3} className="max-w-md w-full p-6">
-            <h3 className="text-xl font-semibold text-text-primary mb-4">
-              Submit Examination
-            </h3>
+            <h3 className="text-xl font-semibold text-text-primary mb-4">Submit Examination</h3>
             <p className="text-text-secondary mb-6">
-              You are about to submit your examination. You have answered {answeredQuestions.length} of {examState.questions.length} questions. 
-              {unansweredCount > 0 && ` ${unansweredCount} questions are unanswered.`}
-              This action cannot be undone.
+              You are about to submit your examination. You have answered {answeredQuestions.length} of{' '}
+              {examState.questions.length} questions.
+              {unansweredCount > 0 && ` ${unansweredCount} questions are unanswered.`} This action cannot be undone.
             </p>
-            
+
             <div className="space-y-4">
               <label className="flex items-center gap-2">
-                <input 
-                  type="checkbox" 
+                <input
+                  type="checkbox"
                   className="rounded border-surface-grey-dark"
                   onChange={(e) => {
-                    // Enable submit button only when checkbox is checked
-                    const submitBtn = document.getElementById('confirm-submit-btn') as HTMLButtonElement;
+                    const submitBtn = document.getElementById('confirm-submit-btn') as HTMLButtonElement | null;
                     if (submitBtn) {
                       submitBtn.disabled = !e.target.checked;
                     }
                   }}
                 />
-                <span className="text-sm text-text-primary">
-                  I understand this cannot be undone
-                </span>
+                <span className="text-sm text-text-primary">I understand this cannot be undone</span>
               </label>
-              
+
               <div className="flex gap-3 justify-end">
-                <Button
-                  variant="secondary"
-                  size="md"
-                  onClick={() => setShowSubmitConfirm(false)}
-                >
+                <Button variant="secondary" size="md" onClick={() => setShowSubmitConfirm(false)}>
                   Cancel
                 </Button>
                 <Button
@@ -432,9 +599,9 @@ const ExaminationInterface: React.FC = () => {
                   size="md"
                   onClick={() => {
                     setShowSubmitConfirm(false);
-                    handleSubmitExam();
+                    void handleSubmitExam();
                   }}
-                  disabled={true}
+                  disabled
                   className="bg-danger hover:bg-red-700 focus:ring-danger"
                 >
                   Submit Exam
@@ -445,17 +612,8 @@ const ExaminationInterface: React.FC = () => {
         </div>
       )}
 
-      {/* Mobile Navigation Grid */}
       <div className="md:hidden fixed bottom-20 right-4 z-40">
-        <Button
-          variant="primary"
-          size="md"
-          className="rounded-full w-14 h-14"
-          onClick={() => {
-            // TODO: Implement mobile bottom sheet
-            console.log('Open mobile navigation grid');
-          }}
-        >
+        <Button variant="primary" size="md" className="rounded-full w-14 h-14">
           {examState.currentQuestion}
         </Button>
       </div>

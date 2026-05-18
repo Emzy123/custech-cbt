@@ -5,7 +5,7 @@ Question bank management API endpoints.
 from typing import List, Optional, Any
 from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File
 
-from ..models.question import Question, QuestionType, DifficultyLevel
+from ..models.question import Question, QuestionType, QuestionDifficulty, CognitiveLevel, QuestionStatus
 from ..schemas.question import (
     QuestionCreate, QuestionUpdate, QuestionResponse, QuestionSearch,
     QuestionReviewRequest, QuestionReviewResponse, QuestionImportRequest,
@@ -18,8 +18,7 @@ from .deps import get_current_active_user, require_permission
 router = APIRouter(prefix="/questions", tags=["questions"])
 
 
-@router.post("/", response_model=QuestionResponse, status_code=status.HTTP_201_CREATED)
-@require_permission("question.create")
+@router.post("/", response_model=QuestionResponse, status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_permission("question.create"))])
 async def create_question(
     question_data: QuestionCreate,
     db: Any = Depends(get_db),
@@ -42,15 +41,14 @@ async def create_question(
         )
 
 
-@router.get("/", response_model=List[QuestionResponse])
-@require_permission("question.read")
+@router.get("/", response_model=List[QuestionResponse], dependencies=[Depends(require_permission("question.read"))])
 async def list_questions(
     course_id: Optional[str] = Query(None),
     question_type: Optional[QuestionType] = Query(None),
     difficulty: Optional[QuestionDifficulty] = Query(None),
     cognitive_level: Optional[CognitiveLevel] = Query(None),
     topic: Optional[str] = Query(None),
-    status: Optional[QuestionStatus] = Query(None),
+    q_status: Optional[QuestionStatus] = Query(None, alias="status"),
     created_by: Optional[str] = Query(None),
     limit: int = Query(50, le=100),
     cursor: Optional[str] = Query(None),
@@ -66,7 +64,7 @@ async def list_questions(
             difficulty=difficulty,
             cognitive_level=cognitive_level,
             topic=topic,
-            status=status,
+            status=q_status,
             created_by=created_by,
             limit=limit,
             cursor=cursor
@@ -81,8 +79,7 @@ async def list_questions(
         )
 
 
-@router.get("/search", response_model=List[QuestionResponse])
-@require_permission("question.read")
+@router.get("/search", response_model=List[QuestionResponse], dependencies=[Depends(require_permission("question.read"))])
 async def search_questions(
     query: str = Query(..., min_length=2),
     course_id: Optional[str] = Query(None),
@@ -102,8 +99,7 @@ async def search_questions(
         )
 
 
-@router.get("/{question_id}", response_model=QuestionResponse)
-@require_permission("question.read")
+@router.get("/{question_id}", response_model=QuestionResponse, dependencies=[Depends(require_permission("question.read"))])
 async def get_question(
     question_id: str,
     db: Any = Depends(get_db),
@@ -128,8 +124,7 @@ async def get_question(
         )
 
 
-@router.put("/{question_id}", response_model=QuestionResponse)
-@require_permission("question.update")
+@router.put("/{question_id}", response_model=QuestionResponse, dependencies=[Depends(require_permission("question.update"))])
 async def update_question(
     question_id: str,
     question_data: QuestionUpdate,
@@ -160,8 +155,7 @@ async def update_question(
         )
 
 
-@router.delete("/{question_id}", status_code=status.HTTP_204_NO_CONTENT)
-@require_permission("question.delete")
+@router.delete("/{question_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(require_permission("question.delete"))])
 async def delete_question(
     question_id: str,
     db: Any = Depends(get_db),
@@ -185,8 +179,7 @@ async def delete_question(
         )
 
 
-@router.post("/{question_id}/submit-for-review")
-@require_permission("question.update")
+@router.post("/{question_id}/submit-for-review", dependencies=[Depends(require_permission("question.update"))])
 async def submit_question_for_review(
     question_id: str,
     db: Any = Depends(get_db),
@@ -216,8 +209,7 @@ async def submit_question_for_review(
         )
 
 
-@router.post("/{question_id}/review", response_model=QuestionReviewResponse)
-@require_permission("question.review")
+@router.post("/{question_id}/review", response_model=QuestionReviewResponse, dependencies=[Depends(require_permission("question.review"))])
 async def review_question(
     question_id: str,
     review_data: QuestionReviewRequest,
@@ -241,8 +233,7 @@ async def review_question(
         )
 
 
-@router.get("/review/pending", response_model=List[QuestionResponse])
-@require_permission("question.review")
+@router.get("/review/pending", response_model=List[QuestionResponse], dependencies=[Depends(require_permission("question.review"))])
 async def get_pending_reviews(
     course_id: Optional[str] = Query(None),
     limit: int = Query(50, le=100),
@@ -262,8 +253,7 @@ async def get_pending_reviews(
         )
 
 
-@router.post("/import", response_model=QuestionImportResponse)
-@require_permission("question.import")
+@router.post("/import", response_model=QuestionImportResponse, dependencies=[Depends(require_permission("question.import"))])
 async def import_questions_from_csv(
     file: UploadFile = File(...),
     course_id: str = Query(...),
@@ -292,8 +282,7 @@ async def import_questions_from_csv(
         )
 
 
-@router.get("/import/{import_id}/status")
-@require_permission("question.read")
+@router.get("/import/{import_id}/status", dependencies=[Depends(require_permission("question.read"))])
 async def get_import_status(
     import_id: str,
     db: Any = Depends(get_db),
@@ -302,13 +291,13 @@ async def get_import_status(
     """Get import job status."""
     try:
         question_service = QuestionService(db)
-        status = await question_service.get_import_status(import_id)
-        if not status:
+        import_status = await question_service.get_import_status(import_id)
+        if not import_status:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Import not found"
             )
-        return status
+        return import_status
     except HTTPException:
         raise
     except Exception as e:
@@ -318,8 +307,7 @@ async def get_import_status(
         )
 
 
-@router.post("/bulk", response_model=dict)
-@require_permission("question.update")
+@router.post("/bulk", response_model=dict, dependencies=[Depends(require_permission("question.update"))])
 async def bulk_question_operation(
     operation: QuestionBulkOperation,
     db: Any = Depends(get_db),
@@ -342,8 +330,7 @@ async def bulk_question_operation(
         )
 
 
-@router.get("/{question_id}/versions")
-@require_permission("question.read")
+@router.get("/{question_id}/versions", dependencies=[Depends(require_permission("question.read"))])
 async def get_question_versions(
     question_id: str,
     db: Any = Depends(get_db),
@@ -361,8 +348,7 @@ async def get_question_versions(
         )
 
 
-@router.get("/metadata/topics")
-@require_permission("question.read")
+@router.get("/metadata/topics", dependencies=[Depends(require_permission("question.read"))])
 async def get_course_topics(
     course_id: str,
     db: Any = Depends(get_db),
@@ -380,8 +366,7 @@ async def get_course_topics(
         )
 
 
-@router.post("/metadata/topics")
-@require_permission("course.update")
+@router.post("/metadata/topics", dependencies=[Depends(require_permission("course.update"))])
 async def add_course_topic(
     course_id: str,
     topic_data: QuestionMetadata,
@@ -405,8 +390,7 @@ async def add_course_topic(
         )
 
 
-@router.get("/statistics")
-@require_permission("question.read")
+@router.get("/statistics", dependencies=[Depends(require_permission("question.read"))])
 async def get_question_statistics(
     course_id: Optional[str] = Query(None),
     db: Any = Depends(get_db),
@@ -424,8 +408,7 @@ async def get_question_statistics(
         )
 
 
-@router.post("/{question_id}/duplicate")
-@require_permission("question.create")
+@router.post("/{question_id}/duplicate", dependencies=[Depends(require_permission("question.create"))])
 async def duplicate_question(
     question_id: str,
     db: Any = Depends(get_db),
@@ -448,8 +431,7 @@ async def duplicate_question(
         )
 
 
-@router.post("/{question_id}/upload-image")
-@require_permission("question.update")
+@router.post("/{question_id}/upload-image", dependencies=[Depends(require_permission("question.update"))])
 async def upload_question_image(
     question_id: str,
     file: UploadFile = File(...),

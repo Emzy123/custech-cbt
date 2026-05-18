@@ -2,7 +2,7 @@
 Pilot examination schemas for testing and iterative refinement.
 """
 
-from pydantic import BaseModel, validator
+from pydantic import BaseModel, ConfigDict, field_validator
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 from enum import Enum
@@ -54,16 +54,18 @@ class PilotExaminationCreate(BaseModel):
     success_criteria: Dict[str, Any] = {}
     monitoring_level: MonitoringLevel = MonitoringLevel.COMPREHENSIVE
     
-    @validator('target_participants')
-    def validate_target_participants(cls, v):
+    @field_validator("target_participants")
+    @classmethod
+    def validate_target_participants(cls, v: int) -> int:
         if v < 5 or v > 500:
-            raise ValueError('Target participants must be between 5 and 500')
+            raise ValueError("Target participants must be between 5 and 500")
         return v
-    
-    @validator('duration_minutes')
-    def validate_duration(cls, v):
+
+    @field_validator("duration_minutes")
+    @classmethod
+    def validate_duration(cls, v: int) -> int:
         if v < 30 or v > 480:
-            raise ValueError('Duration must be between 30 and 480 minutes')
+            raise ValueError("Duration must be between 30 and 480 minutes")
         return v
 
 
@@ -84,8 +86,7 @@ class PilotExaminationResponse(BaseModel):
     status: PilotStatus
     configuration: Dict[str, Any]
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ParticipantCriteria(BaseModel):
@@ -112,8 +113,7 @@ class PilotEnrollmentResponse(BaseModel):
     enrollments: List[Dict[str, Any]]
     selection_criteria: Dict[str, Any]
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class PilotEnvironmentResponse(BaseModel):
@@ -123,8 +123,7 @@ class PilotEnvironmentResponse(BaseModel):
     ready: bool
     preparation_results: Dict[str, Any]
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class PilotExecutionResponse(BaseModel):
@@ -135,8 +134,7 @@ class PilotExecutionResponse(BaseModel):
     execution_results: Optional[Dict[str, Any]] = None
     message: Optional[str] = None
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ParticipantSurvey(BaseModel):
@@ -182,8 +180,7 @@ class PilotFeedbackResponse(BaseModel):
     feedback_results: Dict[str, Any]
     feedback_analysis: Dict[str, Any]
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class SuccessCriteriaAnalysis(BaseModel):
@@ -221,8 +218,7 @@ class PilotAnalysisResponse(BaseModel):
     recommendations: List[Dict[str, Any]]
     improvement_plan: Dict[str, Any]
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class Improvement(BaseModel):
@@ -261,8 +257,7 @@ class PilotImprovementResponse(BaseModel):
     implementation_results: Optional[Dict[str, Any]] = None
     message: Optional[str] = None
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ExecutiveSummary(BaseModel):
@@ -309,8 +304,7 @@ class PilotReportResponse(BaseModel):
     next_steps: List[Dict[str, Any]]
     appendices: Dict[str, Any]
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class PilotSummaryResponse(BaseModel):
@@ -328,8 +322,7 @@ class PilotSummaryResponse(BaseModel):
     recommendations_count: int
     last_updated: datetime
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class PilotEvent(BaseModel):
@@ -339,8 +332,7 @@ class PilotEvent(BaseModel):
     details: Dict[str, Any]
     timestamp: datetime
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class PilotMetrics(BaseModel):
@@ -350,8 +342,7 @@ class PilotMetrics(BaseModel):
     metric_type: Optional[str] = None
     generated_at: datetime
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class PilotParticipant(BaseModel):
@@ -365,8 +356,7 @@ class PilotParticipant(BaseModel):
     test_account_created: bool
     participation_data: Optional[Dict[str, Any]] = None
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class PilotCommunication(BaseModel):
@@ -380,8 +370,7 @@ class PilotCommunication(BaseModel):
     sent_by: str
     delivery_status: str  # sent, delivered, failed
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class PilotConfiguration(BaseModel):
@@ -405,8 +394,7 @@ class PilotTemplate(BaseModel):
     updated_at: datetime
     usage_count: int = 0
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class PilotDashboard(BaseModel):
@@ -418,8 +406,7 @@ class PilotDashboard(BaseModel):
     alerts: List[Dict[str, Any]]
     last_updated: datetime
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class PilotComparison(BaseModel):
@@ -432,8 +419,7 @@ class PilotComparison(BaseModel):
     recommendations: List[str]
     generated_at: datetime
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class PilotRecommendation(BaseModel):
@@ -452,8 +438,7 @@ class PilotRecommendation(BaseModel):
     created_at: datetime
     status: str  # pending, in_progress, completed, rejected
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class PilotLessonLearned(BaseModel):
@@ -468,8 +453,7 @@ class PilotLessonLearned(BaseModel):
     related_recommendations: List[str]
     created_at: datetime
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class PilotSuccessCriteria(BaseModel):
@@ -484,5 +468,4 @@ class PilotSuccessCriteria(BaseModel):
     weight: float  # For overall success calculation
     threshold_type: str  # minimum, maximum, exact
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

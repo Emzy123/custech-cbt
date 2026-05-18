@@ -25,6 +25,12 @@ class Student(BaseDocument):
     """Student information and academic record."""
 
     user_id: str
+    first_name: str
+    last_name: str
+    email: str
+    phone_number: Optional[str] = None
+    date_of_birth: Optional[datetime] = None
+    gender: Optional[str] = None
     department_id: str
     academic_session_id: str
     matric_number: str

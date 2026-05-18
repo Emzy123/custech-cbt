@@ -19,9 +19,11 @@ async def init_db():
     try:
         # Create Motor client
         mongodb_url = settings.database_url or "mongodb://localhost:27017"
-        if "sqlite" in mongodb_url or "postgresql" in mongodb_url:
-            mongodb_url = "mongodb://localhost:27017" # Override legacy configs
-            
+        if not str(mongodb_url).lower().startswith("mongodb"):
+            raise ValueError(
+                "DATABASE_URL must use the mongodb:// or mongodb+srv:// scheme."
+            )
+
         client = AsyncIOMotorClient(
             mongodb_url,
             uuidRepresentation="standard"
@@ -34,17 +36,38 @@ async def init_db():
         from beanie import init_beanie
         
         # Import all models here to avoid circular imports
-        from ..models.user import User, UserRoleAssignment, Department, Course, CourseDepartment
-        from ..models.academic import AcademicSession, Semester, Student, StudentCourse
+        from ..models.user import User, UserRoleAssignment
+        from ..models.academic import AcademicSession, Semester, Department, Course, CourseDepartment
+        from ..models.student import Student, StudentCourse
         from ..models.question import QuestionBank, Question, QuestionOption, QuestionAnswer
-        from ..models.security import UserSession, BiometricTemplate, AuditLog, SecurityEvent
-        
+        from ..models.exam import Examination, ExamQuestion, ExamInstance, ExamAnswer
+        from ..models.security import (
+            UserSession,
+            AuditLog,
+            SecurityEvent,
+            SecurityScan,
+            Vulnerability,
+        )
+        from ..models.biometric import (
+            BiometricTemplate,
+            BiometricVerification,
+            BiometricDevice,
+            BiometricSession,
+            BiometricAnomaly,
+            BiometricConfiguration,
+            BiometricAuditLog,
+        )
+
         # Add models to Beanie
         document_models = [
             User, UserRoleAssignment, Department, Course, CourseDepartment,
             AcademicSession, Semester, Student, StudentCourse,
             QuestionBank, Question, QuestionOption, QuestionAnswer,
-            UserSession, BiometricTemplate, AuditLog, SecurityEvent
+            Examination, ExamQuestion, ExamInstance, ExamAnswer,
+            UserSession, AuditLog, SecurityEvent, SecurityScan, Vulnerability,
+            BiometricTemplate, BiometricVerification, BiometricDevice,
+            BiometricSession, BiometricAnomaly, BiometricConfiguration,
+            BiometricAuditLog,
         ]
         
         await init_beanie(database=database, document_models=document_models)

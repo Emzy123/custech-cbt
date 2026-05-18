@@ -2,6 +2,7 @@
 Seed script — creates the SUPER_ADMIN user in MongoDB.
 """
 import asyncio
+import os
 import sys
 sys.path.insert(0, 'src')
 
@@ -12,6 +13,15 @@ from cbt.models.user import UserRoleAssignment, UserRole
 
 
 async def create_admin():
+    admin_username = os.getenv("SEED_ADMIN_USERNAME", "admin")
+    admin_email = os.getenv("SEED_ADMIN_EMAIL", "admin@custech.edu.ng")
+    admin_password = os.getenv("SEED_ADMIN_PASSWORD")
+    if not admin_password:
+        raise ValueError(
+            "SEED_ADMIN_PASSWORD is required. "
+            "Set it in your shell before running the seed script."
+        )
+
     # 1. Boot MongoDB + Beanie
     await init_db()
     # 2. Boot Redis
@@ -21,9 +31,9 @@ async def create_admin():
 
     try:
         user = await auth_service.register_user(
-            username='admin',
-            email='admin@custech.edu.ng',
-            password='Admin@CBT2024',
+            username=admin_username,
+            email=admin_email,
+            password=admin_password,
             first_name='System',
             last_name='Administrator',
             phone_number='+2348000000000',
@@ -49,7 +59,7 @@ async def create_admin():
     except ValueError as e:
         if "already exists" in str(e):
             print("[INFO] Admin user already exists. Ensuring role...")
-            user = await auth_service._get_user_by_username('admin')
+            user = await auth_service._get_user_by_username(admin_username)
 
             if user:
                 # Ensure verified
@@ -82,8 +92,8 @@ async def create_admin():
 
     await redis_manager.disconnect()
     print('\n=== Admin Credentials ===')
-    print('  Username : admin')
-    print('  Password : Admin@CBT2024')
+    print(f'  Username : {admin_username}')
+    print('  Password : [from SEED_ADMIN_PASSWORD]')
     print('  Role     : SUPER_ADMIN')
 
 

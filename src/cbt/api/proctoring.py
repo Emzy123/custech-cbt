@@ -17,8 +17,7 @@ from .deps import get_current_active_user, require_permission
 router = APIRouter(prefix="/proctoring", tags=["proctoring"])
 
 
-@router.post("/session/start", response_model=ProctoringSessionResponse)
-@require_permission("exam.start")
+@router.post("/session/start", response_model=ProctoringSessionResponse, dependencies=[Depends(require_permission("exam.start"))])
 async def start_proctoring_session(
     session_data: ProctoringSessionStart,
     db: Any = Depends(get_db),
@@ -46,8 +45,7 @@ async def start_proctoring_session(
         )
 
 
-@router.post("/session/{session_id}/focus-loss")
-@require_permission("exam.active")
+@router.post("/session/{session_id}/focus-loss", dependencies=[Depends(require_permission("exam.active"))])
 async def record_focus_loss(
     session_id: str,
     focus_data: FocusLossEvent,
@@ -73,8 +71,7 @@ async def record_focus_loss(
         )
 
 
-@router.post("/session/{session_id}/fullscreen-exit")
-@require_permission("exam.active")
+@router.post("/session/{session_id}/fullscreen-exit", dependencies=[Depends(require_permission("exam.active"))])
 async def record_fullscreen_exit(
     session_id: str,
     fullscreen_data: FullscreenExitEvent,
@@ -100,8 +97,7 @@ async def record_fullscreen_exit(
         )
 
 
-@router.post("/session/{session_id}/keyboard-violation")
-@require_permission("exam.active")
+@router.post("/session/{session_id}/keyboard-violation", dependencies=[Depends(require_permission("exam.active"))])
 async def record_keyboard_violation(
     session_id: str,
     keyboard_data: KeyboardViolationEvent,
@@ -127,8 +123,7 @@ async def record_keyboard_violation(
         )
 
 
-@router.post("/session/{session_id}/clipboard-event")
-@require_permission("exam.active")
+@router.post("/session/{session_id}/clipboard-event", dependencies=[Depends(require_permission("exam.active"))])
 async def record_clipboard_event(
     session_id: str,
     clipboard_data: ClipboardEvent,
@@ -154,8 +149,7 @@ async def record_clipboard_event(
         )
 
 
-@router.post("/session/{session_id}/heartbeat")
-@require_permission("exam.active")
+@router.post("/session/{session_id}/heartbeat", dependencies=[Depends(require_permission("exam.active"))])
 async def update_heartbeat(
     session_id: str,
     heartbeat_data: HeartbeatUpdate,
@@ -181,8 +175,7 @@ async def update_heartbeat(
         )
 
 
-@router.get("/session/{session_id}")
-@require_permission("exam.read")
+@router.get("/session/{session_id}", dependencies=[Depends(require_permission("exam.read"))])
 async def get_proctoring_session(
     session_id: str,
     db: Any = Depends(get_db),
@@ -207,8 +200,7 @@ async def get_proctoring_session(
         )
 
 
-@router.post("/session/{session_id}/end")
-@require_permission("exam.manage")
+@router.post("/session/{session_id}/end", dependencies=[Depends(require_permission("exam.manage"))])
 async def end_proctoring_session(
     session_id: str,
     reason: Optional[str] = "exam_completed",
@@ -232,8 +224,7 @@ async def end_proctoring_session(
         )
 
 
-@router.get("/examination/{examination_id}/summary", response_model=ProctoringSummary)
-@require_permission("exam.manage")
+@router.get("/examination/{examination_id}/summary", response_model=ProctoringSummary, dependencies=[Depends(require_permission("exam.manage"))])
 async def get_proctoring_summary(
     examination_id: str,
     db: Any = Depends(get_db),
@@ -256,8 +247,7 @@ async def get_proctoring_summary(
         )
 
 
-@router.post("/session/{session_id}/watermark")
-@require_permission("exam.active")
+@router.post("/session/{session_id}/watermark", dependencies=[Depends(require_permission("exam.active"))])
 async def generate_session_watermark(
     session_id: str,
     student_info: dict,
@@ -281,8 +271,7 @@ async def generate_session_watermark(
         )
 
 
-@router.post("/session/{session_id}/detect-recording")
-@require_permission("exam.active")
+@router.post("/session/{session_id}/detect-recording", dependencies=[Depends(require_permission("exam.active"))])
 async def detect_screen_recording(
     session_id: str,
     browser_info: dict,
@@ -306,8 +295,7 @@ async def detect_screen_recording(
         )
 
 
-@router.get("/session/{session_id}/events")
-@require_permission("exam.manage")
+@router.get("/session/{session_id}/events", dependencies=[Depends(require_permission("exam.manage"))])
 async def get_session_events(
     session_id: str,
     event_type: Optional[str] = None,
@@ -349,8 +337,7 @@ async def get_session_events(
         )
 
 
-@router.post("/session/{session_id}/pause")
-@require_permission("exam.manage")
+@router.post("/session/{session_id}/pause", dependencies=[Depends(require_permission("exam.manage"))])
 async def pause_exam_session(
     session_id: str,
     reason: str,
@@ -390,8 +377,7 @@ async def pause_exam_session(
         )
 
 
-@router.post("/session/{session_id}/resume")
-@require_permission("exam.manage")
+@router.post("/session/{session_id}/resume", dependencies=[Depends(require_permission("exam.manage"))])
 async def resume_exam_session(
     session_id: str,
     db: Any = Depends(get_db),
@@ -434,8 +420,7 @@ async def resume_exam_session(
         )
 
 
-@router.post("/session/{session_id}/terminate")
-@require_permission("exam.manage")
+@router.post("/session/{session_id}/terminate", dependencies=[Depends(require_permission("exam.manage"))])
 async def terminate_exam_session(
     session_id: str,
     reason: str,

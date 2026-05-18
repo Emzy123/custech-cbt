@@ -17,8 +17,7 @@ from .deps import get_current_active_user, require_permission
 router = APIRouter(prefix="/deployment", tags=["deployment"])
 
 
-@router.post("/plan/create", response_model=DeploymentPlanResponse)
-@require_permission("deployment.manage")
+@router.post("/plan/create", response_model=DeploymentPlanResponse, dependencies=[Depends(require_permission("deployment.manage"))])
 async def create_deployment_plan(
     plan_data: DeploymentPlanCreate,
     db: Any = Depends(get_db),
@@ -27,7 +26,7 @@ async def create_deployment_plan(
     """Create deployment plan."""
     try:
         deployment_service = DeploymentService(db)
-        plan = await deployment_service.create_deployment_plan(plan_data.dict())
+        plan = await deployment_service.create_deployment_plan(plan_data.model_dump())
         return DeploymentPlanResponse(**plan)
     except ValueError as e:
         raise HTTPException(
@@ -41,8 +40,7 @@ async def create_deployment_plan(
         )
 
 
-@router.post("/{deployment_id}/execute", response_model=DeploymentExecutionResponse)
-@require_permission("deployment.execute")
+@router.post("/{deployment_id}/execute", response_model=DeploymentExecutionResponse, dependencies=[Depends(require_permission("deployment.execute"))])
 async def execute_deployment(
     deployment_id: str,
     background_tasks: BackgroundTasks,
@@ -73,8 +71,7 @@ async def execute_deployment(
         )
 
 
-@router.post("/{deployment_id}/rollback", response_model=DeploymentRollbackResponse)
-@require_permission("deployment.execute")
+@router.post("/{deployment_id}/rollback", response_model=DeploymentRollbackResponse, dependencies=[Depends(require_permission("deployment.execute"))])
 async def rollback_deployment(
     deployment_id: str,
     reason: str,
@@ -106,8 +103,7 @@ async def rollback_deployment(
         )
 
 
-@router.post("/{deployment_id}/handover/create", response_model=OperationalHandoverResponse)
-@require_permission("deployment.manage")
+@router.post("/{deployment_id}/handover/create", response_model=OperationalHandoverResponse, dependencies=[Depends(require_permission("deployment.manage"))])
 async def create_operational_handover(
     deployment_id: str,
     handover_data: OperationalHandoverCreate,
@@ -118,7 +114,7 @@ async def create_operational_handover(
     try:
         deployment_service = DeploymentService(db)
         handover = await deployment_service.create_operational_handover(
-            deployment_id, handover_data.dict()
+            deployment_id, handover_data.model_dump()
         )
         return OperationalHandoverResponse(**handover)
     except ValueError as e:
@@ -133,8 +129,7 @@ async def create_operational_handover(
         )
 
 
-@router.post("/handover/{handover_id}/execute", response_model=HandoverExecutionResponse)
-@require_permission("deployment.manage")
+@router.post("/handover/{handover_id}/execute", response_model=HandoverExecutionResponse, dependencies=[Depends(require_permission("deployment.manage"))])
 async def execute_handover(
     handover_id: str,
     background_tasks: BackgroundTasks,
@@ -165,8 +160,7 @@ async def execute_handover(
         )
 
 
-@router.post("/{deployment_id}/closure-report", response_model=ProjectClosureResponse)
-@require_permission("deployment.manage")
+@router.post("/{deployment_id}/closure-report", response_model=ProjectClosureResponse, dependencies=[Depends(require_permission("deployment.manage"))])
 async def create_project_closure_report(
     deployment_id: str,
     db: Any = Depends(get_db),
@@ -189,8 +183,7 @@ async def create_project_closure_report(
         )
 
 
-@router.get("/{deployment_id}/status", response_model=DeploymentStatusResponse)
-@require_permission("deployment.read")
+@router.get("/{deployment_id}/status", response_model=DeploymentStatusResponse, dependencies=[Depends(require_permission("deployment.read"))])
 async def get_deployment_status(
     deployment_id: str,
     db: Any = Depends(get_db),
@@ -213,8 +206,7 @@ async def get_deployment_status(
         )
 
 
-@router.get("/{deployment_id}")
-@require_permission("deployment.read")
+@router.get("/{deployment_id}", dependencies=[Depends(require_permission("deployment.read"))])
 async def get_deployment_plan(
     deployment_id: str,
     db: Any = Depends(get_db),
@@ -239,8 +231,7 @@ async def get_deployment_plan(
         )
 
 
-@router.get("/")
-@require_permission("deployment.read")
+@router.get("/", dependencies=[Depends(require_permission("deployment.read"))])
 async def list_deployment_plans(
     environment: Optional[str] = None,
     status: Optional[str] = None,
@@ -268,8 +259,7 @@ async def list_deployment_plans(
         )
 
 
-@router.get("/{deployment_id}/events")
-@require_permission("deployment.read")
+@router.get("/{deployment_id}/events", dependencies=[Depends(require_permission("deployment.read"))])
 async def get_deployment_events(
     deployment_id: str,
     event_type: Optional[str] = None,
@@ -309,8 +299,7 @@ async def get_deployment_events(
         )
 
 
-@router.get("/handover/{handover_id}")
-@require_permission("deployment.read")
+@router.get("/handover/{handover_id}", dependencies=[Depends(require_permission("deployment.read"))])
 async def get_handover_package(
     handover_id: str,
     db: Any = Depends(get_db),
@@ -335,8 +324,7 @@ async def get_handover_package(
         )
 
 
-@router.get("/closure-report/{deployment_id}")
-@require_permission("deployment.read")
+@router.get("/closure-report/{deployment_id}", dependencies=[Depends(require_permission("deployment.read"))])
 async def get_project_closure_report(
     deployment_id: str,
     db: Any = Depends(get_db),
@@ -366,8 +354,7 @@ async def get_project_closure_report(
         )
 
 
-@router.post("/{deployment_id}/validate")
-@require_permission("deployment.manage")
+@router.post("/{deployment_id}/validate", dependencies=[Depends(require_permission("deployment.manage"))])
 async def validate_deployment_readiness(
     deployment_id: str,
     db: Any = Depends(get_db),
@@ -432,8 +419,7 @@ async def validate_deployment_readiness(
         )
 
 
-@router.post("/{deployment_id}/schedule")
-@require_permission("deployment.manage")
+@router.post("/{deployment_id}/schedule", dependencies=[Depends(require_permission("deployment.manage"))])
 async def schedule_deployment(
     deployment_id: str,
     scheduled_time: str,
@@ -489,8 +475,7 @@ async def schedule_deployment(
         )
 
 
-@router.post("/{deployment_id}/cancel")
-@require_permission("deployment.manage")
+@router.post("/{deployment_id}/cancel", dependencies=[Depends(require_permission("deployment.manage"))])
 async def cancel_deployment(
     deployment_id: str,
     reason: str,
@@ -544,8 +529,7 @@ async def cancel_deployment(
         )
 
 
-@router.get("/{deployment_id}/health")
-@require_permission("deployment.read")
+@router.get("/{deployment_id}/health", dependencies=[Depends(require_permission("deployment.read"))])
 async def get_deployment_health(
     deployment_id: str,
     db: Any = Depends(get_db),
@@ -610,8 +594,7 @@ async def get_deployment_health(
         )
 
 
-@router.post("/{deployment_id}/backup")
-@require_permission("deployment.execute")
+@router.post("/{deployment_id}/backup", dependencies=[Depends(require_permission("deployment.execute"))])
 async def create_deployment_backup(
     deployment_id: str,
     backup_type: str = "full",
@@ -652,8 +635,7 @@ async def create_deployment_backup(
         )
 
 
-@router.get("/{deployment_id}/metrics")
-@require_permission("deployment.read")
+@router.get("/{deployment_id}/metrics", dependencies=[Depends(require_permission("deployment.read"))])
 async def get_deployment_metrics(
     deployment_id: str,
     metric_type: Optional[str] = None,

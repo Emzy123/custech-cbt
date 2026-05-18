@@ -2,16 +2,19 @@
 Examination management API endpoints.
 """
 
-from typing import List, Optional, Any
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from typing import List, Optional, Any, Dict
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Response
 
 from ..models.exam import Examination, ExamStatus, ExamInstance, ExamInstanceStatus
 from ..schemas.exam import (
     ExaminationCreate, ExaminationUpdate, ExaminationResponse,
     ExamInstanceResponse, ExamSubmissionRequest, ExamSubmissionResponse,
-    ExamStartRequest, ExamStartResponse, ExamReviewResponse
+    ExamStartRequest, ExamStartResponse, ExamReviewResponse,
+    AnswerSaveRequest, ProctoringEventRequest
 )
 from ..services.exam_service import ExamService
+from ..services.venue_allocation_service import VenueAllocationService
+from ..services.slip_generation_service import SlipGenerationService
 from ..core.database import get_db
 from .deps import get_current_active_user, require_permission
 
@@ -231,6 +234,60 @@ async def cancel_examination(
         )
 
 
+@router.post("/{exam_id}/allocate-venues", dependencies=[Depends(require_permission("exam.manage"))])
+async def allocate_venues(
+    exam_id: str,
+    venue_ids: List[str],
+    db: Any = Depends(get_db),
+    current_user = Depends(get_current_active_user)
+):
+    """Allocate students to specific venues for the examination."""
+    try:
+        allocation_service = VenueAllocationService(db)
+        result = await allocation_service.allocate_venues(exam_id, venue_ids, current_user.id)
+        return result
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to allocate venues"
+        )
+
+
+@router.get("/{exam_id}/slips", dependencies=[Depends(require_permission("exam.read"))])
+async def download_slips(
+    exam_id: str,
+    student_id: Optional[str] = Query(None),
+    db: Any = Depends(get_db),
+    current_user = Depends(get_current_active_user)
+):
+    """Download examination slips as PDF. If student_id is provided, download only for that student."""
+    try:
+        slip_service = SlipGenerationService(db)
+        student_ids = [student_id] if student_id else None
+        pdf_bytes = await slip_service.generate_slips(exam_id, student_ids)
+        
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={"Content-Disposition": f"attachment; filename=exam_slips_{exam_id}.pdf"}
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to generate slips"
+        )
+
+
 # Exam Instance Management
 @router.get("/{exam_id}/instances", response_model=List[ExamInstanceResponse], dependencies=[Depends(require_permission("exam.read"))])
 async def list_exam_instances(
@@ -293,7 +350,7 @@ async def start_exam(
         if not result.success:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=result.error_message
+                detail=result.message
             )
         return result
     except HTTPException:
@@ -302,6 +359,80 @@ async def start_exam(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to start exam"
+        )
+
+
+@router.get("/{exam_id}/instances/{instance_id}/paper", dependencies=[Depends(require_permission("exam.start"))])
+async def get_exam_paper(
+    exam_id: str,
+    instance_id: str,
+    db: Any = Depends(get_db),
+    current_user = Depends(get_current_active_user)
+) -> Dict[str, Any]:
+    """Get randomized exam paper."""
+    try:
+        exam_service = ExamService(db)
+        return await exam_service.get_paper(instance_id)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+
+
+@router.post("/{exam_id}/instances/{instance_id}/answers", dependencies=[Depends(require_permission("exam.submit"))])
+async def save_answer(
+    exam_id: str,
+    instance_id: str,
+    answer: AnswerSaveRequest,
+    db: Any = Depends(get_db),
+    current_user = Depends(get_current_active_user)
+) -> Dict[str, Any]:
+    """Autosave answer."""
+    try:
+        exam_service = ExamService(db)
+        return await exam_service.save_answer(instance_id, answer)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+
+
+@router.get("/{exam_id}/instances/{instance_id}/clock", dependencies=[Depends(require_permission("exam.start"))])
+async def sync_clock(
+    exam_id: str,
+    instance_id: str,
+    db: Any = Depends(get_db),
+    current_user = Depends(get_current_active_user)
+) -> Dict[str, Any]:
+    """Sync exam clock."""
+    try:
+        exam_service = ExamService(db)
+        return await exam_service.sync_clock(instance_id)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+
+
+@router.post("/{exam_id}/instances/{instance_id}/proctoring/events", dependencies=[Depends(require_permission("exam.start"))])
+async def log_proctoring_event(
+    exam_id: str,
+    instance_id: str,
+    event: ProctoringEventRequest,
+    db: Any = Depends(get_db),
+    current_user = Depends(get_current_active_user)
+) -> Dict[str, Any]:
+    """Log proctoring event like focus loss."""
+    try:
+        exam_service = ExamService(db)
+        return await exam_service.log_proctoring_event(instance_id, event)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
         )
 
 
@@ -320,7 +451,7 @@ async def submit_exam(
         if not result.success:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=result.error_message
+                detail=result.message
             )
         return result
     except HTTPException:
@@ -500,3 +631,44 @@ async def publish_results(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to publish results"
         )
+
+
+# ── Phase 5: Results & Analytics ─────────────────────────────────────────────
+
+@router.get("/my/results", dependencies=[Depends(require_permission("exam.read"))])
+async def get_my_results(
+    exam_id: Optional[str] = Query(None, description="Filter by exam"),
+    db: Any = Depends(get_db),
+    current_user = Depends(get_current_active_user),
+) -> List[Dict[str, Any]]:
+    """Return embargo-aware results for the authenticated student."""
+    exam_service = ExamService(db)
+    return await exam_service.get_student_results(current_user.id, exam_id)
+
+
+@router.get("/{exam_id}/analytics/items", dependencies=[Depends(require_permission("exam.manage"))])
+async def get_item_analysis(
+    exam_id: str,
+    db: Any = Depends(get_db),
+    current_user = Depends(get_current_active_user),
+) -> Dict[str, Any]:
+    """Return per-question P-value, discrimination, and distractor breakdown (lecturer/officer)."""
+    exam_service = ExamService(db)
+    return await exam_service.get_item_analysis(exam_id)
+
+
+@router.get("/{exam_id}/results/export", dependencies=[Depends(require_permission("exam.manage"))])
+async def export_results_csv(
+    exam_id: str,
+    db: Any = Depends(get_db),
+    current_user = Depends(get_current_active_user),
+) -> Response:
+    """Stream a CSV of all submitted results for Senate / academic records."""
+    exam_service = ExamService(db)
+    csv_content = await exam_service.export_results_csv(exam_id)
+    return Response(
+        content=csv_content,
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename=results_{exam_id}.csv"},
+    )
+

@@ -2,7 +2,7 @@
 Question bank encryption and security control schemas.
 """
 
-from pydantic import BaseModel, validator
+from pydantic import BaseModel, field_validator
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 from enum import Enum
@@ -37,10 +37,11 @@ class QuestionEncryptionRequest(BaseModel):
     encryption_method: Optional[EncryptionMethod] = EncryptionMethod.AES_256_GCM
     encrypt_all_fields: bool = True
     
-    @validator('question_data')
-    def validate_question_data(cls, v):
+    @field_validator("question_data")
+    @classmethod
+    def validate_question_data(cls, v: Dict[str, Any]) -> Dict[str, Any]:
         if not v or not isinstance(v, dict):
-            raise ValueError('Question data must be a non-empty dictionary')
+            raise ValueError("Question data must be a non-empty dictionary")
         return v
 
 
@@ -57,10 +58,11 @@ class QuestionDecryptionRequest(BaseModel):
     encrypted_data: Dict[str, Any]
     key_id: Optional[str] = None
     
-    @validator('encrypted_data')
-    def validate_encrypted_data(cls, v):
+    @field_validator("encrypted_data")
+    @classmethod
+    def validate_encrypted_data(cls, v: Dict[str, Any]) -> Dict[str, Any]:
         if not v or not isinstance(v, dict):
-            raise ValueError('Encrypted data must be a non-empty dictionary')
+            raise ValueError("Encrypted data must be a non-empty dictionary")
         return v
 
 

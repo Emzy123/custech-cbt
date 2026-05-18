@@ -13,8 +13,10 @@ __pycache__/
 venv/
 venv_new/
 .venv/
+.ci_venv/
 env/
 ENV/
+test_env/
 
 # Distribution / packaging
 dist/
@@ -56,6 +58,7 @@ secrets/
 *.sqlite
 *.sqlite3
 cbt_test.db
+dump.rdb
 
 # ── Logs ─────────────────────────────────────
 logs/

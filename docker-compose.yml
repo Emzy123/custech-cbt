@@ -10,15 +10,20 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - DATABASE_URL=postgresql+asyncpg://cbt_user:${DB_PASSWORD}@postgres:5432/cbt_db
+      - PYTHONPATH=/app/src
+      - DATABASE_URL=mongodb://mongo:27017
+      - DATABASE_HOST=mongo
+      - DATABASE_PORT=27017
+      - DATABASE_NAME=cbt_db
       - REDIS_URL=redis://redis:6379/0
       - JWT_SECRET=${JWT_SECRET}
       - BIOMETRIC_ENCRYPTION_KEY=${BIOMETRIC_ENCRYPTION_KEY}
       - SECRET_KEY=${SECRET_KEY}
+      - RANDOMISATION_SECRET=${RANDOMISATION_SECRET:-dev-randomisation-secret-change-me}
       - DEBUG=${DEBUG:-false}
       - ENVIRONMENT=${ENVIRONMENT:-development}
     depends_on:
-      postgres:
+      mongo:
         condition: service_healthy
       redis:
         condition: service_healthy
@@ -36,43 +41,23 @@ services:
       retries: 3
       start_period: 40s
 
-  # PostgreSQL Database
-  postgres:
-    image: postgres:15-alpine
-    container_name: cbt-postgres
-    environment:
-      - POSTGRES_DB=cbt_db
-      - POSTGRES_USER=cbt_user
-      - POSTGRES_PASSWORD=${DB_PASSWORD}
-      - POSTGRES_INITDB_ARGS=--encoding=UTF-8 --lc-collate=C --lc-ctype=C
+  # MongoDB
+  mongo:
+    image: mongo:7
+    container_name: cbt-mongo
     ports:
-      - "5432:5432"
+      - "27017:27017"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./database/init-scripts:/docker-entrypoint-initdb.d
-      - ./database/backup:/backup
+      - mongo_data:/data/db
     networks:
       - cbt-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U cbt_user -d cbt_db"]
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 30s
-    command: >
-      postgres
-      -c shared_preload_libraries=pg_stat_statements
-      -c max_connections=200
-      -c shared_buffers=256MB
-      -c effective_cache_size=1GB
-      -c work_mem=4MB
-      -c maintenance_work_mem=64MB
-      -c checkpoint_completion_target=0.9
-      -c wal_buffers=16MB
-      -c default_statistics_target=100
-      -c random_page_cost=1.1
-      -c effective_io_concurrency=200
 
   # Redis Cache
   redis:
@@ -148,6 +133,7 @@ services:
     volumes:
       - grafana_data:/var/lib/grafana
       - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - ./monitoring/grafana/dashboard-defs:/etc/grafana/dashboards
       - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources
     depends_on:
       - prometheus
@@ -208,7 +194,7 @@ services:
       - logging
 
 volumes:
-  postgres_data:
+  mongo_data:
     driver: local
   redis_data:
     driver: local

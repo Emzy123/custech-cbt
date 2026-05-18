@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Eye, EyeSlash, Student, Shield, Timer } from '@phosphor-icons/react';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import Card from '../components/ui/Card';
+import { apiRequest } from '../lib/api';
 
 interface LoginFormData {
   matricNumber: string;
@@ -10,6 +12,7 @@ interface LoginFormData {
 }
 
 const LoginPage: React.FC = () => {
+  const navigate = useNavigate();
   const [formData, setFormData] = useState<LoginFormData>({
     matricNumber: '',
     password: ''
@@ -17,6 +20,14 @@ const LoginPage: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  interface LoginResponse {
+    access?: string;
+    refresh?: string;
+    access_token?: string;
+    refresh_token?: string;
+    user?: Record<string, unknown>;
+  }
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -30,26 +41,49 @@ const LoginPage: React.FC = () => {
     setError(null);
 
     try {
-      // TODO: Implement actual authentication logic
-      const response = await fetch('/api/v1/auth/login', {
+      const data = await apiRequest<LoginResponse>('/api/v1/auth/login', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
         body: JSON.stringify({
           username: formData.matricNumber,
           password: formData.password
         }),
       });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Login failed');
+      const accessToken = data.access ?? data.access_token;
+      const refreshToken = data.refresh ?? data.refresh_token;
+      if (!accessToken) {
+        throw new Error('Login response did not include an access token.');
+      }
+      localStorage.setItem('authToken', accessToken);
+      if (refreshToken) {
+        localStorage.setItem('refreshToken', refreshToken);
+      }
+      if (data.user) {
+        localStorage.setItem('authUser', JSON.stringify(data.user));
       }
 
-      const data = await response.json();
-      // TODO: Handle successful login (redirect to dashboard)
-      console.log('Login successful:', data);
+      // Fetch full profile to get roles
+      try {
+        const me = await apiRequest<{ roles?: string[]; role?: string }>('/api/v1/auth/me');
+        localStorage.setItem('authUser', JSON.stringify({ ...data.user, ...me }));
+        
+        const roleStr = me.roles && me.roles.length > 0 ? me.roles[0].toLowerCase() : (me.role ? me.role.toLowerCase() : '');
+        
+        // Navigate based on role
+        if (roleStr === 'admin' || roleStr === 'administrator' || roleStr === 'super_admin') {
+          navigate('/admin/dashboard', { replace: true });
+        } else if (roleStr === 'officer' || roleStr === 'exam_officer') {
+          navigate('/officer', { replace: true });
+        } else if (roleStr === 'invigilator') {
+          navigate('/invigilator/dashboard', { replace: true });
+        } else if (roleStr === 'lecturer') {
+          navigate('/lecturer/questions', { replace: true });
+        } else {
+          navigate('/dashboard', { replace: true });
+        }
+      } catch (e) {
+        // Fallback
+        navigate('/dashboard', { replace: true });
+      }
       
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred during login');
@@ -172,9 +206,17 @@ const LoginPage: React.FC = () => {
                 <button
                   type="button"
                   className="text-sm text-info hover:text-info-dark focus:outline-none focus:underline"
-                  onClick={() => {
-                    // TODO: Implement forgot password logic
-                    console.log('Forgot password clicked');
+                  onClick={async () => {
+                    const email = window.prompt('Enter your registered email address');
+                    if (!email) return;
+                    try {
+                      await apiRequest(`/api/v1/auth/forgot-password?email=${encodeURIComponent(email)}`, {
+                        method: 'POST'
+                      });
+                      setError('Password reset request sent. Check your email.');
+                    } catch (err) {
+                      setError(err instanceof Error ? err.message : 'Password reset request failed');
+                    }
                   }}
                 >
                   Forgot Password?

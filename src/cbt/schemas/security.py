@@ -2,7 +2,7 @@
 Security hardening and penetration testing schemas.
 """
 
-from pydantic import BaseModel, validator
+from pydantic import BaseModel, ConfigDict, field_validator
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 from enum import Enum
@@ -40,11 +40,12 @@ class SASTScanRequest(BaseModel):
     """SAST scan request."""
     scan_type: str = "comprehensive"  # quick, comprehensive, deep
     
-    @validator('scan_type')
-    def validate_scan_type(cls, v):
+    @field_validator("scan_type")
+    @classmethod
+    def validate_scan_type(cls, v: str) -> str:
         allowed_types = ["quick", "comprehensive", "deep"]
         if v not in allowed_types:
-            raise ValueError(f'Scan type must be one of: {allowed_types}')
+            raise ValueError(f"Scan type must be one of: {allowed_types}")
         return v
 
 
@@ -58,8 +59,7 @@ class SASTScanResponse(BaseModel):
     scan_duration: Optional[float] = None
     message: Optional[str] = None
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class DASTScanRequest(BaseModel):
@@ -67,17 +67,19 @@ class DASTScanRequest(BaseModel):
     target_url: str
     scan_type: str = "comprehensive"  # quick, comprehensive, deep
     
-    @validator('target_url')
-    def validate_target_url(cls, v):
-        if not v.startswith(('http://', 'https://')):
-            raise ValueError('Target URL must start with http:// or https://')
+    @field_validator("target_url")
+    @classmethod
+    def validate_target_url(cls, v: str) -> str:
+        if not v.startswith(("http://", "https://")):
+            raise ValueError("Target URL must start with http:// or https://")
         return v
-    
-    @validator('scan_type')
-    def validate_scan_type(cls, v):
+
+    @field_validator("scan_type")
+    @classmethod
+    def validate_dast_scan_type(cls, v: str) -> str:
         allowed_types = ["quick", "comprehensive", "deep"]
         if v not in allowed_types:
-            raise ValueError(f'Scan type must be one of: {allowed_types}')
+            raise ValueError(f"Scan type must be one of: {allowed_types}")
         return v
 
 
@@ -92,20 +94,20 @@ class DASTScanResponse(BaseModel):
     scan_duration: Optional[float] = None
     message: Optional[str] = None
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class PenetrationTestRequest(BaseModel):
     """Penetration test request."""
     test_scope: Dict[str, Any]
     
-    @validator('test_scope')
-    def validate_test_scope(cls, v):
+    @field_validator("test_scope")
+    @classmethod
+    def validate_test_scope(cls, v: Dict[str, Any]) -> Dict[str, Any]:
         required_fields = ["target_url", "test_types"]
         for field in required_fields:
             if field not in v:
-                raise ValueError(f'Test scope must include: {required_fields}')
+                raise ValueError(f"Test scope must include: {required_fields}")
         return v
 
 
@@ -120,18 +122,18 @@ class PenetrationTestResponse(BaseModel):
     test_duration: Optional[float] = None
     message: Optional[str] = None
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ServerHardeningRequest(BaseModel):
     """Server hardening request."""
     server_config: Dict[str, Any]
     
-    @validator('server_config')
-    def validate_server_config(cls, v):
+    @field_validator("server_config")
+    @classmethod
+    def validate_server_config(cls, v: Dict[str, Any]) -> Dict[str, Any]:
         if not v:
-            raise ValueError('Server configuration cannot be empty')
+            raise ValueError("Server configuration cannot be empty")
         return v
 
 
@@ -145,18 +147,18 @@ class ServerHardeningResponse(BaseModel):
     hardening_duration: Optional[float] = None
     message: Optional[str] = None
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class WAFConfigurationRequest(BaseModel):
     """WAF configuration request."""
     waf_config: Dict[str, Any]
     
-    @validator('waf_config')
-    def validate_waf_config(cls, v):
+    @field_validator("waf_config")
+    @classmethod
+    def validate_waf_config(cls, v: Dict[str, Any]) -> Dict[str, Any]:
         if not v:
-            raise ValueError('WAF configuration cannot be empty')
+            raise ValueError("WAF configuration cannot be empty")
         return v
 
 
@@ -169,8 +171,7 @@ class WAFConfigurationResponse(BaseModel):
     test_results: Optional[Dict[str, Any]] = None
     configuration_duration: Optional[float] = None
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class SecretsAuditResponse(BaseModel):
@@ -183,8 +184,7 @@ class SecretsAuditResponse(BaseModel):
     audit_duration: Optional[float] = None
     message: Optional[str] = None
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class Vulnerability(BaseModel):
@@ -211,8 +211,7 @@ class Vulnerability(BaseModel):
     remediation_notes: Optional[str] = None
     acknowledgment_notes: Optional[str] = None
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class VulnerabilityReport(BaseModel):
@@ -223,8 +222,7 @@ class VulnerabilityReport(BaseModel):
     vulnerabilities: Dict[str, List[Dict[str, Any]]]
     generated_at: datetime
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class VulnerabilityRemediation(BaseModel):
@@ -245,8 +243,7 @@ class SecurityScan(BaseModel):
     results: Optional[Dict[str, Any]] = None
     error_message: Optional[str] = None
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class SecurityDashboard(BaseModel):
@@ -256,8 +253,7 @@ class SecurityDashboard(BaseModel):
     risk_level: str
     last_updated: datetime
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ComplianceCheck(BaseModel):
@@ -270,8 +266,7 @@ class ComplianceCheck(BaseModel):
     recommendations: List[str]
     checked_at: datetime
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class RemediationSprint(BaseModel):
@@ -285,8 +280,7 @@ class RemediationSprint(BaseModel):
     target_completion: Optional[datetime] = None
     status: str
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class SecurityMetric(BaseModel):
@@ -313,8 +307,7 @@ class SecurityAlert(BaseModel):
     assigned_to: Optional[str] = None
     resolution_notes: Optional[str] = None
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class SecurityPolicy(BaseModel):
@@ -330,8 +323,7 @@ class SecurityPolicy(BaseModel):
     next_review: datetime
     owner: str
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class SecurityIncident(BaseModel):
@@ -351,8 +343,7 @@ class SecurityIncident(BaseModel):
     lessons_learned: Optional[str] = None
     resolved_at: Optional[datetime] = None
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ThreatIntelligence(BaseModel):
@@ -370,8 +361,7 @@ class ThreatIntelligence(BaseModel):
     last_seen: datetime
     confidence_score: float
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class SecurityConfiguration(BaseModel):
@@ -383,8 +373,7 @@ class SecurityConfiguration(BaseModel):
     last_updated: datetime
     updated_by: str
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class SecurityAuditLog(BaseModel):
@@ -401,8 +390,7 @@ class SecurityAuditLog(BaseModel):
     error_message: Optional[str] = None
     additional_data: Optional[Dict[str, Any]] = None
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class RiskAssessment(BaseModel):
@@ -421,5 +409,4 @@ class RiskAssessment(BaseModel):
     next_review: datetime
     assessor: str
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

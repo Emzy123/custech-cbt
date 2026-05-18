@@ -3,9 +3,7 @@ Biometric models for secure template handling using Beanie (MongoDB).
 """
 
 from typing import Optional, List, Dict, Any
-import enum
 from datetime import datetime, timezone
-from beanie import Document
 from pydantic import Field
 
 from .base import BaseDocument
@@ -19,6 +17,7 @@ class BiometricTemplate(BaseDocument):
     template_hash: str   # SHA-256 hash
     device_id: Optional[str] = None
     quality_score: float = 0.0
+    is_active: bool = True
     enrollment_date: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     deactivated_at: Optional[datetime] = None
     deactivation_reason: Optional[str] = None
@@ -53,6 +52,7 @@ class BiometricDevice(BaseDocument):
     device_name: str
     device_identifier: str  # Serial number or unique ID
     device_type: str        # fingerprint_scanner, camera, iris_scanner, microphone
+    is_active: bool = True
     manufacturer: Optional[str] = None
     model: Optional[str] = None
     firmware_version: Optional[str] = None

@@ -1,14 +1,10 @@
-"""
-Student service for managing student records and operations.
-"""
+"""Student service for managing student records using Beanie."""
 
 from typing import List, Optional, Dict, Any
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid
 
 from ..models.student import Student, StudentCourse, StudentStatus
-from ..models.user import User
-from ..models.academic import AcademicSession, Semester, Department
 from ..schemas.student import (
     StudentCreate, StudentUpdate, StudentSearch,
     BulkImportRequest, BulkImportResponse, StudentCourseRegistration,
@@ -18,99 +14,81 @@ from ..schemas.student import (
 
 class StudentService:
     """Service for managing student operations."""
-    
+
     def __init__(self, db: Any):
+        # db retained for compatibility with dependency injection.
         self.db = db
-    
+
     async def create_student(self, student_data: StudentCreate, created_by: str) -> Student:
         """Create a new student record."""
-        # Check if matric number already exists
-        existing = await self.db.execute(
-            select(Student).where(Student.matric_number == student_data.matric_number)
-        )
-        if existing.scalar_one_or_none():
+        existing = await Student.find_one(Student.matric_number == student_data.matric_number)
+        if existing:
             raise ValueError(f"Matric number {student_data.matric_number} already exists")
-        
-        # Check if user already has a student record
-        existing_user = await self.db.execute(
-            select(Student).where(Student.user_id == student_data.user_id)
-        )
-        if existing_user.scalar_one_or_none():
+
+        existing_user = await Student.find_one(Student.user_id == student_data.user_id)
+        if existing_user:
             raise ValueError(f"User {student_data.user_id} already has a student record")
-        
-        # Create student record
+
         student = Student(
             user_id=student_data.user_id,
+            first_name=student_data.first_name,
+            last_name=student_data.last_name,
+            email=str(student_data.email),
+            phone_number=student_data.phone_number,
+            date_of_birth=student_data.date_of_birth,
+            gender=student_data.gender,
             department_id=student_data.department_id,
             academic_session_id=student_data.academic_session_id,
             matric_number=student_data.matric_number,
             admission_year=student_data.admission_year,
             current_level=student_data.current_level,
+            graduated=False,
             is_active=True,
-            graduated=False
         )
-        
-        self.db.add(student)
-        await self.db.commit()
-        await self.db.refresh(student)
+        await student.insert()
         return student
     
     async def list_students(self, search_params: StudentSearch) -> List[Student]:
         """List students with filtering and pagination."""
-        query = select(Student)
-        
-        # Apply filters
+        query = Student.find(Student.is_active == True)
+
         if search_params.department_id:
-            query = query.where(Student.department_id == search_params.department_id)
-        if search_params.academic_session_id:
-            query = query.where(Student.academic_session_id == search_params.academic_session_id)
-        if search_params.current_level:
-            query = query.where(Student.current_level == search_params.current_level)
-        if search_params.is_active is not None:
-            query = query.where(Student.is_active == search_params.is_active)
-        if search_params.graduated is not None:
-            query = query.where(Student.graduated == search_params.graduated)
-        
-        # Apply search
-        if search_params.search:
-            search_term = f"%{search_params.search}%"
-            query = query.where(
-                Student.matric_number.ilike(search_term)
-            )
-        
-        # Apply ordering and pagination
-        query = query.order_by(Student.matric_number)
-        if search_params.offset:
-            query = query.offset(search_params.offset)
-        if search_params.limit:
-            query = query.limit(search_params.limit)
-        
-        result = await self.db.execute(query)
-        return result.scalars().all()
+            query = query.find(Student.department_id == search_params.department_id)
+        if search_params.academic_session:
+            query = query.find(Student.academic_session_id == search_params.academic_session)
+        if search_params.level:
+            query = query.find(Student.current_level == search_params.level)
+        if search_params.status:
+            if search_params.status == StudentStatus.GRADUATED:
+                query = query.find(Student.graduated == True)
+            elif search_params.status == StudentStatus.INACTIVE:
+                query = query.find(Student.is_active == False)
+            else:
+                query = query.find(Student.graduated == False, Student.is_active == True)
+        if search_params.query:
+            query = query.find({"matric_number": {"$regex": search_params.query, "$options": "i"}})
+
+        limit = search_params.limit or 50
+        students = await query.sort("matric_number").limit(limit).to_list()
+        return students
     
     async def search_students(self, query: str, limit: int = 50) -> List[Student]:
         """Search students by name or matric number."""
-        search_term = f"%{query}%"
-        db_query = select(Student).where(
-            Student.matric_number.ilike(search_term)
-        ).limit(limit)
-        
-        result = await self.db.execute(db_query)
-        return result.scalars().all()
+        return await Student.find(
+            {"$or": [
+                {"matric_number": {"$regex": query, "$options": "i"}},
+                {"first_name": {"$regex": query, "$options": "i"}},
+                {"last_name": {"$regex": query, "$options": "i"}},
+            ]}
+        ).limit(limit).to_list()
     
     async def get_student(self, student_id: str) -> Optional[Student]:
         """Get student by ID."""
-        result = await self.db.execute(
-            select(Student).where(Student.id == student_id)
-        )
-        return result.scalar_one_or_none()
+        return await Student.find_one(Student.id == student_id)
     
     async def get_student_by_matric(self, matric_number: str) -> Optional[Student]:
         """Get student by matric number."""
-        result = await self.db.execute(
-            select(Student).where(Student.matric_number == matric_number)
-        )
-        return result.scalar_one_or_none()
+        return await Student.find_one(Student.matric_number == matric_number)
     
     async def update_student(self, student_id: str, student_data: StudentUpdate, updated_by: str) -> Optional[Student]:
         """Update student record."""
@@ -119,25 +97,12 @@ class StudentService:
         if not student:
             return None
         
-        # Update fields
         update_data = student_data.dict(exclude_unset=True)
         for field, value in update_data.items():
             if hasattr(student, field):
                 setattr(student, field, value)
-        
-        # Handle matric number change if provided
-        if 'matric_number' in update_data:
-            existing = await self.db.execute(
-                select(Student).where(
-                    Student.matric_number == update_data['matric_number'],
-                    Student.id != student_id
-                )
-            )
-            if existing.scalar_one_or_none():
-                raise ValueError(f"Matric number {update_data['matric_number']} already exists")
-        
-        await self.db.commit()
-        await self.db.refresh(student)
+
+        await student.save()
         return student
     
     async def delete_student(self, student_id: str, deleted_by: str) -> bool:
@@ -146,12 +111,8 @@ class StudentService:
         if not student:
             return False
         
-        # Soft delete by deactivating
         student.is_active = False
-        student.deleted_at = datetime.utcnow()
-        student.deleted_by = deleted_by
-        
-        await self.db.commit()
+        await student.save()
         return True
     
     async def bulk_import_students(self, import_request: BulkImportRequest, created_by: str) -> BulkImportResponse:
@@ -181,9 +142,7 @@ class StudentService:
             total_records=len(import_request.students),
             successful_imports=len(successful_imports),
             failed_imports=len(failed_imports),
-            successful_records=successful_imports,
-            failed_records=failed_imports,
-            status="completed"
+            errors=failed_imports,
         )
     
     async def import_from_csv(self, file, validate_only: bool, continue_on_error: bool, created_by: str) -> Dict[str, Any]:
@@ -205,14 +164,14 @@ class StudentService:
                 student_data = StudentCreate(
                     user_id=row.get('user_id', ''),
                     matric_number=row['matric_number'],
-                    first_name=row['first_name'],
-                    last_name=row['last_name'],
-                    email=row['email'],
+                    first_name=row["first_name"],
+                    last_name=row["last_name"],
+                    email=row["email"],
                     phone_number=row.get('phone_number'),
                     admission_year=int(row['admission_year']),
                     current_level=int(row['current_level']),
                     department_id=row['department_id'],
-                    academic_session_id=row['academic_session_id']
+                    academic_session_id=row["academic_session_id"]
                 )
                 students_data.append(student_data)
             except Exception as e:
@@ -258,23 +217,13 @@ class StudentService:
             return None
         
         # Update status based on the status_update data
-        if hasattr(status_update, 'status') and status_update.status:
-            # Convert string to enum if needed
-            if isinstance(status_update.status, str):
-                student.status = StudentStatus(status_update.status)
-            else:
-                student.status = status_update.status
-        
-        if hasattr(status_update, 'is_active') and status_update.is_active is not None:
-            student.is_active = status_update.is_active
-        
-        if hasattr(status_update, 'graduated') and status_update.graduated is not None:
-            student.graduated = status_update.graduated
-            if status_update.graduated and hasattr(status_update, 'graduation_year'):
-                student.graduation_year = status_update.graduation_year
-        
-        await self.db.commit()
-        await self.db.refresh(student)
+        if status_update.status == StudentStatus.INACTIVE:
+            student.is_active = False
+        elif status_update.status == StudentStatus.GRADUATED:
+            student.graduated = True
+        else:
+            student.is_active = True
+        await student.save()
         return student
     
     async def activate_student(self, student_id: str, reason: str, updated_by: str) -> Optional[Student]:
@@ -284,10 +233,7 @@ class StudentService:
             return None
         
         student.is_active = True
-        student.status = StudentStatus.ACTIVE
-        
-        await self.db.commit()
-        await self.db.refresh(student)
+        await student.save()
         return student
     
     async def deactivate_student(self, student_id: str, reason: str, updated_by: str) -> Optional[Student]:
@@ -297,10 +243,7 @@ class StudentService:
             return None
         
         student.is_active = False
-        student.status = StudentStatus.INACTIVE
-        
-        await self.db.commit()
-        await self.db.refresh(student)
+        await student.save()
         return student
     
     async def graduate_student(self, student_id: str, graduation_year: int, updated_by: str) -> Optional[Student]:
@@ -311,22 +254,17 @@ class StudentService:
         
         student.graduated = True
         student.graduation_year = graduation_year
-        student.status = StudentStatus.GRADUATED
-        
-        await self.db.commit()
-        await self.db.refresh(student)
+        await student.save()
         return student
     
     async def get_student_courses(self, student_id: str, academic_session: str, semester: str) -> List[StudentCourse]:
         """Get student's course registrations."""
-        result = await self.db.execute(
-            select(StudentCourse).where(
-                StudentCourse.student_id == student_id,
-                StudentCourse.academic_session_id == academic_session,
-                StudentCourse.semester == semester
-            )
-        )
-        return result.scalars().all()
+        query = StudentCourse.find(StudentCourse.student_id == student_id)
+        if academic_session:
+            query = query.find(StudentCourse.academic_session_id == academic_session)
+        if semester:
+            query = query.find(StudentCourse.semester_id == semester)
+        return await query.to_list()
     
     async def register_for_course(self, registration: StudentCourseRegistration, registered_by: str) -> Dict[str, Any]:
         """Register student for course."""
@@ -336,15 +274,13 @@ class StudentService:
             raise ValueError(f"Student {registration.student_id} not found")
         
         # Check if already registered
-        existing = await self.db.execute(
-            select(StudentCourse).where(
-                StudentCourse.student_id == registration.student_id,
-                StudentCourse.course_id == registration.course_id,
-                StudentCourse.academic_session_id == registration.academic_session_id,
-                StudentCourse.semester == registration.semester
-            )
+        existing = await StudentCourse.find_one(
+            StudentCourse.student_id == registration.student_id,
+            StudentCourse.course_id == registration.course_id,
+            StudentCourse.academic_session_id == registration.academic_session_id,
+            StudentCourse.semester_id == registration.semester_id
         )
-        if existing.scalar_one_or_none():
+        if existing:
             raise ValueError("Student already registered for this course")
         
         # Create registration
@@ -352,14 +288,10 @@ class StudentService:
             student_id=registration.student_id,
             course_id=registration.course_id,
             academic_session_id=registration.academic_session_id,
-            semester=registration.semester,
-            registered_by=registered_by,
-            registration_date=datetime.utcnow()
+            semester_id=registration.semester_id,
+            registration_date=datetime.now(timezone.utc)
         )
-        
-        self.db.add(student_course)
-        await self.db.commit()
-        await self.db.refresh(student_course)
+        await student_course.insert()
         
         return {
             "registration_id": student_course.id,
@@ -372,25 +304,19 @@ class StudentService:
     async def withdraw_from_course(self, student_id: str, course_id: str, academic_session: str, semester: str, withdrawn_by: str) -> Dict[str, Any]:
         """Withdraw student from course."""
         # Find existing registration
-        result = await self.db.execute(
-            select(StudentCourse).where(
-                StudentCourse.student_id == student_id,
-                StudentCourse.course_id == course_id,
-                StudentCourse.academic_session_id == academic_session,
-                StudentCourse.semester == semester
-            )
+        student_course = await StudentCourse.find_one(
+            StudentCourse.student_id == student_id,
+            StudentCourse.course_id == course_id,
+            StudentCourse.academic_session_id == academic_session,
+            StudentCourse.semester_id == semester
         )
-        student_course = result.scalar_one_or_none()
         
         if not student_course:
             raise ValueError("Course registration not found")
         
         # Update registration to withdrawn
-        student_course.is_active = False
-        student_course.withdrawn_by = withdrawn_by
-        student_course.withdrawal_date = datetime.utcnow()
-        
-        await self.db.commit()
+        student_course.status = "WITHDRAWN"
+        await student_course.save()
         
         return {
             "registration_id": student_course.id,

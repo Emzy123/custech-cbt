@@ -8,14 +8,21 @@ from .academic import AcademicSession, Semester, Department, Course, CourseDepar
 from .student import Student, StudentCourse
 from .question import QuestionBank, Question, QuestionOption, QuestionAnswer
 from .exam import Examination, ExamQuestion, ExamInstance, ExamAnswer
-from .security import UserSession, BiometricTemplate, AuditLog, SecurityEvent
+from .biometric import BiometricTemplate
+from .security import (
+    UserSession,
+    AuditLog,
+    SecurityEvent,
+    SecurityScan,
+    Vulnerability,
+)
 
 __all__ = [
     "BaseDocument",
     "User",
     "UserRoleAssignment",
     "AcademicSession",
-    "Semester", 
+    "Semester",
     "Department",
     "Course",
     "CourseDepartment",
@@ -33,4 +40,6 @@ __all__ = [
     "BiometricTemplate",
     "AuditLog",
     "SecurityEvent",
+    "SecurityScan",
+    "Vulnerability",
 ]

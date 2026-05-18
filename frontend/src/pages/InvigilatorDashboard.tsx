@@ -18,6 +18,7 @@ import {
 import Button from '../components/ui/Button';
 import Card from '../components/ui/Card';
 import Timer from '../components/ui/Timer';
+import { apiRequest } from '../lib/api';
 
 interface Student {
   id: string;
@@ -32,6 +33,7 @@ interface Student {
   status: 'normal' | 'warning' | 'critical';
   statusMessage: string;
   lastActive: Date;
+  proctoringStrikes: number;
   proctoringEvents: ProctoringEvent[];
 }
 
@@ -65,123 +67,70 @@ const InvigilatorDashboard: React.FC = () => {
   });
   const [loading, setLoading] = useState(true);
 
-  // Mock data - replace with actual WebSocket/API calls
   useEffect(() => {
     const loadDashboardData = async () => {
       try {
-        // TODO: Replace with actual API calls
-        // const response = await fetch('/api/v1/invigilator/dashboard');
-        // const data = await response.json();
-        
-        const mockStudents: Student[] = [
-          {
-            id: '1',
-            name: 'Chiamaka Okafor',
-            matricNumber: 'MIC/2024/023',
-            courseCode: 'GST 111',
-            progress: { answered: 34, total: 60 },
-            status: 'normal',
-            statusMessage: 'Normal',
-            lastActive: new Date(),
-            proctoringEvents: []
-          },
-          {
-            id: '2',
-            name: 'Ahmed Ibrahim',
-            matricNumber: 'CSC/2024/015',
-            courseCode: 'GST 111',
-            progress: { answered: 28, total: 60 },
-            status: 'warning',
-            statusMessage: 'Multiple faces detected',
-            lastActive: new Date(Date.now() - 30000),
-            proctoringEvents: [
-              {
-                id: 'e1',
-                timestamp: new Date(Date.now() - 30000),
-                type: 'multiple_faces',
-                confidence: 87,
-                description: 'Multiple faces detected (87% confidence)'
-              }
-            ]
-          },
-          {
-            id: '3',
-            name: 'Fatima Adamu',
-            matricNumber: 'BCH/2024/008',
-            courseCode: 'GST 111',
-            progress: { answered: 45, total: 60 },
-            status: 'critical',
-            statusMessage: 'Left screen 3 times',
-            lastActive: new Date(Date.now() - 120000),
-            proctoringEvents: [
-              {
-                id: 'e2',
-                timestamp: new Date(Date.now() - 120000),
-                type: 'left_screen',
-                confidence: 92,
-                description: 'Student left examination area'
-              },
-              {
-                id: 'e3',
-                timestamp: new Date(Date.now() - 180000),
-                type: 'left_screen',
-                confidence: 88,
-                description: 'Student left examination area'
-              },
-              {
-                id: 'e4',
-                timestamp: new Date(Date.now() - 240000),
-                type: 'left_screen',
-                confidence: 95,
-                description: 'Student left examination area'
-              }
-            ]
-          },
-          {
-            id: '4',
-            name: 'David Chuks',
-            matricNumber: 'PHY/2024/012',
-            courseCode: 'GST 111',
-            progress: { answered: 52, total: 60 },
-            status: 'normal',
-            statusMessage: 'Normal',
-            lastActive: new Date(),
-            proctoringEvents: []
-          }
-        ];
-        
-        const mockAlerts: Alert[] = [
-          {
-            id: 'a1',
-            studentId: '2',
-            studentName: 'Ahmed Ibrahim',
-            event: mockStudents[1].proctoringEvents[0],
-            timestamp: new Date(Date.now() - 30000)
-          },
-          {
-            id: 'a2',
-            studentId: '3',
-            studentName: 'Fatima Adamu',
-            event: mockStudents[2].proctoringEvents[0],
-            timestamp: new Date(Date.now() - 120000)
-          }
-        ];
-        
-        setStudents(mockStudents);
-        setAlerts(mockAlerts);
-        
-        // Calculate stats
-        const newStats = {
-          totalActive: mockStudents.length,
-          flagged: mockStudents.filter(s => s.status === 'warning').length,
-          incidents: mockStudents.filter(s => s.status === 'critical').length,
-          completed: 0 // Would be calculated from actual exam completion data
-        };
-        
-        setStats(newStats);
-        
+        const cachedExamId = localStorage.getItem('activeExamId');
+        if (!cachedExamId) {
+          setStudents([]);
+          setAlerts([]);
+          setStats({ totalActive: 0, flagged: 0, incidents: 0, completed: 0 });
+          return;
+        }
+
+        // Use the unified examinations endpoint
+        const instances = await apiRequest<Array<Record<string, unknown>>>(
+          `/api/v1/examinations/${cachedExamId}/instances`
+        );
+
+        const mappedStudents: Student[] = instances.map((s) => {
+          const strikes = Number(s.proctoring_strikes || 0);
+          const status: 'normal' | 'warning' | 'critical' =
+            strikes >= 3 ? 'critical' : strikes >= 1 ? 'warning' : 'normal';
+          return {
+            id: String(s.id || s.student_id || ''),
+            name: String(s.student_name || 'Student'),
+            matricNumber: String(s.matric_number || ''),
+            courseCode: String(s.course_code || ''),
+            progress: {
+              answered: Number(s.questions_answered || 0),
+              total: Number(s.total_questions || 0),
+            },
+            status,
+            statusMessage: strikes >= 3 ? `${strikes} proctoring strikes` : strikes >= 1 ? `${strikes} focus event(s)` : 'Normal',
+            lastActive: new Date(String(s.updated_at || new Date().toISOString())),
+            proctoringStrikes: strikes,
+            proctoringEvents: [],
+          };
+        });
+
+        setStudents(mappedStudents);
+        const newAlerts: Alert[] = mappedStudents
+          .filter(s => s.proctoringStrikes >= 1)
+          .map(s => ({
+            id: `alert-${s.id}`,
+            studentId: s.id,
+            studentName: s.name,
+            event: {
+              id: `evt-${s.id}`,
+              timestamp: s.lastActive,
+              type: 'focus_lost',
+              confidence: 90,
+              description: `${s.proctoringStrikes} focus-loss event(s) recorded`,
+            },
+            timestamp: s.lastActive,
+          }));
+        setAlerts(newAlerts);
+        setStats({
+          totalActive: mappedStudents.filter(s => s.status !== 'critical').length,
+          flagged: mappedStudents.filter((s) => s.status === 'warning').length,
+          incidents: mappedStudents.filter((s) => s.status === 'critical').length,
+          completed: 0,
+        });
       } catch (error) {
-        console.error('Failed to load dashboard data:', error);
+        setStudents([]);
+        setAlerts([]);
+        setStats({ totalActive: 0, flagged: 0, incidents: 0, completed: 0 });
       } finally {
         setLoading(false);
       }
@@ -189,28 +138,34 @@ const InvigilatorDashboard: React.FC = () => {
 
     loadDashboardData();
 
-    // Set up WebSocket for real-time updates
-    // TODO: Implement WebSocket connection
     const wsInterval = setInterval(() => {
-      // Simulate real-time updates
-      console.log('Checking for updates...');
-    }, 5000);
+      loadDashboardData();
+    }, 10000);
 
     return () => clearInterval(wsInterval);
   }, []);
 
   const handleStudentAction = async (studentId: string, action: 'message' | 'pause' | 'terminate') => {
     try {
-      // TODO: Implement actual student action API calls
-      console.log(`Action ${action} for student ${studentId}`);
+      const cachedExamId = localStorage.getItem('activeExamId');
+      if (!cachedExamId) return;
+      // Unified endpoint: invigilator actions now live under the exam instances path
+      const endpoint = `/api/v1/examinations/${cachedExamId}/instances/${studentId}/${action}`;
+      await apiRequest(endpoint, {
+        method: 'POST',
+        body: JSON.stringify(
+          action === 'message'
+            ? { message: 'Please focus and continue your exam.' }
+            : {}
+        ),
+      });
       
-      // Update local state optimistically
       if (action === 'terminate') {
         setStudents(prev => prev.filter(s => s.id !== studentId));
         setAlerts(prev => prev.filter(a => a.studentId !== studentId));
       }
     } catch (error) {
-      console.error('Failed to perform student action:', error);
+      // Keep dashboard state unchanged on failure.
     }
   };
 

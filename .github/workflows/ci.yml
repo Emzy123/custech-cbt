@@ -1,0 +1,88 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+env:
+  JWT_SECRET: ci_jwt_secret_must_be_long_enough_for_hs256_testing_only
+  SECRET_KEY: ci_secret_key_must_be_long_enough_for_app_testing_only
+  RANDOMISATION_SECRET: ci_randomisation_secret_at_least_32_characters
+  BIOMETRIC_ENCRYPTION_KEY: ci_biometric_encryption_key_at_least_32_chars
+  DATABASE_URL: mongodb://127.0.0.1:27017
+  REDIS_URL: redis://127.0.0.1:6379/0
+  ENVIRONMENT: development
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      mongo:
+        image: mongo:7
+        ports:
+          - 27017:27017
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Pytest (unit and smoke; integration excluded by default)
+        run: pytest
+      - name: Bandit (SAST)
+        run: |
+          pip install "bandit[toml]==1.7.9"
+          bandit -r src/cbt -ll -q -f txt
+
+  integration:
+    runs-on: ubuntu-latest
+    services:
+      mongo:
+        image: mongo:7
+        ports:
+          - 27017:27017
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Integration tests
+        env:
+          CBT_INTEGRATION_MONGO_URL: mongodb://127.0.0.1:27017
+        run: pytest tests/integration -m integration -v --tb=short
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install and build
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+
+  compose-config:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate docker compose
+        run: docker compose -f docker-compose.yml config

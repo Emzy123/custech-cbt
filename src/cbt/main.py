@@ -3,28 +3,31 @@ Main FastAPI application entry point for CBT system.
 """
 
 import logging
+from pathlib import Path
 from datetime import datetime
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Request, Response
+from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 
 from .core.config import settings
 from .core.database import db_manager, init_db
 from .core.redis import redis_manager
 from .core.security import security
 from .api.middleware import setup_cors_middleware, setup_security_middleware
-from .api.deps import get_auth_service, get_authorization_service
 from .services.audit_service import AuditService
-from .api import auth, students, courses, examinations
+from .api import auth, students, courses, examinations, questions, exam_blueprint, biometric, proctoring, webcam_proctoring, invigilator_dashboard, academics, venues, audit, users, security_hardening, pilot_examination, deployment, question_security
 
 # Configure logging
+log_file_path = Path(settings.log_file)
+log_file_path.parent.mkdir(parents=True, exist_ok=True)
+
 logging.basicConfig(
     level=getattr(logging, settings.log_level),
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     handlers=[
         logging.StreamHandler(),
-        logging.FileHandler(settings.log_file),
+        logging.FileHandler(log_file_path),
     ]
 )
 
@@ -46,11 +49,7 @@ async def lifespan(app: FastAPI):
         # Initialize Redis
         logger.info("Initializing Redis connection...")
         await redis_manager.connect()
-        
-        # Initialize services
-        logger.info("Initializing services...")
-        # Services will be initialized on first use through dependency injection
-        
+
         logger.info("CBT system started successfully")
         
     except Exception as e:
@@ -89,7 +88,9 @@ app = FastAPI(
 # Add CORS middleware
 setup_cors_middleware(app)
 
-# Add security middleware (will be added after audit service is available)
+# Security middleware must be registered at import time (not in lifespan).
+_audit_service = AuditService()
+setup_security_middleware(app, _audit_service)
 
 
 @app.exception_handler(Exception)
@@ -194,22 +195,44 @@ async def root():
     }
 
 
+@app.get("/metrics")
+async def prometheus_metrics():
+    """Prometheus scrape endpoint when metrics are enabled."""
+    if not settings.metrics_enabled:
+        raise HTTPException(status_code=404, detail="Metrics disabled")
+    from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
+
+    return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
+
+
 # Include API routers
+# Core
 app.include_router(auth.router, prefix=settings.api_v1_str)
+app.include_router(users.router, prefix=settings.api_v1_str)
 app.include_router(students.router, prefix=settings.api_v1_str)
 app.include_router(courses.router, prefix=settings.api_v1_str)
+app.include_router(academics.router, prefix=settings.api_v1_str)
+app.include_router(venues.router, prefix=settings.api_v1_str)
 app.include_router(examinations.router, prefix=settings.api_v1_str)
+app.include_router(audit.router, prefix=settings.api_v1_str)
+app.include_router(security_hardening.router, prefix=settings.api_v1_str)
 
+# Question bank
+app.include_router(questions.router, prefix=settings.api_v1_str)
+app.include_router(exam_blueprint.router, prefix=settings.api_v1_str)
+app.include_router(question_security.router, prefix=settings.api_v1_str)
 
-# Setup security middleware after all routers are included
-@app.on_event("startup")
-async def setup_middleware():
-    """Setup security middleware after startup."""
-    # Create audit service instance
-    audit_service = AuditService()
-    
-    # Setup security middleware
-    setup_security_middleware(app, audit_service)
+# Biometric & proctoring
+app.include_router(biometric.router, prefix=settings.api_v1_str)
+app.include_router(proctoring.router, prefix=settings.api_v1_str)
+app.include_router(webcam_proctoring.router, prefix=settings.api_v1_str)
+
+# Invigilator
+app.include_router(invigilator_dashboard.router, prefix=settings.api_v1_str)
+
+# Pilot & deployment
+app.include_router(pilot_examination.router, prefix=settings.api_v1_str)
+app.include_router(deployment.router, prefix=settings.api_v1_str)
 
 
 if __name__ == "__main__":
@@ -219,7 +242,7 @@ if __name__ == "__main__":
     uvicorn.run(
         "cbt.main:app",
         host="0.0.0.0",
-        port=int(getattr(settings, 'port', 8000)),
+        port=settings.port,
         reload=settings.is_development,
         log_level=settings.log_level.lower(),
         access_log=True,

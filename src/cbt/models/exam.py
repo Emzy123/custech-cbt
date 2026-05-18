@@ -27,6 +27,7 @@ class ExamInstanceStatus(str, enum.Enum):
     SUBMITTED = "SUBMITTED"
     TIMED_OUT = "TIMED_OUT"
     ABANDONED = "ABANDONED"
+    TERMINATED = "TERMINATED"
 
 
 class Examination(BaseDocument):
@@ -51,6 +52,10 @@ class Examination(BaseDocument):
     semester_id: str
     created_by: str
     updated_by: Optional[str] = None
+    blueprint_id: Optional[str] = None
+    release_mode: str = "manual"  # manual, auto_at
+    release_at: Optional[datetime] = None
+    embargo_active: bool = False
 
     @property
     def end_time(self) -> datetime:
@@ -92,6 +97,9 @@ class ExamInstance(BaseDocument):
     browser_fingerprint: Optional[str] = None
     biometric_verified: bool = False
     biometric_verification_time: Optional[datetime] = None
+    rules_accepted: bool = False
+    proctoring_strikes: int = 0
+    server_seed: Optional[str] = None
 
     @property
     def duration_taken(self) -> int:

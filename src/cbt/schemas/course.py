@@ -2,10 +2,9 @@
 Course and academic management schemas.
 """
 
-from pydantic import BaseModel, validator
+from pydantic import BaseModel, ConfigDict
 from typing import Optional, List, Dict, Any
-from datetime import datetime, date
-from enum import Enum
+from datetime import datetime
 
 from ..models.academic import CourseLevel, SemesterType
 
@@ -38,13 +37,12 @@ class CourseUpdate(BaseModel):
 
 class CourseResponse(CourseBase):
     """Schema for course response."""
+    model_config = ConfigDict(from_attributes=True)
+
     id: str
     is_active: bool
     created_at: datetime
     updated_at: datetime
-    
-    class Config:
-        from_attributes = True
 
 
 class CourseSearch(BaseModel):
@@ -80,13 +78,12 @@ class AcademicSessionUpdate(BaseModel):
 
 class AcademicSessionResponse(AcademicSessionBase):
     """Schema for academic session response."""
+    model_config = ConfigDict(from_attributes=True)
+
     id: str
     is_current: bool
     created_at: datetime
     updated_at: datetime
-    
-    class Config:
-        from_attributes = True
 
 
 class SemesterBase(BaseModel):
@@ -104,13 +101,12 @@ class SemesterCreate(SemesterBase):
 
 class SemesterResponse(SemesterBase):
     """Schema for semester response."""
+    model_config = ConfigDict(from_attributes=True)
+
     id: str
     is_current: bool
     created_at: datetime
     updated_at: datetime
-    
-    class Config:
-        from_attributes = True
 
 
 class CourseDepartmentAssignment(BaseModel):

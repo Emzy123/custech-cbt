@@ -3,8 +3,9 @@ Authorization service for role-based access control and permissions.
 """
 
 from typing import Set, Dict, Any, Optional, List
+from datetime import datetime, timezone
 
-from ..models.user import User, UserRole
+from ..models.user import User, UserRole, UserRoleAssignment
 from ..core.redis import cache_manager
 from ..core.config import settings
 
@@ -45,6 +46,10 @@ class AuthorizationService:
             
             # Check admin permissions
             if "system.admin" in user_permissions:
+                return True
+            
+            # Check super admin wildcard (all permissions)
+            if "*" in user_permissions:
                 return True
             
             return False
@@ -123,10 +128,18 @@ class AuthorizationService:
                 "result.export",
                 "system.monitor",
             ],
+            "INVIGILATOR": [
+                "user.read",
+                "student.read",
+                "exam.read",
+                "exam.invigilate",
+                "system.monitor",
+            ],
             "ADMINISTRATOR": [
                 "user.read",
                 "user.create",
                 "user.update",
+                "user.delete",
                 "student.read",
                 "student.create",
                 "student.update",
@@ -140,6 +153,12 @@ class AuthorizationService:
                 "question.delete",
                 "question.import",
                 "question.export",
+                "question.review",
+                "question.encrypt",
+                "question.decrypt",
+                "question.security.admin",
+                "question.security.read",
+                "question.security.audit",
                 "exam.read",
                 "exam.create",
                 "exam.update",
@@ -147,6 +166,10 @@ class AuthorizationService:
                 "exam.schedule",
                 "exam.publish",
                 "exam.cancel",
+                "exam.start",
+                "exam.active",
+                "exam.manage",
+                "exam.invigilate",
                 "grade.read",
                 "grade.update",
                 "grade.approve",
@@ -160,6 +183,26 @@ class AuthorizationService:
                 "security.user_roles",
                 "security.permissions",
                 "security.sessions",
+                "security.scan",
+                "security.read",
+                "security.penetration_test",
+                "security.harden",
+                "security.configure",
+                "security.audit",
+                "security.remediate",
+                "security.acknowledge",
+                "security.manage",
+                "biometric.register",
+                "biometric.verify",
+                "biometric.update",
+                "biometric.deactivate",
+                "biometric.read",
+                "biometric.admin",
+                "pilot.manage",
+                "pilot.read",
+                "deployment.manage",
+                "deployment.execute",
+                "deployment.read",
             ],
             "SUPER_ADMIN": [
                 # All permissions
@@ -180,27 +223,35 @@ class AuthorizationService:
     async def get_user_roles(self, user_id: str) -> List[str]:
         """
         Get all active roles for user.
-        
+
         Args:
             user_id: User ID
-            
+
         Returns:
             List[str]: User roles
         """
         cache_key = f"user_roles:{user_id}"
-        
+
         # Try cache first
         cached_roles = await self.cache.get(cache_key)
         if cached_roles:
             return cached_roles
-        
-        # Query database (simplified - would need actual DB connection)
-        # For now, return empty list
+
+        # Query database for user's role assignments
+        now = datetime.now(timezone.utc)
+        role_assignments = await UserRoleAssignment.find(
+            {"user_id": user_id}
+        ).to_list()
+
+        # Filter active roles (not expired)
         roles = []
-        
+        for assignment in role_assignments:
+            if assignment.expires_at is None or assignment.expires_at > now:
+                roles.append(assignment.role.value)
+
         # Cache roles
         await self.cache.set(cache_key, roles, self.user_cache_ttl)
-        
+
         return roles
     
     async def invalidate_user_cache(self, user_id: str):
@@ -241,6 +292,9 @@ class AuthorizationService:
                 "exam.read", "exam.schedule", "exam.publish", "exam.cancel",
                 "grade.read", "grade.approve", "result.read", "result.publish", "result.export",
                 "system.monitor"
+            },
+            "INVIGILATOR": {
+                "user.read", "student.read", "exam.read", "system.monitor"
             },
             "ADMINISTRATOR": {
                 "user.read", "user.create", "user.update",
@@ -329,11 +383,13 @@ class AuthorizationService:
             ],
             "Question Management": [
                 "question.read", "question.create", "question.update", "question.delete",
-                "question.import", "question.export"
+                "question.import", "question.export", "question.review",
+                "question.encrypt", "question.decrypt",
+                "question.security.admin", "question.security.read", "question.security.audit",
             ],
             "Examination Management": [
                 "exam.read", "exam.create", "exam.update", "exam.delete", "exam.schedule",
-                "exam.publish", "exam.cancel"
+                "exam.publish", "exam.cancel", "exam.start", "exam.active", "exam.manage", "exam.invigilate",
             ],
             "Grading Management": [
                 "grade.read", "grade.update", "grade.approve"
@@ -346,10 +402,18 @@ class AuthorizationService:
             ],
             "Security Management": [
                 "security.user_roles", "security.permissions", "security.sessions",
-                "security.biometric"
-            ]
+                "security.scan", "security.read", "security.penetration_test",
+                "security.harden", "security.configure", "security.audit",
+                "security.remediate", "security.acknowledge", "security.manage",
+                "biometric.register", "biometric.verify", "biometric.update",
+                "biometric.deactivate", "biometric.read", "biometric.admin",
+            ],
+            "Pilot and Deployment": [
+                "pilot.manage", "pilot.read",
+                "deployment.manage", "deployment.execute", "deployment.read",
+            ],
         }
-    
+
     async def get_role_definitions(self) -> Dict[str, Dict[str, Any]]:
         """
         Get role definitions for UI display.
@@ -386,21 +450,37 @@ class AuthorizationService:
                     "system.monitor"
                 ]
             },
+            "INVIGILATOR": {
+                "name": "Invigilator",
+                "description": "Exam supervision and proctoring",
+                "permissions": [
+                    "user.read", "student.read", "exam.read", "exam.invigilate", "system.monitor"
+                ]
+            },
             "ADMINISTRATOR": {
                 "name": "Administrator",
                 "description": "System administrator with full access",
                 "permissions": [
-                    "user.read", "user.create", "user.update",
+                    "user.read", "user.create", "user.update", "user.delete",
                     "student.read", "student.create", "student.update", "student.import",
                     "course.read", "course.create", "course.update",
                     "question.read", "question.create", "question.update", "question.delete",
-                    "question.import", "question.export",
+                    "question.import", "question.export", "question.review",
+                    "question.encrypt", "question.decrypt",
+                    "question.security.admin", "question.security.read", "question.security.audit",
                     "exam.read", "exam.create", "exam.update", "exam.delete", "exam.schedule",
-                    "exam.publish", "exam.cancel",
+                    "exam.publish", "exam.cancel", "exam.start", "exam.active", "exam.manage", "exam.invigilate",
                     "grade.read", "grade.update", "grade.approve",
                     "result.read", "result.update", "result.publish", "result.export",
                     "system.config", "system.monitor", "system.audit",
-                    "security.user_roles", "security.permissions", "security.sessions"
+                    "security.user_roles", "security.permissions", "security.sessions",
+                    "security.scan", "security.read", "security.penetration_test",
+                    "security.harden", "security.configure", "security.audit",
+                    "security.remediate", "security.acknowledge", "security.manage",
+                    "biometric.register", "biometric.verify", "biometric.update",
+                    "biometric.deactivate", "biometric.read", "biometric.admin",
+                    "pilot.manage", "pilot.read",
+                    "deployment.manage", "deployment.execute", "deployment.read",
                 ]
             },
             "SUPER_ADMIN": {

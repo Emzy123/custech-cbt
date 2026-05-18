@@ -11,11 +11,12 @@ import logging
 from typing import List, Optional, Dict, Any, Tuple
 from datetime import datetime, timedelta
 
-from ..models.question import Question
+from ..models.question import Question, QuestionOption
 from ..models.security import SecurityEvent
 from ..core.redis import cache_manager
 from ..core.security import security
 from ..core.exceptions import ValidationError, SecurityError
+from beanie.operators import NE, Or
 
 
 class QuestionSecurityService:
@@ -118,22 +119,19 @@ class QuestionSecurityService:
         """
         try:
             # Get question
-            question_result = await self.db.execute(
-                select(Question).where(Question.id == question_id)
-            )
-            question = question_result.scalar_one_or_none()
+            question = await Question.get(question_id)
             if not question:
                 raise ValidationError("Question not found")
-            
+
             # Encrypt the text
             encrypted_result = await self._encrypt_field(plain_text)
-            
+
             # Store encrypted text
             question.encrypted_question_text = encrypted_result['encrypted_data']
             question.encryption_key_id = encrypted_result['key_id']
             question.encrypted_at = datetime.utcnow()
-            
-            await self.db.commit()
+
+            await question.save()
             
             # Log encryption event
             await self._log_security_event(
@@ -153,7 +151,6 @@ class QuestionSecurityService:
             }
             
         except Exception as e:
-            await self.db.rollback()
             raise ValueError(f"Failed to encrypt question text: {str(e)}")
     
     async def decrypt_question_text(self, question_id: str) -> Dict[str, Any]:
@@ -168,13 +165,10 @@ class QuestionSecurityService:
         """
         try:
             # Get question
-            question_result = await self.db.execute(
-                select(Question).where(Question.id == question_id)
-            )
-            question = question_result.scalar_one_or_none()
+            question = await Question.get(question_id)
             if not question:
                 raise ValidationError("Question not found")
-            
+
             if not question.encrypted_question_text:
                 raise SecurityError("Question text is not encrypted")
             
@@ -217,13 +211,10 @@ class QuestionSecurityService:
         """
         try:
             # Get question
-            question_result = await self.db.execute(
-                select(Question).where(Question.id == question_id)
-            )
-            question = question_result.scalar_one_or_none()
+            question = await Question.get(question_id)
             if not question:
                 raise ValidationError("Question not found")
-            
+
             # Encrypt options
             encrypted_options = []
             key_id = None
@@ -248,8 +239,8 @@ class QuestionSecurityService:
             question.encrypted_options = json.dumps(encrypted_options)
             question.options_encryption_key_id = key_id
             question.options_encrypted_at = datetime.utcnow()
-            
-            await self.db.commit()
+
+            await question.save()
             
             # Log encryption event
             await self._log_security_event(
@@ -271,7 +262,6 @@ class QuestionSecurityService:
             }
             
         except Exception as e:
-            await self.db.rollback()
             raise ValueError(f"Failed to encrypt question options: {str(e)}")
     
     async def decrypt_question_options(self, question_id: str) -> Dict[str, Any]:
@@ -286,13 +276,10 @@ class QuestionSecurityService:
         """
         try:
             # Get question
-            question_result = await self.db.execute(
-                select(Question).where(Question.id == question_id)
-            )
-            question = question_result.scalar_one_or_none()
+            question = await Question.get(question_id)
             if not question:
                 raise ValidationError("Question not found")
-            
+
             if not question.encrypted_options:
                 raise SecurityError("Question options are not encrypted")
             
@@ -363,15 +350,12 @@ class QuestionSecurityService:
             )
             
             # Get all questions with encrypted data
-            questions_result = await self.db.execute(
-                select(Question).where(
-                    or_(
-                        Question.encrypted_question_text.isnot(None),
-                        Question.encrypted_options.isnot(None)
-                    )
+            questions = await Question.find(
+                Or(
+                    NE(Question.encrypted_question_text, None),
+                    NE(Question.encrypted_options, None),
                 )
-            )
-            questions = questions_result.scalars().all()
+            ).to_list()
             
             # Re-encrypt questions with new key
             reencrypted_count = 0
@@ -416,16 +400,14 @@ class QuestionSecurityService:
                         question.options_encryption_key_id = new_key_id
                     
                     question.encrypted_at = datetime.utcnow()
+                    await question.save()
                     reencrypted_count += 1
-                    
-                except Exception as e:
+
+                except Exception:
                     failed_count += 1
                     continue
-            
-            await self.db.commit()
-            
-            # Mark old keys as deprecated
-            await self._deprec_old_keys(new_key_id)
+
+            await self._deprecate_old_keys(new_key_id)
             
             # Update rotation timestamp
             await self.cache.set(
@@ -454,7 +436,6 @@ class QuestionSecurityService:
             }
             
         except Exception as e:
-            await self.db.rollback()
             raise ValueError(f"Failed to rotate encryption keys: {str(e)}")
     
     async def validate_question_integrity(self, question_id: str) -> Dict[str, Any]:
@@ -469,13 +450,10 @@ class QuestionSecurityService:
         """
         try:
             # Get question
-            question_result = await self.db.execute(
-                select(Question).where(Question.id == question_id)
-            )
-            question = question_result.scalar_one_or_none()
+            question = await Question.get(question_id)
             if not question:
                 raise ValidationError("Question not found")
-            
+
             validation_results = {
                 "question_id": question_id,
                 "validation_date": datetime.utcnow(),
@@ -492,7 +470,7 @@ class QuestionSecurityService:
                     
                     # Calculate hash
                     current_hash = hashlib.sha256(decrypted_text.encode()).hexdigest()
-                    stored_hash = question.question_text_hash
+                    stored_hash = getattr(question, "question_text_hash", None)
                     
                     validation_results["checks"]["question_text"] = {
                         "encrypted": True,
@@ -521,7 +499,7 @@ class QuestionSecurityService:
                     # Calculate hash
                     options_json = json.dumps(options, sort_keys=True)
                     current_hash = hashlib.sha256(options_json.encode()).hexdigest()
-                    stored_hash = question.options_hash
+                    stored_hash = getattr(question, "options_hash", None)
                     
                     validation_results["checks"]["options"] = {
                         "encrypted": True,
@@ -535,10 +513,13 @@ class QuestionSecurityService:
                         "error": str(e)
                     }
             else:
+                options_count = await QuestionOption.find(
+                    QuestionOption.question_id == question_id
+                ).count()
                 validation_results["checks"]["options"] = {
                     "encrypted": False,
                     "hash_valid": True,
-                    "options_count": len(question.options or [])
+                    "options_count": options_count,
                 }
             
             # Calculate overall integrity score
@@ -565,22 +546,13 @@ class QuestionSecurityService:
         """
         try:
             # Get encryption statistics
-            total_questions_result = await self.db.execute(
-                select(func.count(Question.id))
-            )
-            total_questions = total_questions_result.scalar() or 0
-            
-            encrypted_text_result = await self.db.execute(
-                select(func.count(Question.id))
-                .where(Question.encrypted_question_text.isnot(None))
-            )
-            encrypted_text_count = encrypted_text_result.scalar() or 0
-            
-            encrypted_options_result = await self.db.execute(
-                select(func.count(Question.id))
-                .where(Question.encrypted_options.isnot(None))
-            )
-            encrypted_options_count = encrypted_options_result.scalar() or 0
+            total_questions = await Question.count()
+            encrypted_text_count = await Question.find(
+                {"encrypted_question_text": {"$exists": True, "$ne": None}}
+            ).count()
+            encrypted_options_count = await Question.find(
+                {"encrypted_options": {"$exists": True, "$ne": None}}
+            ).count()
             
             # Get key rotation info
             last_rotation = await self._get_last_key_rotation()

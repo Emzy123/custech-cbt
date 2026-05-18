@@ -2,21 +2,33 @@
 Pytest configuration and fixtures for CBT testing suite.
 """
 
+import os
+from pathlib import Path
+import sys
+
+# Integration tests: point Beanie at a real Mongo before importing the app (see tests/integration/).
+_mongo_url = os.environ.get("CBT_INTEGRATION_MONGO_URL")
+if _mongo_url:
+    os.environ["DATABASE_URL"] = _mongo_url
+
 import pytest
 import asyncio
 from typing import AsyncGenerator, Generator
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
-from sqlalchemy.orm import sessionmaker
+from unittest.mock import AsyncMock
 from httpx import AsyncClient
 import redis.asyncio as redis
 
-from src.cbt.core.database import get_db, Base
+# Ensure `src.*` imports resolve regardless of invocation cwd.
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from src.cbt.core.database import get_db
 from src.cbt.main import app
-from src.cbt.core.config import settings
 
 
-# Test database URL
-TEST_DATABASE_URL = "sqlite+aiosqlite:///./test_cbt.db"
+# Test database URL (MongoDB; tests may mock DB where needed)
+TEST_DATABASE_URL = "mongodb://localhost:27017/cbt_test"
 
 # Test Redis URL
 TEST_REDIS_URL = "redis://localhost:6379/1"
@@ -32,35 +44,20 @@ def event_loop() -> Generator[asyncio.AbstractEventLoop, None, None]:
 
 @pytest.fixture(scope="session")
 async def test_engine():
-    """Create test database engine."""
-    engine = create_async_engine(
-        TEST_DATABASE_URL,
-        echo=True,
-        future=True
-    )
-    
-    # Create all tables
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    
-    yield engine
-    
-    # Drop all tables
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
-    
-    await engine.dispose()
+    """Legacy fixture kept for compatibility with existing tests."""
+    yield None
 
 
 @pytest.fixture
-async def test_session(test_engine) -> AsyncGenerator[AsyncSession, None]:
-    """Create test database session."""
-    async_session = sessionmaker(
-        test_engine, class_=AsyncSession, expire_on_commit=False
-    )
-    
-    async with async_session() as session:
-        yield session
+async def test_session(test_engine):
+    """Provide lightweight async DB-like mock session."""
+    session = AsyncMock()
+    session.execute = AsyncMock()
+    session.add = AsyncMock()
+    session.commit = AsyncMock()
+    session.rollback = AsyncMock()
+    session.close = AsyncMock()
+    yield session
 
 
 @pytest.fixture

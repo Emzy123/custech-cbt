@@ -1,0 +1,1151 @@
+import React, { useState, useEffect } from 'react';
+import { apiRequest } from '../lib/api';
+import { Plus, Search, Trash2, Edit2, Eye, Lock, UserPlus, RefreshCw, Shield, Users, Building2, BookOpen, GraduationCap, FileText, Activity, Settings, X, ChevronDown, ChevronRight } from 'lucide-react';
+
+// --- Interfaces ---
+interface User {
+  id: string;
+  username: string;
+  email: string;
+  first_name: string;
+  last_name: string;
+  full_name: string;
+  phone_number?: string;
+  gender?: string;
+  is_verified: boolean;
+  is_active: boolean;
+  last_login_at?: string;
+  created_at?: string;
+  roles: string[];
+}
+
+interface Session {
+  id: string;
+  session_code: string;
+  start_date: string;
+  end_date: string;
+  is_current: boolean;
+}
+
+interface Semester {
+  id: string;
+  academic_session_id: string;
+  semester_type: string;
+  start_date: string;
+  end_date: string;
+  is_current: boolean;
+}
+
+interface Department {
+  id: string;
+  code: string;
+  name: string;
+  faculty_code?: string;
+}
+
+interface Course {
+  id: string;
+  code: string;
+  title: string;
+  description?: string;
+  credit_units: number;
+  level: number;
+  semester_type: string;
+}
+
+interface Venue {
+  id: string;
+  name: string;
+  code: string;
+  capacity: number;
+  is_active: boolean;
+}
+
+interface AuditLog {
+  id: string;
+  user_id?: string;
+  action: string;
+  resource_type: string;
+  resource_id?: string;
+  success: boolean;
+  ip_address?: string;
+  created_at: string;
+  details?: string;
+}
+
+interface SystemHealth {
+  status: string;
+  version: string;
+  environment: string;
+  database: { status: string };
+  redis: { status: string };
+}
+
+type TabType = 'overview' | 'users' | 'academics' | 'courses' | 'venues' | 'audit' | 'system' | 'students';
+
+export default function AdminDashboard() {
+  const [activeTab, setActiveTab] = useState<TabType>('overview');
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
+  const menuItems: { id: TabType; label: string; icon: React.ReactNode }[] = [
+    { id: 'overview', label: 'Overview', icon: <Activity size={20} /> },
+    { id: 'users', label: 'User Management', icon: <Users size={20} /> },
+    { id: 'academics', label: 'Academic Structure', icon: <Building2 size={20} /> },
+    { id: 'courses', label: 'Courses', icon: <BookOpen size={20} /> },
+    { id: 'venues', label: 'Venues', icon: <GraduationCap size={20} /> },
+    { id: 'audit', label: 'Audit Logs', icon: <FileText size={20} /> },
+    { id: 'system', label: 'System Health', icon: <Settings size={20} /> },
+    { id: 'students', label: 'Student Import', icon: <UserPlus size={20} /> },
+  ];
+
+  return (
+    <div className="flex h-screen bg-gray-50">
+      {/* Sidebar */}
+      <div className={`${sidebarCollapsed ? 'w-16' : 'w-64'} bg-slate-900 text-white flex flex-col transition-all duration-300`}>
+        <div className="p-4 flex items-center justify-between">
+          {!sidebarCollapsed && <h1 className="text-xl font-bold tracking-tight">CBT Admin</h1>}
+          <button 
+            onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+            className="p-1 hover:bg-slate-700 rounded"
+          >
+            {sidebarCollapsed ? <ChevronRight size={20} /> : <ChevronDown size={20} />}
+          </button>
+        </div>
+        <nav className="flex-1 mt-4">
+          <ul className="space-y-1 px-2">
+            {menuItems.map((item) => (
+              <li key={item.id}>
+                <button
+                  onClick={() => setActiveTab(item.id)}
+                  className={`w-full flex items-center gap-3 px-3 py-2 rounded-md transition-colors ${
+                    activeTab === item.id ? 'bg-indigo-600 text-white' : 'text-gray-300 hover:bg-slate-800'
+                  }`}
+                  title={sidebarCollapsed ? item.label : undefined}
+                >
+                  {item.icon}
+                  {!sidebarCollapsed && <span className="text-sm">{item.label}</span>}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </nav>
+        <div className="p-4 border-t border-slate-800">
+          {!sidebarCollapsed && (
+            <div className="text-xs text-gray-400">
+              <p>System Administrator</p>
+              <p className="mt-1">v1.0.0</p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div className="flex-1 overflow-auto bg-gray-50">
+        <header className="bg-white border-b border-gray-200 px-6 py-4 sticky top-0 z-10">
+          <h2 className="text-2xl font-semibold text-gray-800">
+            {menuItems.find(m => m.id === activeTab)?.label || 'Dashboard'}
+          </h2>
+        </header>
+
+        <main className="p-6">
+          {activeTab === 'overview' && <OverviewSection />}
+          {activeTab === 'users' && <UsersSection />}
+          {activeTab === 'academics' && <AcademicsSection />}
+          {activeTab === 'courses' && <CoursesSection />}
+          {activeTab === 'venues' && <VenuesSection />}
+          {activeTab === 'audit' && <AuditSection />}
+          {activeTab === 'system' && <SystemSection />}
+          {activeTab === 'students' && <StudentImportSection />}
+        </main>
+      </div>
+    </div>
+  );
+}
+
+// --- Users Section ---
+function UsersSection() {
+  const [users, setUsers] = useState<User[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [showModal, setShowModal] = useState(false);
+  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [formData, setFormData] = useState({
+    username: '', email: '', password: '', first_name: '', last_name: '',
+    phone_number: '', gender: 'OTHER', role: 'STUDENT'
+  });
+  const [roleModal, setRoleModal] = useState<{ show: boolean; user: User | null }>({ show: false, user: null });
+  const [newRole, setNewRole] = useState('STUDENT');
+
+  const fetchUsers = async () => {
+    setLoading(true);
+    try {
+      const data = await apiRequest<User[]>(`/api/v1/users/?search=${search}&limit=100`);
+      setUsers(data);
+    } catch (err) {
+      console.error('Failed to load users', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { fetchUsers(); }, [search]);
+
+  const handleCreate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await apiRequest('/api/v1/users/', {
+        method: 'POST',
+        body: JSON.stringify(formData)
+      });
+      setShowModal(false);
+      setFormData({ username: '', email: '', password: '', first_name: '', last_name: '', phone_number: '', gender: 'OTHER', role: 'STUDENT' });
+      fetchUsers();
+    } catch (err: any) {
+      alert(err.message || 'Failed to create user');
+    }
+  };
+
+  const handleDelete = async (userId: string) => {
+    if (!confirm('Are you sure you want to delete this user?')) return;
+    try {
+      await apiRequest(`/api/v1/users/${userId}`, { method: 'DELETE' });
+      fetchUsers();
+    } catch (err: any) {
+      alert(err.message || 'Failed to delete user');
+    }
+  };
+
+  const handleToggleActive = async (user: User) => {
+    try {
+      await apiRequest(`/api/v1/users/${user.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ is_active: !user.is_active })
+      });
+      fetchUsers();
+    } catch (err: any) {
+      alert(err.message || 'Failed to update user');
+    }
+  };
+
+  const handleAssignRole = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!roleModal.user) return;
+    try {
+      await apiRequest(`/api/v1/users/${roleModal.user.id}/roles`, {
+        method: 'POST',
+        body: JSON.stringify({ role: newRole })
+      });
+      setRoleModal({ show: false, user: null });
+      fetchUsers();
+    } catch (err: any) {
+      alert(err.message || 'Failed to assign role');
+    }
+  };
+
+  const handleResetPassword = async (userId: string) => {
+    const newPassword = prompt('Enter new password (min 8 characters):');
+    if (!newPassword || newPassword.length < 8) return;
+    try {
+      await apiRequest(`/api/v1/users/${userId}/reset-password`, {
+        method: 'POST',
+        body: JSON.stringify({ new_password: newPassword })
+      });
+      alert('Password reset successfully. User must log in again.');
+    } catch (err: any) {
+      alert(err.message || 'Failed to reset password');
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-between items-center">
+        <div className="flex gap-2">
+          <div className="relative">
+            <Search className="absolute left-3 top-2.5 text-gray-400" size={18} />
+            <input
+              type="text"
+              placeholder="Search users..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+            />
+          </div>
+        </div>
+        <button
+          onClick={() => setShowModal(true)}
+          className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 flex items-center gap-2"
+        >
+          <Plus size={18} /> Add User
+        </button>
+      </div>
+
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+        <table className="w-full text-sm text-left">
+          <thead className="text-xs text-gray-700 uppercase bg-gray-50">
+            <tr>
+              <th className="px-6 py-3">User</th>
+              <th className="px-6 py-3">Email</th>
+              <th className="px-6 py-3">Roles</th>
+              <th className="px-6 py-3">Status</th>
+              <th className="px-6 py-3">Last Login</th>
+              <th className="px-6 py-3">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {loading ? (
+              <tr><td colSpan={6} className="px-6 py-4 text-center">Loading...</td></tr>
+            ) : users.length === 0 ? (
+              <tr><td colSpan={6} className="px-6 py-4 text-center text-gray-500">No users found</td></tr>
+            ) : (
+              users.map((user) => (
+                <tr key={user.id} className="border-b hover:bg-gray-50">
+                  <td className="px-6 py-4">
+                    <div className="font-medium text-gray-900">{user.full_name}</div>
+                    <div className="text-gray-500">@{user.username}</div>
+                  </td>
+                  <td className="px-6 py-4">{user.email}</td>
+                  <td className="px-6 py-4">
+                    <div className="flex flex-wrap gap-1">
+                      {user.roles.map(role => (
+                        <span key={role} className="bg-indigo-100 text-indigo-800 text-xs px-2 py-0.5 rounded">
+                          {role}
+                        </span>
+                      ))}
+                    </div>
+                  </td>
+                  <td className="px-6 py-4">
+                    <button
+                      onClick={() => handleToggleActive(user)}
+                      className={`px-2 py-1 rounded text-xs ${user.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}
+                    >
+                      {user.is_active ? 'Active' : 'Inactive'}
+                    </button>
+                  </td>
+                  <td className="px-6 py-4 text-gray-500">
+                    {user.last_login_at ? new Date(user.last_login_at).toLocaleDateString() : 'Never'}
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setRoleModal({ show: true, user })}
+                        className="text-indigo-600 hover:text-indigo-800"
+                        title="Assign Role"
+                      >
+                        <Shield size={16} />
+                      </button>
+                      <button
+                        onClick={() => handleResetPassword(user.id)}
+                        className="text-amber-600 hover:text-amber-800"
+                        title="Reset Password"
+                      >
+                        <Lock size={16} />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(user.id)}
+                        className="text-red-600 hover:text-red-800"
+                        title="Delete"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Create User Modal */}
+      {showModal && (
+        <Modal title="Create New User" onClose={() => setShowModal(false)}>
+          <form onSubmit={handleCreate} className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <input
+                type="text"
+                placeholder="Username"
+                value={formData.username}
+                onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                className="w-full px-3 py-2 border rounded-lg"
+                required
+              />
+              <input
+                type="email"
+                placeholder="Email"
+                value={formData.email}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                className="w-full px-3 py-2 border rounded-lg"
+                required
+              />
+              <input
+                type="text"
+                placeholder="First Name"
+                value={formData.first_name}
+                onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
+                className="w-full px-3 py-2 border rounded-lg"
+                required
+              />
+              <input
+                type="text"
+                placeholder="Last Name"
+                value={formData.last_name}
+                onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
+                className="w-full px-3 py-2 border rounded-lg"
+                required
+              />
+              <input
+                type="password"
+                placeholder="Password (min 8 chars)"
+                value={formData.password}
+                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                className="w-full px-3 py-2 border rounded-lg"
+                required
+                minLength={8}
+              />
+              <input
+                type="tel"
+                placeholder="Phone Number"
+                value={formData.phone_number}
+                onChange={(e) => setFormData({ ...formData, phone_number: e.target.value })}
+                className="w-full px-3 py-2 border rounded-lg"
+              />
+            </div>
+            <select
+              value={formData.role}
+              onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+              className="w-full px-3 py-2 border rounded-lg"
+            >
+              <option value="STUDENT">Student</option>
+              <option value="LECTURER">Lecturer</option>
+              <option value="EXAM_OFFICER">Exam Officer</option>
+              <option value="INVIGILATOR">Invigilator</option>
+              <option value="ADMINISTRATOR">Administrator</option>
+              <option value="SUPER_ADMIN">Super Admin</option>
+            </select>
+            <div className="flex justify-end gap-2">
+              <button type="button" onClick={() => setShowModal(false)} className="px-4 py-2 border rounded-lg">Cancel</button>
+              <button type="submit" className="px-4 py-2 bg-indigo-600 text-white rounded-lg">Create User</button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {/* Assign Role Modal */}
+      {roleModal.show && roleModal.user && (
+        <Modal title={`Assign Role to ${roleModal.user.full_name}`} onClose={() => setRoleModal({ show: false, user: null })}>
+          <form onSubmit={handleAssignRole} className="space-y-4">
+            <select
+              value={newRole}
+              onChange={(e) => setNewRole(e.target.value)}
+              className="w-full px-3 py-2 border rounded-lg"
+            >
+              <option value="STUDENT">Student</option>
+              <option value="LECTURER">Lecturer</option>
+              <option value="EXAM_OFFICER">Exam Officer</option>
+              <option value="INVIGILATOR">Invigilator</option>
+              <option value="ADMINISTRATOR">Administrator</option>
+              <option value="SUPER_ADMIN">Super Admin</option>
+            </select>
+            <div className="flex justify-end gap-2">
+              <button type="button" onClick={() => setRoleModal({ show: false, user: null })} className="px-4 py-2 border rounded-lg">Cancel</button>
+              <button type="submit" className="px-4 py-2 bg-indigo-600 text-white rounded-lg">Assign Role</button>
+            </div>
+          </form>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+// --- Overview Section ---
+function OverviewSection() {
+  const [stats, setStats] = useState({ users: 0, courses: 0, departments: 0, venues: 0 });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const [users, courses, departments, venues] = await Promise.all([
+          apiRequest<{ total: number }>('/api/v1/users/?limit=1').catch(() => ({ total: 0 })),
+          apiRequest<{ length: number }>('/api/v1/academics/courses').catch(() => []),
+          apiRequest<{ length: number }>('/api/v1/academics/departments').catch(() => []),
+          apiRequest<{ length: number }>('/api/v1/venues').catch(() => []),
+        ]);
+        setStats({
+          users: users.total || 0,
+          courses: Array.isArray(courses) ? courses.length : 0,
+          departments: Array.isArray(departments) ? departments.length : 0,
+          venues: Array.isArray(venues) ? venues.length : 0,
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchStats();
+  }, []);
+
+  const cards = [
+    { label: 'Total Users', value: stats.users, icon: <Users size={24} />, color: 'bg-blue-500' },
+    { label: 'Courses', value: stats.courses, icon: <BookOpen size={24} />, color: 'bg-green-500' },
+    { label: 'Departments', value: stats.departments, icon: <Building2 size={24} />, color: 'bg-purple-500' },
+    { label: 'Venues', value: stats.venues, icon: <GraduationCap size={24} />, color: 'bg-orange-500' },
+  ];
+
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        {cards.map((card) => (
+          <div key={card.label} className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-500">{card.label}</p>
+                <p className="text-2xl font-bold mt-1">{loading ? '-' : card.value}</p>
+              </div>
+              <div className={`${card.color} text-white p-3 rounded-lg`}>{card.icon}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+        <h3 className="text-lg font-medium text-gray-900 mb-4">Welcome to CBT Admin Dashboard</h3>
+        <p className="text-gray-600">Use the sidebar to navigate through different management sections.</p>
+        <ul className="mt-4 space-y-2 text-sm text-gray-600">
+          <li>• <strong>User Management:</strong> Create and manage users, assign roles</li>
+          <li>• <strong>Academic Structure:</strong> Manage sessions, semesters, departments</li>
+          <li>• <strong>Courses:</strong> Add and edit courses, link to departments</li>
+          <li>• <strong>Audit Logs:</strong> View system activity and security events</li>
+          <li>• <strong>System Health:</strong> Monitor database and Redis status</li>
+        </ul>
+      </div>
+    </div>
+  );
+}
+
+// --- Academics Section ---
+function AcademicsSection() {
+  const [activeSubTab, setActiveSubTab] = useState<'sessions' | 'semesters' | 'departments'>('sessions');
+  const [sessions, setSessions] = useState<Session[]>([]);
+  const [semesters, setSemesters] = useState<Semester[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => { fetchData(); }, [activeSubTab]);
+
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      if (activeSubTab === 'sessions') {
+        const data = await apiRequest<Session[]>('/api/v1/academics/sessions');
+        setSessions(data);
+      } else if (activeSubTab === 'semesters') {
+        const data = await apiRequest<Semester[]>('/api/v1/academics/semesters');
+        setSemesters(data);
+      } else {
+        const data = await apiRequest<Department[]>('/api/v1/academics/departments');
+        setDepartments(data);
+      }
+    } catch (err) {
+      console.error('Failed to load data', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex gap-2 bg-white p-1 rounded-lg border border-gray-200 w-fit">
+        {(['sessions', 'semesters', 'departments'] as const).map((tab) => (
+          <button
+            key={tab}
+            onClick={() => setActiveSubTab(tab)}
+            className={`px-4 py-2 rounded-md text-sm capitalize ${
+              activeSubTab === tab ? 'bg-indigo-600 text-white' : 'text-gray-600 hover:bg-gray-100'
+            }`}
+          >
+            {tab}
+          </button>
+        ))}
+      </div>
+
+      {activeSubTab === 'sessions' && (
+        <SessionsTable sessions={sessions} loading={loading} onRefresh={fetchData} />
+      )}
+      {activeSubTab === 'semesters' && (
+        <SemestersTable semesters={semesters} loading={loading} onRefresh={fetchData} />
+      )}
+      {activeSubTab === 'departments' && (
+        <DepartmentsTable departments={departments} loading={loading} onRefresh={fetchData} />
+      )}
+    </div>
+  );
+}
+
+function SessionsTable({ sessions, loading, onRefresh }: { sessions: Session[]; loading: boolean; onRefresh: () => void }) {
+  const [showModal, setShowModal] = useState(false);
+  const [formData, setFormData] = useState({ session_code: '', start_date: '', end_date: '', is_current: false });
+
+  const handleCreate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await apiRequest('/api/v1/academics/sessions', {
+        method: 'POST',
+        body: JSON.stringify({
+          ...formData,
+          start_date: new Date(formData.start_date).toISOString(),
+          end_date: new Date(formData.end_date).toISOString()
+        })
+      });
+      setShowModal(false);
+      onRefresh();
+    } catch (err: any) {
+      alert(err.message || 'Failed to create session');
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-end">
+        <button onClick={() => setShowModal(true)} className="bg-indigo-600 text-white px-4 py-2 rounded-lg flex items-center gap-2">
+          <Plus size={18} /> Add Session
+        </button>
+      </div>
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+        <table className="w-full text-sm">
+          <thead className="bg-gray-50">
+            <tr><th className="px-6 py-3">Session Code</th><th className="px-6 py-3">Start Date</th><th className="px-6 py-3">End Date</th><th className="px-6 py-3">Status</th></tr>
+          </thead>
+          <tbody>
+            {loading ? <tr><td colSpan={4} className="px-6 py-4 text-center">Loading...</td></tr> :
+              sessions.length === 0 ? <tr><td colSpan={4} className="px-6 py-4 text-center text-gray-500">No sessions found</td></tr> :
+              sessions.map(s => (
+                <tr key={s.id} className="border-b">
+                  <td className="px-6 py-4 font-medium">{s.session_code}</td>
+                  <td className="px-6 py-4">{new Date(s.start_date).toLocaleDateString()}</td>
+                  <td className="px-6 py-4">{new Date(s.end_date).toLocaleDateString()}</td>
+                  <td className="px-6 py-4">
+                    {s.is_current ? <span className="bg-green-100 text-green-800 px-2 py-1 rounded text-xs">Current</span> : <span className="bg-gray-100 text-gray-800 px-2 py-1 rounded text-xs">Inactive</span>}
+                  </td>
+                </tr>
+              ))}
+          </tbody>
+        </table>
+      </div>
+      {showModal && (
+        <Modal title="Create Academic Session" onClose={() => setShowModal(false)}>
+          <form onSubmit={handleCreate} className="space-y-4">
+            <input placeholder="Session Code (e.g., 2025/2026)" value={formData.session_code} onChange={e => setFormData({...formData, session_code: e.target.value})} className="w-full px-3 py-2 border rounded-lg" required />
+            <div className="grid grid-cols-2 gap-4">
+              <input type="date" value={formData.start_date} onChange={e => setFormData({...formData, start_date: e.target.value})} className="w-full px-3 py-2 border rounded-lg" required />
+              <input type="date" value={formData.end_date} onChange={e => setFormData({...formData, end_date: e.target.value})} className="w-full px-3 py-2 border rounded-lg" required />
+            </div>
+            <label className="flex items-center gap-2">
+              <input type="checkbox" checked={formData.is_current} onChange={e => setFormData({...formData, is_current: e.target.checked})} />
+              <span>Set as current session</span>
+            </label>
+            <div className="flex justify-end gap-2">
+              <button type="button" onClick={() => setShowModal(false)} className="px-4 py-2 border rounded-lg">Cancel</button>
+              <button type="submit" className="px-4 py-2 bg-indigo-600 text-white rounded-lg">Create</button>
+            </div>
+          </form>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+function SemestersTable({ semesters, loading, onRefresh }: { semesters: Semester[]; loading: boolean; onRefresh: () => void }) {
+  const [showModal, setShowModal] = useState(false);
+  const [formData, setFormData] = useState({ academic_session_id: '', semester_type: 'FIRST', start_date: '', end_date: '', is_current: false });
+
+  const handleCreate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await apiRequest('/api/v1/academics/semesters', {
+        method: 'POST',
+        body: JSON.stringify({
+          ...formData,
+          start_date: new Date(formData.start_date).toISOString(),
+          end_date: new Date(formData.end_date).toISOString()
+        })
+      });
+      setShowModal(false);
+      onRefresh();
+    } catch (err: any) {
+      alert(err.message || 'Failed to create semester');
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-end">
+        <button onClick={() => setShowModal(true)} className="bg-indigo-600 text-white px-4 py-2 rounded-lg flex items-center gap-2">
+          <Plus size={18} /> Add Semester
+        </button>
+      </div>
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+        <table className="w-full text-sm">
+          <thead className="bg-gray-50">
+            <tr><th className="px-6 py-3">Semester</th><th className="px-6 py-3">Session ID</th><th className="px-6 py-3">Start Date</th><th className="px-6 py-3">End Date</th><th className="px-6 py-3">Status</th></tr>
+          </thead>
+          <tbody>
+            {loading ? <tr><td colSpan={5} className="px-6 py-4 text-center">Loading...</td></tr> :
+              semesters.length === 0 ? <tr><td colSpan={5} className="px-6 py-4 text-center text-gray-500">No semesters found</td></tr> :
+              semesters.map(s => (
+                <tr key={s.id} className="border-b">
+                  <td className="px-6 py-4 font-medium">{s.semester_type}</td>
+                  <td className="px-6 py-4 text-gray-500">{s.academic_session_id.slice(0, 8)}...</td>
+                  <td className="px-6 py-4">{new Date(s.start_date).toLocaleDateString()}</td>
+                  <td className="px-6 py-4">{new Date(s.end_date).toLocaleDateString()}</td>
+                  <td className="px-6 py-4">
+                    {s.is_current ? <span className="bg-green-100 text-green-800 px-2 py-1 rounded text-xs">Current</span> : <span className="bg-gray-100 text-gray-800 px-2 py-1 rounded text-xs">Inactive</span>}
+                  </td>
+                </tr>
+              ))}
+          </tbody>
+        </table>
+      </div>
+      {showModal && (
+        <Modal title="Create Semester" onClose={() => setShowModal(false)}>
+          <form onSubmit={handleCreate} className="space-y-4">
+            <input placeholder="Academic Session ID" value={formData.academic_session_id} onChange={e => setFormData({...formData, academic_session_id: e.target.value})} className="w-full px-3 py-2 border rounded-lg" required />
+            <select value={formData.semester_type} onChange={e => setFormData({...formData, semester_type: e.target.value})} className="w-full px-3 py-2 border rounded-lg">
+              <option value="FIRST">First Semester</option>
+              <option value="SECOND">Second Semester</option>
+            </select>
+            <div className="grid grid-cols-2 gap-4">
+              <input type="date" value={formData.start_date} onChange={e => setFormData({...formData, start_date: e.target.value})} className="w-full px-3 py-2 border rounded-lg" required />
+              <input type="date" value={formData.end_date} onChange={e => setFormData({...formData, end_date: e.target.value})} className="w-full px-3 py-2 border rounded-lg" required />
+            </div>
+            <label className="flex items-center gap-2">
+              <input type="checkbox" checked={formData.is_current} onChange={e => setFormData({...formData, is_current: e.target.checked})} />
+              <span>Set as current semester</span>
+            </label>
+            <div className="flex justify-end gap-2">
+              <button type="button" onClick={() => setShowModal(false)} className="px-4 py-2 border rounded-lg">Cancel</button>
+              <button type="submit" className="px-4 py-2 bg-indigo-600 text-white rounded-lg">Create</button>
+            </div>
+          </form>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+function DepartmentsTable({ departments, loading, onRefresh }: { departments: Department[]; loading: boolean; onRefresh: () => void }) {
+  const [showModal, setShowModal] = useState(false);
+  const [formData, setFormData] = useState({ code: '', name: '', faculty_code: '' });
+
+  const handleCreate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await apiRequest('/api/v1/academics/departments', { method: 'POST', body: JSON.stringify(formData) });
+      setShowModal(false);
+      setFormData({ code: '', name: '', faculty_code: '' });
+      onRefresh();
+    } catch (err: any) {
+      alert(err.message || 'Failed to create department');
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-end">
+        <button onClick={() => setShowModal(true)} className="bg-indigo-600 text-white px-4 py-2 rounded-lg flex items-center gap-2">
+          <Plus size={18} /> Add Department
+        </button>
+      </div>
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+        <table className="w-full text-sm">
+          <thead className="bg-gray-50">
+            <tr><th className="px-6 py-3">Code</th><th className="px-6 py-3">Name</th><th className="px-6 py-3">Faculty</th></tr>
+          </thead>
+          <tbody>
+            {loading ? <tr><td colSpan={3} className="px-6 py-4 text-center">Loading...</td></tr> :
+              departments.length === 0 ? <tr><td colSpan={3} className="px-6 py-4 text-center text-gray-500">No departments found</td></tr> :
+              departments.map(d => (
+                <tr key={d.id} className="border-b">
+                  <td className="px-6 py-4 font-medium">{d.code}</td>
+                  <td className="px-6 py-4">{d.name}</td>
+                  <td className="px-6 py-4">{d.faculty_code || '-'}</td>
+                </tr>
+              ))}
+          </tbody>
+        </table>
+      </div>
+      {showModal && (
+        <Modal title="Create Department" onClose={() => setShowModal(false)}>
+          <form onSubmit={handleCreate} className="space-y-4">
+            <input placeholder="Department Code (e.g., CSC)" value={formData.code} onChange={e => setFormData({...formData, code: e.target.value})} className="w-full px-3 py-2 border rounded-lg uppercase" required maxLength={10} />
+            <input placeholder="Department Name (e.g., Computer Science)" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="w-full px-3 py-2 border rounded-lg" required />
+            <input placeholder="Faculty Code (optional)" value={formData.faculty_code} onChange={e => setFormData({...formData, faculty_code: e.target.value})} className="w-full px-3 py-2 border rounded-lg" />
+            <div className="flex justify-end gap-2">
+              <button type="button" onClick={() => setShowModal(false)} className="px-4 py-2 border rounded-lg">Cancel</button>
+              <button type="submit" className="px-4 py-2 bg-indigo-600 text-white rounded-lg">Create</button>
+            </div>
+          </form>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+// --- Courses Section ---
+function CoursesSection() {
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showModal, setShowModal] = useState(false);
+  const [formData, setFormData] = useState({ code: '', title: '', description: '', credit_units: 3, level: 100, semester_type: 'FIRST' });
+
+  useEffect(() => { fetchCourses(); }, []);
+
+  const fetchCourses = async () => {
+    setLoading(true);
+    try {
+      const data = await apiRequest<Course[]>('/api/v1/academics/courses');
+      setCourses(data);
+    } catch (err) {
+      console.error('Failed to load courses', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCreate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await apiRequest('/api/v1/academics/courses', {
+        method: 'POST',
+        body: JSON.stringify({ ...formData, level: Number(formData.level), credit_units: Number(formData.credit_units) })
+      });
+      setShowModal(false);
+      setFormData({ code: '', title: '', description: '', credit_units: 3, level: 100, semester_type: 'FIRST' });
+      fetchCourses();
+    } catch (err: any) {
+      alert(err.message || 'Failed to create course');
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-end">
+        <button onClick={() => setShowModal(true)} className="bg-indigo-600 text-white px-4 py-2 rounded-lg flex items-center gap-2">
+          <Plus size={18} /> Add Course
+        </button>
+      </div>
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+        <table className="w-full text-sm">
+          <thead className="bg-gray-50">
+            <tr><th className="px-6 py-3">Code</th><th className="px-6 py-3">Title</th><th className="px-6 py-3">Credits</th><th className="px-6 py-3">Level</th><th className="px-6 py-3">Semester</th></tr>
+          </thead>
+          <tbody>
+            {loading ? <tr><td colSpan={5} className="px-6 py-4 text-center">Loading...</td></tr> :
+              courses.length === 0 ? <tr><td colSpan={5} className="px-6 py-4 text-center text-gray-500">No courses found</td></tr> :
+              courses.map(c => (
+                <tr key={c.id} className="border-b">
+                  <td className="px-6 py-4 font-medium">{c.code}</td>
+                  <td className="px-6 py-4">{c.title}</td>
+                  <td className="px-6 py-4">{c.credit_units}</td>
+                  <td className="px-6 py-4">{c.level}L</td>
+                  <td className="px-6 py-4"><span className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs">{c.semester_type}</span></td>
+                </tr>
+              ))}
+          </tbody>
+        </table>
+      </div>
+      {showModal && (
+        <Modal title="Create Course" onClose={() => setShowModal(false)}>
+          <form onSubmit={handleCreate} className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <input placeholder="Course Code" value={formData.code} onChange={e => setFormData({...formData, code: e.target.value})} className="w-full px-3 py-2 border rounded-lg uppercase" required />
+              <input placeholder="Credits" type="number" min={1} max={6} value={formData.credit_units} onChange={e => setFormData({...formData, credit_units: Number(e.target.value)})} className="w-full px-3 py-2 border rounded-lg" required />
+            </div>
+            <input placeholder="Course Title" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} className="w-full px-3 py-2 border rounded-lg" required />
+            <textarea placeholder="Description (optional)" value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} className="w-full px-3 py-2 border rounded-lg" rows={3} />
+            <div className="grid grid-cols-2 gap-4">
+              <select value={formData.level} onChange={e => setFormData({...formData, level: Number(e.target.value)})} className="w-full px-3 py-2 border rounded-lg">
+                <option value={100}>100 Level</option>
+                <option value={200}>200 Level</option>
+                <option value={300}>300 Level</option>
+                <option value={400}>400 Level</option>
+                <option value={500}>500 Level</option>
+              </select>
+              <select value={formData.semester_type} onChange={e => setFormData({...formData, semester_type: e.target.value})} className="w-full px-3 py-2 border rounded-lg">
+                <option value="FIRST">First Semester</option>
+                <option value="SECOND">Second Semester</option>
+              </select>
+            </div>
+            <div className="flex justify-end gap-2">
+              <button type="button" onClick={() => setShowModal(false)} className="px-4 py-2 border rounded-lg">Cancel</button>
+              <button type="submit" className="px-4 py-2 bg-indigo-600 text-white rounded-lg">Create</button>
+            </div>
+          </form>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+// --- Venues Section ---
+function VenuesSection() {
+  const [venues, setVenues] = useState<Venue[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showModal, setShowModal] = useState(false);
+  const [formData, setFormData] = useState({ name: '', code: '', capacity: 50 });
+
+  useEffect(() => { fetchVenues(); }, []);
+
+  const fetchVenues = async () => {
+    setLoading(true);
+    try {
+      const data = await apiRequest<Venue[]>('/api/v1/venues');
+      setVenues(data);
+    } catch (err) {
+      console.error('Failed to load venues', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCreate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await apiRequest('/api/v1/venues', { method: 'POST', body: JSON.stringify({ ...formData, capacity: Number(formData.capacity) }) });
+      setShowModal(false);
+      setFormData({ name: '', code: '', capacity: 50 });
+      fetchVenues();
+    } catch (err: any) {
+      alert(err.message || 'Failed to create venue');
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-end">
+        <button onClick={() => setShowModal(true)} className="bg-indigo-600 text-white px-4 py-2 rounded-lg flex items-center gap-2">
+          <Plus size={18} /> Add Venue
+        </button>
+      </div>
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+        <table className="w-full text-sm">
+          <thead className="bg-gray-50">
+            <tr><th className="px-6 py-3">Code</th><th className="px-6 py-3">Name</th><th className="px-6 py-3">Capacity</th><th className="px-6 py-3">Status</th></tr>
+          </thead>
+          <tbody>
+            {loading ? <tr><td colSpan={4} className="px-6 py-4 text-center">Loading...</td></tr> :
+              venues.length === 0 ? <tr><td colSpan={4} className="px-6 py-4 text-center text-gray-500">No venues found</td></tr> :
+              venues.map(v => (
+                <tr key={v.id} className="border-b">
+                  <td className="px-6 py-4 font-medium">{v.code}</td>
+                  <td className="px-6 py-4">{v.name}</td>
+                  <td className="px-6 py-4">{v.capacity}</td>
+                  <td className="px-6 py-4">{v.is_active ? <span className="bg-green-100 text-green-800 px-2 py-1 rounded text-xs">Active</span> : <span className="bg-red-100 text-red-800 px-2 py-1 rounded text-xs">Inactive</span>}</td>
+                </tr>
+              ))}
+          </tbody>
+        </table>
+      </div>
+      {showModal && (
+        <Modal title="Create Venue" onClose={() => setShowModal(false)}>
+          <form onSubmit={handleCreate} className="space-y-4">
+            <input placeholder="Venue Name" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="w-full px-3 py-2 border rounded-lg" required />
+            <div className="grid grid-cols-2 gap-4">
+              <input placeholder="Venue Code" value={formData.code} onChange={e => setFormData({...formData, code: e.target.value})} className="w-full px-3 py-2 border rounded-lg uppercase" required />
+              <input placeholder="Capacity" type="number" min={1} value={formData.capacity} onChange={e => setFormData({...formData, capacity: Number(e.target.value)})} className="w-full px-3 py-2 border rounded-lg" required />
+            </div>
+            <div className="flex justify-end gap-2">
+              <button type="button" onClick={() => setShowModal(false)} className="px-4 py-2 border rounded-lg">Cancel</button>
+              <button type="submit" className="px-4 py-2 bg-indigo-600 text-white rounded-lg">Create</button>
+            </div>
+          </form>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+// --- Audit Section ---
+function AuditSection() {
+  const [logs, setLogs] = useState<AuditLog[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchLogs = async () => {
+      setLoading(true);
+      try {
+        const data = await apiRequest<AuditLog[]>('/api/v1/audit/logs?limit=100');
+        setLogs(data);
+      } catch (err) {
+        console.error('Failed to load audit logs', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchLogs();
+  }, []);
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+        <table className="w-full text-sm">
+          <thead className="bg-gray-50">
+            <tr><th className="px-6 py-3">Time</th><th className="px-6 py-3">Action</th><th className="px-6 py-3">Resource</th><th className="px-6 py-3">Status</th><th className="px-6 py-3">IP</th></tr>
+          </thead>
+          <tbody>
+            {loading ? <tr><td colSpan={5} className="px-6 py-4 text-center">Loading...</td></tr> :
+              logs.length === 0 ? <tr><td colSpan={5} className="px-6 py-4 text-center text-gray-500">No audit logs found</td></tr> :
+              logs.map(log => (
+                <tr key={log.id} className="border-b">
+                  <td className="px-6 py-4 text-gray-500">{new Date(log.created_at).toLocaleString()}</td>
+                  <td className="px-6 py-4"><span className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs">{log.action}</span></td>
+                  <td className="px-6 py-4">{log.resource_type}</td>
+                  <td className="px-6 py-4">{log.success ? <span className="text-green-600">Success</span> : <span className="text-red-600">Failed</span>}</td>
+                  <td className="px-6 py-4 text-gray-500">{log.ip_address || '-'}</td>
+                </tr>
+              ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// --- System Section ---
+function SystemSection() {
+  const [health, setHealth] = useState<SystemHealth | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchHealth = async () => {
+      setLoading(true);
+      try {
+        const data = await apiRequest<SystemHealth>('/health');
+        setHealth(data);
+      } catch (err) {
+        console.error('Failed to load health', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchHealth();
+  }, []);
+
+  if (loading) return <div className="p-8 text-center">Loading...</div>;
+
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+          <h3 className="text-sm text-gray-500">System Status</h3>
+          <div className="flex items-center gap-2 mt-2">
+            <div className={`w-3 h-3 rounded-full ${health?.status === 'healthy' ? 'bg-green-500' : 'bg-red-500'}`}></div>
+            <span className="text-xl font-bold">{health?.status === 'healthy' ? 'Healthy' : 'Unhealthy'}</span>
+          </div>
+        </div>
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+          <h3 className="text-sm text-gray-500">Database</h3>
+          <div className="flex items-center gap-2 mt-2">
+            <div className={`w-3 h-3 rounded-full ${health?.database?.status === 'healthy' ? 'bg-green-500' : 'bg-red-500'}`}></div>
+            <span className="text-xl font-bold capitalize">{health?.database?.status || 'Unknown'}</span>
+          </div>
+        </div>
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+          <h3 className="text-sm text-gray-500">Redis</h3>
+          <div className="flex items-center gap-2 mt-2">
+            <div className={`w-3 h-3 rounded-full ${health?.redis?.status === 'healthy' ? 'bg-green-500' : 'bg-red-500'}`}></div>
+            <span className="text-xl font-bold capitalize">{health?.redis?.status || 'Unknown'}</span>
+          </div>
+        </div>
+      </div>
+      <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+        <h3 className="text-lg font-medium text-gray-900 mb-4">System Information</h3>
+        <div className="grid grid-cols-2 gap-4 text-sm">
+          <div><span className="text-gray-500">Version:</span> <span className="font-medium">{health?.version || '-'}</span></div>
+          <div><span className="text-gray-500">Environment:</span> <span className="font-medium capitalize">{health?.environment || '-'}</span></div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// --- Student Import Section ---
+function StudentImportSection() {
+  const [file, setFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [result, setResult] = useState<any>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      setFile(e.target.files[0]);
+    }
+  };
+
+  const handleUpload = async () => {
+    if (!file) return;
+    setUploading(true);
+    setError(null);
+    setResult(null);
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const response = await fetch('/api/v1/students/import/csv', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('authToken')}` },
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Upload failed');
+      }
+
+      const data = await response.json();
+      setResult(data);
+    } catch (err: any) {
+      setError(err.message || 'An error occurred');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  return (
+    <div className="max-w-2xl">
+      <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+        <h3 className="text-lg font-medium text-gray-900 mb-4">Bulk Import Students (CSV)</h3>
+        <div className="space-y-4">
+          <input type="file" accept=".csv" onChange={handleFileChange} className="block w-full text-sm border rounded-lg p-2" />
+          <button onClick={handleUpload} disabled={!file || uploading} className="bg-indigo-600 text-white px-4 py-2 rounded-lg disabled:bg-indigo-400 flex items-center gap-2">
+            {uploading ? <RefreshCw className="animate-spin" size={18} /> : <UserPlus size={18} />}
+            {uploading ? 'Uploading...' : 'Import Students'}
+          </button>
+          {error && <div className="p-4 text-red-800 rounded-lg bg-red-50"><span className="font-medium">Error:</span> {error}</div>}
+          {result && (
+            <div className="p-4 text-green-800 rounded-lg bg-green-50">
+              <p className="font-medium">Import Successful!</p>
+              <p>Processed: {result.total_processed}</p>
+              <p>Success: {result.successful_imports}</p>
+              {result.failed_imports > 0 && <p className="text-red-600">Failed: {result.failed_imports}</p>}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// --- Modal Component ---
+function Modal({ title, children, onClose }: { title: string; children: React.ReactNode; onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl shadow-lg max-w-lg w-full max-h-[90vh] overflow-y-auto">
+        <div className="flex justify-between items-center p-4 border-b">
+          <h3 className="text-lg font-semibold">{title}</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
+        </div>
+        <div className="p-4">{children}</div>
+      </div>
+    </div>
+  );
+}

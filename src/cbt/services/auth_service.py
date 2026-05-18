@@ -5,7 +5,7 @@ Uses Beanie ODM for MongoDB.
 
 import secrets
 import uuid
-import jwt
+from jose import jwt
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, Any, Tuple
 
@@ -88,7 +88,7 @@ class AuthService:
 
     async def register_user(self, username: str, email: str, password: str,
                             first_name: str, last_name: str, phone_number: Optional[str],
-                            date_of_birth: Optional[datetime], gender: Optional[str],
+                            date_of_birth: Optional[datetime], gender: Optional[Any],
                             ip_address: str, user_agent: str) -> User:
         """Register new user account."""
         try:
@@ -293,16 +293,10 @@ class AuthService:
             return False
 
     async def get_user_from_token(self, token: str) -> Optional[User]:
-        """Get user from JWT token."""
+        """Get user from access token."""
         try:
-            payload = jwt.decode(
-                token,
-                settings.jwt_secret,
-                algorithms=[settings.jwt_algorithm],
-                audience=settings.jwt_audience,
-                issuer=settings.jwt_issuer
-            )
-            user_id = payload.get('user_id')
+            # Look up user_id from cache using access_token prefix
+            user_id = await self.cache.get(f"access_token:{token}")
             if not user_id:
                 return None
             return await self._get_user_by_id(user_id)

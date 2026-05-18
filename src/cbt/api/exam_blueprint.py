@@ -20,8 +20,7 @@ from .deps import get_current_active_user, require_permission
 router = APIRouter(prefix="/exam-blueprint", tags=["exam-blueprint"])
 
 
-@router.post("/", response_model=dict, status_code=status.HTTP_201_CREATED)
-@require_permission("exam.create")
+@router.post("/", response_model=dict, status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_permission("exam.create"))])
 async def create_blueprint(
     blueprint_data: ExamBlueprintCreate,
     db: Any = Depends(get_db),
@@ -44,8 +43,7 @@ async def create_blueprint(
         )
 
 
-@router.post("/{blueprint_id}/validate", response_model=BlueprintValidationResponse)
-@require_permission("exam.update")
+@router.post("/{blueprint_id}/validate", response_model=BlueprintValidationResponse, dependencies=[Depends(require_permission("exam.update"))])
 async def validate_blueprint(
     blueprint_id: str,
     validation_request: BlueprintValidationRequest,
@@ -70,8 +68,7 @@ async def validate_blueprint(
         )
 
 
-@router.get("/{blueprint_id}")
-@require_permission("exam.read")
+@router.get("/{blueprint_id}", dependencies=[Depends(require_permission("exam.read"))])
 async def get_blueprint(
     blueprint_id: str,
     db: Any = Depends(get_db),
@@ -96,8 +93,7 @@ async def get_blueprint(
         )
 
 
-@router.put("/{blueprint_id}")
-@require_permission("exam.update")
+@router.put("/{blueprint_id}", dependencies=[Depends(require_permission("exam.update"))])
 async def update_blueprint(
     blueprint_id: str,
     blueprint_data: ExamBlueprintUpdate,
@@ -116,7 +112,7 @@ async def update_blueprint(
             )
         
         # Update fields
-        for field, value in blueprint_data.dict(exclude_unset=True).items():
+        for field, value in blueprint_data.model_dump(exclude_unset=True).items():
             if field in blueprint:
                 blueprint[field] = value
         
@@ -135,8 +131,7 @@ async def update_blueprint(
         )
 
 
-@router.delete("/{blueprint_id}", status_code=status.HTTP_204_NO_CONTENT)
-@require_permission("exam.delete")
+@router.delete("/{blueprint_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(require_permission("exam.delete"))])
 async def delete_blueprint(
     blueprint_id: str,
     db: Any = Depends(get_db),
@@ -168,8 +163,7 @@ async def delete_blueprint(
 
 
 # Schedule Management
-@router.post("/schedule", response_model=ExamScheduleResponse, status_code=status.HTTP_201_CREATED)
-@require_permission("exam.schedule")
+@router.post("/schedule", response_model=ExamScheduleResponse, status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_permission("exam.schedule"))])
 async def create_schedule(
     schedule_data: ExamScheduleCreate,
     db: Any = Depends(get_db),
@@ -192,8 +186,7 @@ async def create_schedule(
         )
 
 
-@router.post("/schedule/{schedule_id}/detect-conflicts", response_model=ConflictDetectionResponse)
-@require_permission("exam.schedule")
+@router.post("/schedule/{schedule_id}/detect-conflicts", response_model=ConflictDetectionResponse, dependencies=[Depends(require_permission("exam.schedule"))])
 async def detect_conflicts(
     schedule_id: str,
     conflict_request: ConflictDetectionRequest,
@@ -217,8 +210,7 @@ async def detect_conflicts(
         )
 
 
-@router.get("/schedule/{schedule_id}")
-@require_permission("exam.read")
+@router.get("/schedule/{schedule_id}", dependencies=[Depends(require_permission("exam.read"))])
 async def get_schedule(
     schedule_id: str,
     db: Any = Depends(get_db),
@@ -243,8 +235,7 @@ async def get_schedule(
         )
 
 
-@router.put("/schedule/{schedule_id}/confirm")
-@require_permission("exam.schedule")
+@router.put("/schedule/{schedule_id}/confirm", dependencies=[Depends(require_permission("exam.schedule"))])
 async def confirm_schedule(
     schedule_id: str,
     db: Any = Depends(get_db),
@@ -276,8 +267,7 @@ async def confirm_schedule(
 
 
 # Question Selection
-@router.post("/select-questions", response_model=QuestionSelectionResponse, status_code=status.HTTP_201_CREATED)
-@require_permission("exam.create")
+@router.post("/select-questions", response_model=QuestionSelectionResponse, status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_permission("exam.create"))])
 async def select_questions(
     selection_request: QuestionSelectionRequest,
     db: Any = Depends(get_db),
@@ -300,8 +290,7 @@ async def select_questions(
         )
 
 
-@router.get("/selection/{selection_id}")
-@require_permission("exam.read")
+@router.get("/selection/{selection_id}", dependencies=[Depends(require_permission("exam.read"))])
 async def get_question_selection(
     selection_id: str,
     db: Any = Depends(get_db),
@@ -327,8 +316,7 @@ async def get_question_selection(
 
 
 # Configuration Summary
-@router.get("/examination/{examination_id}/configuration-summary", response_model=ExamConfigurationSummary)
-@require_permission("exam.read")
+@router.get("/examination/{examination_id}/configuration-summary", response_model=ExamConfigurationSummary, dependencies=[Depends(require_permission("exam.read"))])
 async def get_configuration_summary(
     examination_id: str,
     db: Any = Depends(get_db),
@@ -352,8 +340,7 @@ async def get_configuration_summary(
 
 
 # Blueprint Templates
-@router.post("/templates", response_model=BlueprintTemplate, status_code=status.HTTP_201_CREATED)
-@require_permission("exam.create")
+@router.post("/templates", response_model=BlueprintTemplate, status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_permission("exam.create"))])
 async def create_blueprint_template(
     template_data: BlueprintTemplateCreate,
     db: Any = Depends(get_db),
@@ -376,8 +363,7 @@ async def create_blueprint_template(
         )
 
 
-@router.get("/templates", response_model=List[BlueprintTemplate])
-@require_permission("exam.read")
+@router.get("/templates", response_model=List[BlueprintTemplate], dependencies=[Depends(require_permission("exam.read"))])
 async def list_blueprint_templates(
     course_id: Optional[str] = Query(None),
     limit: int = Query(50, le=100),
@@ -395,8 +381,7 @@ async def list_blueprint_templates(
         )
 
 
-@router.get("/templates/{template_id}", response_model=BlueprintTemplate)
-@require_permission("exam.read")
+@router.get("/templates/{template_id}", response_model=BlueprintTemplate, dependencies=[Depends(require_permission("exam.read"))])
 async def get_blueprint_template(
     template_id: str,
     db: Any = Depends(get_db),
@@ -418,8 +403,7 @@ async def get_blueprint_template(
         )
 
 
-@router.post("/templates/{template_id}/use", response_model=dict)
-@require_permission("exam.create")
+@router.post("/templates/{template_id}/use", response_model=dict, dependencies=[Depends(require_permission("exam.create"))])
 async def use_blueprint_template(
     template_id: str,
     examination_id: str,
@@ -460,8 +444,7 @@ async def use_blueprint_template(
 
 
 # Statistics
-@router.get("/statistics", response_model=BlueprintStatistics)
-@require_permission("exam.read")
+@router.get("/statistics", response_model=BlueprintStatistics, dependencies=[Depends(require_permission("exam.read"))])
 async def get_blueprint_statistics(
     course_id: Optional[str] = Query(None),
     db: Any = Depends(get_db),
@@ -489,8 +472,7 @@ async def get_blueprint_statistics(
 
 
 # Complete Configuration
-@router.post("/configure", response_model=ExamConfigurationResponse)
-@require_permission("exam.create")
+@router.post("/configure", response_model=ExamConfigurationResponse, dependencies=[Depends(require_permission("exam.create"))])
 async def configure_complete_exam(
     config_request: ExamConfigurationRequest,
     db: Any = Depends(get_db),

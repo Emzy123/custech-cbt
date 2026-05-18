@@ -17,8 +17,7 @@ from .deps import get_current_active_user, require_permission
 router = APIRouter(prefix="/question-security", tags=["question-security"])
 
 
-@router.post("/encrypt", response_model=QuestionEncryptionResponse)
-@require_permission("question.encrypt")
+@router.post("/encrypt", response_model=QuestionEncryptionResponse, dependencies=[Depends(require_permission("question.encrypt"))])
 async def encrypt_question_data(
     encryption_request: QuestionEncryptionRequest,
     db: Any = Depends(get_db),
@@ -56,8 +55,7 @@ async def encrypt_question_data(
         )
 
 
-@router.post("/decrypt", response_model=QuestionDecryptionResponse)
-@require_permission("question.decrypt")
+@router.post("/decrypt", response_model=QuestionDecryptionResponse, dependencies=[Depends(require_permission("question.decrypt"))])
 async def decrypt_question_data(
     decryption_request: QuestionDecryptionRequest,
     db: Any = Depends(get_db),
@@ -95,8 +93,7 @@ async def decrypt_question_data(
         )
 
 
-@router.post("/questions/{question_id}/encrypt-text")
-@require_permission("question.encrypt")
+@router.post("/questions/{question_id}/encrypt-text", dependencies=[Depends(require_permission("question.encrypt"))])
 async def encrypt_question_text(
     question_id: str,
     db: Any = Depends(get_db),
@@ -105,18 +102,15 @@ async def encrypt_question_text(
     """Encrypt question text."""
     try:
         from ..models.question import Question
-        
+
         # Get question
-        question_result = await db.execute(
-            select(Question).where(Question.id == question_id)
-        )
-        question = question_result.scalar_one_or_none()
+        question = await Question.get(question_id)
         if not question:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Question not found"
             )
-        
+
         security_service = QuestionSecurityService(db)
         result = await security_service.encrypt_question_text(question_id, question.question_text)
         
@@ -143,8 +137,7 @@ async def encrypt_question_text(
         )
 
 
-@router.post("/questions/{question_id}/decrypt-text")
-@require_permission("question.decrypt")
+@router.post("/questions/{question_id}/decrypt-text", dependencies=[Depends(require_permission("question.decrypt"))])
 async def decrypt_question_text(
     question_id: str,
     db: Any = Depends(get_db),
@@ -178,8 +171,7 @@ async def decrypt_question_text(
         )
 
 
-@router.post("/questions/{question_id}/encrypt-options")
-@require_permission("question.encrypt")
+@router.post("/questions/{question_id}/encrypt-options", dependencies=[Depends(require_permission("question.encrypt"))])
 async def encrypt_question_options(
     question_id: str,
     options_data: List[Dict[str, Any]],
@@ -215,8 +207,7 @@ async def encrypt_question_options(
         )
 
 
-@router.post("/questions/{question_id}/decrypt-options")
-@require_permission("question.decrypt")
+@router.post("/questions/{question_id}/decrypt-options", dependencies=[Depends(require_permission("question.decrypt"))])
 async def decrypt_question_options(
     question_id: str,
     db: Any = Depends(get_db),
@@ -251,8 +242,7 @@ async def decrypt_question_options(
         )
 
 
-@router.post("/keys/rotate", response_model=KeyRotationResponse)
-@require_permission("question.security.admin")
+@router.post("/keys/rotate", response_model=KeyRotationResponse, dependencies=[Depends(require_permission("question.security.admin"))])
 async def rotate_encryption_keys(
     rotation_request: KeyRotationRequest,
     db: Any = Depends(get_db),
@@ -287,8 +277,7 @@ async def rotate_encryption_keys(
         )
 
 
-@router.get("/questions/{question_id}/integrity", response_model=QuestionIntegrityResponse)
-@require_permission("question.security.read")
+@router.get("/questions/{question_id}/integrity", response_model=QuestionIntegrityResponse, dependencies=[Depends(require_permission("question.security.read"))])
 async def validate_question_integrity(
     question_id: str,
     db: Any = Depends(get_db),
@@ -312,8 +301,7 @@ async def validate_question_integrity(
         )
 
 
-@router.get("/status", response_model=EncryptionStatusResponse)
-@require_permission("question.security.read")
+@router.get("/status", response_model=EncryptionStatusResponse, dependencies=[Depends(require_permission("question.security.read"))])
 async def get_encryption_status(
     db: Any = Depends(get_db),
     current_user = Depends(get_current_active_user)
@@ -336,8 +324,7 @@ async def get_encryption_status(
         )
 
 
-@router.post("/audit")
-@require_permission("question.security.audit")
+@router.post("/audit", dependencies=[Depends(require_permission("question.security.audit"))])
 async def audit_encryption_access(
     audit_request: SecurityAuditRequest,
     db: Any = Depends(get_db),
@@ -365,8 +352,7 @@ async def audit_encryption_access(
         )
 
 
-@router.get("/questions/{question_id}/security-info")
-@require_permission("question.security.read")
+@router.get("/questions/{question_id}/security-info", dependencies=[Depends(require_permission("question.security.read"))])
 async def get_question_security_info(
     question_id: str,
     db: Any = Depends(get_db),
@@ -375,18 +361,15 @@ async def get_question_security_info(
     """Get security information for a question."""
     try:
         from ..models.question import Question
-        
+
         # Get question
-        question_result = await db.execute(
-            select(Question).where(Question.id == question_id)
-        )
-        question = question_result.scalar_one_or_none()
+        question = await Question.get(question_id)
         if not question:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Question not found"
             )
-        
+
         # Get security information
         security_info = {
             "question_id": question_id,
@@ -419,8 +402,7 @@ async def get_question_security_info(
         )
 
 
-@router.post("/questions/batch/encrypt")
-@require_permission("question.encrypt")
+@router.post("/questions/batch/encrypt", dependencies=[Depends(require_permission("question.encrypt"))])
 async def batch_encrypt_questions(
     question_ids: List[str],
     db: Any = Depends(get_db),
@@ -428,10 +410,10 @@ async def batch_encrypt_questions(
 ):
     """Batch encrypt multiple questions."""
     try:
-        from ..models.question import Question
-        
+        from ..models.question import Question, QuestionOption
+
         security_service = QuestionSecurityService(db)
-        
+
         results = {
             "batch_id": str(uuid.uuid4()),
             "total_questions": len(question_ids),
@@ -444,29 +426,36 @@ async def batch_encrypt_questions(
         for question_id in question_ids:
             try:
                 # Get question
-                question_result = await db.execute(
-                    select(Question).where(Question.id == question_id)
-                )
-                question = question_result.scalar_one_or_none()
+                question = await Question.get(question_id)
                 if not question:
                     results["errors"].append(f"Question {question_id} not found")
                     results["failed"] += 1
                     continue
-                
+
                 # Encrypt question text
                 if question.question_text and not question.encrypted_question_text:
                     await security_service.encrypt_question_text(question_id, question.question_text)
-                
-                # Encrypt question options
-                if question.options and not question.encrypted_options:
-                    await security_service.encrypt_question_options(question_id, question.options)
-                
+                    question = await Question.get(question_id)
+
+                # Encrypt question options (from QuestionOption documents)
+                opts = await QuestionOption.find(QuestionOption.question_id == question_id).to_list()
+                if opts and not question.encrypted_options:
+                    options_payload = [
+                        {
+                            "option_text": o.option_text,
+                            "is_correct": o.is_correct,
+                            "explanation": o.explanation or "",
+                        }
+                        for o in opts
+                    ]
+                    await security_service.encrypt_question_options(question_id, options_payload)
+
                 results["success"] += 1
-                
+
             except Exception as e:
                 results["errors"].append(f"Question {question_id}: {str(e)}")
                 results["failed"] += 1
-            
+
             results["processed"] += 1
         
         # Audit the batch encryption
@@ -489,8 +478,7 @@ async def batch_encrypt_questions(
         )
 
 
-@router.post("/questions/batch/validate-integrity")
-@require_permission("question.security.read")
+@router.post("/questions/batch/validate-integrity", dependencies=[Depends(require_permission("question.security.read"))])
 async def batch_validate_integrity(
     question_ids: List[str],
     db: Any = Depends(get_db),
@@ -547,8 +535,7 @@ async def batch_validate_integrity(
         )
 
 
-@router.get("/security-events")
-@require_permission("question.security.admin")
+@router.get("/security-events", dependencies=[Depends(require_permission("question.security.admin"))])
 async def get_security_events(
     event_type: Optional[str] = None,
     date: Optional[str] = None,
@@ -593,8 +580,7 @@ async def get_security_events(
         )
 
 
-@router.get("/encryption-keys")
-@require_permission("question.security.admin")
+@router.get("/encryption-keys", dependencies=[Depends(require_permission("question.security.admin"))])
 async def get_encryption_keys(
     db: Any = Depends(get_db),
     current_user = Depends(get_current_active_user)
@@ -634,8 +620,7 @@ async def get_encryption_keys(
         )
 
 
-@router.post("/security-policy/update")
-@require_permission("question.security.admin")
+@router.post("/security-policy/update", dependencies=[Depends(require_permission("question.security.admin"))])
 async def update_security_policy(
     policy_data: Dict[str, Any],
     db: Any = Depends(get_db),
@@ -671,8 +656,7 @@ async def update_security_policy(
         )
 
 
-@router.get("/security-policy")
-@require_permission("question.security.read")
+@router.get("/security-policy", dependencies=[Depends(require_permission("question.security.read"))])
 async def get_security_policy(
     db: Any = Depends(get_db),
     current_user = Depends(get_current_active_user)

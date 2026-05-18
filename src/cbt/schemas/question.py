@@ -2,10 +2,9 @@
 Question bank management schemas.
 """
 
-from pydantic import BaseModel, validator
-from typing import Optional, List, Dict, Any
-from datetime import datetime, date
-from enum import Enum
+from pydantic import BaseModel, ConfigDict, field_validator, model_validator
+from typing import Optional, List, Dict, Any, Self
+from datetime import datetime
 
 from ..models.question import QuestionType, QuestionDifficulty, CognitiveLevel, QuestionStatus
 
@@ -15,11 +14,12 @@ class QuestionOptionBase(BaseModel):
     option_text: str
     is_correct: bool = False
     explanation: Optional[str] = None
-    
-    @validator('option_text')
-    def validate_option_text(cls, v):
+
+    @field_validator("option_text")
+    @classmethod
+    def validate_option_text(cls, v: str) -> str:
         if not v or len(v.strip()) < 3:
-            raise ValueError('Option text must be at least 3 characters long')
+            raise ValueError("Option text must be at least 3 characters long")
         return v.strip()
 
 
@@ -37,14 +37,13 @@ class QuestionOptionUpdate(BaseModel):
 
 class QuestionOptionResponse(QuestionOptionBase):
     """Question option response schema."""
+    model_config = ConfigDict(from_attributes=True)
+
     id: str
     question_id: str
     order: int
     created_at: datetime
     updated_at: datetime
-    
-    class Config:
-        from_attributes = True
 
 
 class QuestionBase(BaseModel):
@@ -58,23 +57,26 @@ class QuestionBase(BaseModel):
     explanation: Optional[str] = None
     reference: Optional[str] = None
     image_url: Optional[str] = None
-    
-    @validator('question_text')
-    def validate_question_text(cls, v):
+
+    @field_validator("question_text")
+    @classmethod
+    def validate_question_text(cls, v: str) -> str:
         if not v or len(v.strip()) < 10:
-            raise ValueError('Question text must be at least 10 characters long')
+            raise ValueError("Question text must be at least 10 characters long")
         return v.strip()
-    
-    @validator('points_value')
-    def validate_points_value(cls, v):
+
+    @field_validator("points_value")
+    @classmethod
+    def validate_points_value(cls, v: int) -> int:
         if v <= 0 or v > 100:
-            raise ValueError('Points value must be between 1 and 100')
+            raise ValueError("Points value must be between 1 and 100")
         return v
-    
-    @validator('topic')
-    def validate_topic(cls, v):
+
+    @field_validator("topic")
+    @classmethod
+    def validate_topic(cls, v: str) -> str:
         if not v or len(v.strip()) < 2:
-            raise ValueError('Topic must be at least 2 characters long')
+            raise ValueError("Topic must be at least 2 characters long")
         return v.strip()
 
 
@@ -82,42 +84,49 @@ class QuestionCreate(QuestionBase):
     """Question creation schema."""
     course_id: str
     options: List[QuestionOptionCreate]
-    
-    @validator('options')
-    def validate_options(cls, v, values):
-        if 'question_type' in values:
-            question_type = values['question_type']
-            
-            if question_type == QuestionType.MULTIPLE_CHOICE:
-                if len(v) < 2:
-                    raise ValueError('Multiple choice questions must have at least 2 options')
-                if len(v) > 6:
-                    raise ValueError('Multiple choice questions cannot have more than 6 options')
-                
-                # Check for exactly one correct answer
-                correct_count = sum(1 for option in v if option.is_correct)
-                if correct_count != 1:
-                    raise ValueError('Multiple choice questions must have exactly one correct answer')
-            
-            elif question_type == QuestionType.TRUE_FALSE:
-                if len(v) != 2:
-                    raise ValueError('True/False questions must have exactly 2 options')
-                
-                # Check for exactly one correct answer
-                correct_count = sum(1 for option in v if option.is_correct)
-                if correct_count != 1:
-                    raise ValueError('True/False questions must have exactly one correct answer')
-            
-            elif question_type == QuestionType.SHORT_ANSWER:
-                if len(v) > 0:
-                    raise ValueError('Short answer questions should not have predefined options')
-        
-        # Check for duplicate option texts
+
+    @model_validator(mode="after")
+    def validate_options(self) -> Self:
+        v = self.options
+        question_type = self.question_type
+
+        if question_type == QuestionType.MULTIPLE_CHOICE:
+            if len(v) < 2:
+                raise ValueError(
+                    "Multiple choice questions must have at least 2 options"
+                )
+            if len(v) > 6:
+                raise ValueError(
+                    "Multiple choice questions cannot have more than 6 options"
+                )
+
+            correct_count = sum(1 for option in v if option.is_correct)
+            if correct_count != 1:
+                raise ValueError(
+                    "Multiple choice questions must have exactly one correct answer"
+                )
+
+        elif question_type == QuestionType.TRUE_FALSE:
+            if len(v) != 2:
+                raise ValueError("True/False questions must have exactly 2 options")
+
+            correct_count = sum(1 for option in v if option.is_correct)
+            if correct_count != 1:
+                raise ValueError(
+                    "True/False questions must have exactly one correct answer"
+                )
+
+        elif question_type == QuestionType.SHORT_ANSWER:
+            if len(v) > 0:
+                raise ValueError(
+                    "Short answer questions should not have predefined options"
+                )
+
         option_texts = [option.option_text.lower().strip() for option in v]
         if len(option_texts) != len(set(option_texts)):
-            raise ValueError('Question options must be unique')
-        
-        return v
+            raise ValueError("Question options must be unique")
+
+        return self
 
 
 class QuestionUpdate(BaseModel):
@@ -135,6 +144,8 @@ class QuestionUpdate(BaseModel):
 
 class QuestionResponse(QuestionBase):
     """Question response schema."""
+    model_config = ConfigDict(from_attributes=True)
+
     id: str
     course_id: str
     question_type: QuestionType
@@ -158,9 +169,6 @@ class QuestionResponse(QuestionBase):
     def is_draft(self) -> bool:
         """Check if question is in draft status."""
         return self.status == QuestionStatus.DRAFT
-    
-    class Config:
-        from_attributes = True
 
 
 class QuestionSearch(BaseModel):
@@ -181,10 +189,11 @@ class QuestionReviewRequest(BaseModel):
     action: str  # "approve" or "reject"
     review_comments: Optional[str] = None
     suggested_changes: Optional[List[str]] = None
-    
-    @validator('action')
-    def validate_action(cls, v):
-        if v not in ['approve', 'reject']:
+
+    @field_validator("action")
+    @classmethod
+    def validate_action(cls, v: str) -> str:
+        if v not in ["approve", "reject"]:
             raise ValueError('Action must be either "approve" or "reject"')
         return v
 
@@ -226,20 +235,24 @@ class QuestionBulkOperation(BaseModel):
     operation: str  # "delete", "approve", "reject", "update_status"
     question_ids: List[str]
     parameters: Optional[Dict[str, Any]] = None
-    
-    @validator('operation')
-    def validate_operation(cls, v):
-        allowed_operations = ['delete', 'approve', 'reject', 'update_status']
+
+    @field_validator("operation")
+    @classmethod
+    def validate_operation(cls, v: str) -> str:
+        allowed_operations = ["delete", "approve", "reject", "update_status"]
         if v not in allowed_operations:
-            raise ValueError(f'Operation must be one of: {allowed_operations}')
+            raise ValueError(f"Operation must be one of: {allowed_operations}")
         return v
-    
-    @validator('question_ids')
-    def validate_question_ids(cls, v):
+
+    @field_validator("question_ids")
+    @classmethod
+    def validate_question_ids(cls, v: List[str]) -> List[str]:
         if not v or len(v) == 0:
-            raise ValueError('At least one question ID must be provided')
+            raise ValueError("At least one question ID must be provided")
         if len(v) > 100:
-            raise ValueError('Cannot process more than 100 questions in a single operation')
+            raise ValueError(
+                "Cannot process more than 100 questions in a single operation"
+            )
         return v
 
 
@@ -248,16 +261,19 @@ class QuestionMetadata(BaseModel):
     topic: str
     description: Optional[str] = None
     color: Optional[str] = None  # For UI display
-    
-    @validator('color')
-    def validate_color(cls, v):
-        if v and not v.startswith('#'):
-            raise ValueError('Color must be a valid hex color code starting with #')
+
+    @field_validator("color")
+    @classmethod
+    def validate_color(cls, v: Optional[str]) -> Optional[str]:
+        if v and not v.startswith("#"):
+            raise ValueError("Color must be a valid hex color code starting with #")
         return v
 
 
 class QuestionVersionResponse(BaseModel):
     """Question version response schema."""
+    model_config = ConfigDict(from_attributes=True)
+
     id: str
     version: int
     question_text: str
@@ -265,9 +281,6 @@ class QuestionVersionResponse(BaseModel):
     created_at: datetime
     created_by: str
     change_summary: Optional[str] = None
-    
-    class Config:
-        from_attributes = True
 
 
 class QuestionStatisticsResponse(BaseModel):
@@ -305,11 +318,12 @@ class QuestionExportRequest(BaseModel):
     include_options: bool = True
     include_explanations: bool = False
     format: str = "csv"  # "csv", "json", "excel"
-    
-    @validator('format')
-    def validate_format(cls, v):
-        if v not in ['csv', 'json', 'excel']:
-            raise ValueError('Format must be one of: csv, json, excel')
+
+    @field_validator("format")
+    @classmethod
+    def validate_format(cls, v: str) -> str:
+        if v not in ["csv", "json", "excel"]:
+            raise ValueError("Format must be one of: csv, json, excel")
         return v
 
 
@@ -328,10 +342,11 @@ class QuestionBatchReviewRequest(BaseModel):
     question_ids: List[str]
     action: str  # "approve" or "reject"
     review_comments: Optional[str] = None
-    
-    @validator('action')
-    def validate_action(cls, v):
-        if v not in ['approve', 'reject']:
+
+    @field_validator("action")
+    @classmethod
+    def validate_batch_action(cls, v: str) -> str:
+        if v not in ["approve", "reject"]:
             raise ValueError('Action must be either "approve" or "reject"')
         return v
 
@@ -355,12 +370,11 @@ class QuestionImageUploadResponse(BaseModel):
 
 class QuestionTopicResponse(BaseModel):
     """Question topic response schema."""
+    model_config = ConfigDict(from_attributes=True)
+
     id: str
     topic: str
     description: Optional[str]
     color: Optional[str]
     question_count: int
     created_at: datetime
-    
-    class Config:
-        from_attributes = True

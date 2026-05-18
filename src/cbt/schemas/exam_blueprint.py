@@ -2,10 +2,9 @@
 Exam blueprint and configuration schemas.
 """
 
-from pydantic import BaseModel, validator
-from typing import Optional, List, Dict, Any
+from pydantic import BaseModel, ConfigDict, field_validator, model_validator
+from typing import Optional, List, Dict, Any, Self
 from datetime import datetime, date
-from enum import Enum
 
 from ..models.question import QuestionDifficulty, CognitiveLevel, QuestionType
 
@@ -17,11 +16,12 @@ class BlueprintRequirement(BaseModel):
     cognitive_level: CognitiveLevel
     question_count: int
     question_type: Optional[QuestionType] = None
-    
-    @validator('question_count')
-    def validate_question_count(cls, v):
+
+    @field_validator("question_count")
+    @classmethod
+    def validate_question_count(cls, v: int) -> int:
         if v <= 0 or v > 20:
-            raise ValueError('Question count must be between 1 and 20')
+            raise ValueError("Question count must be between 1 and 20")
         return v
 
 
@@ -34,26 +34,30 @@ class ExamBlueprintCreate(BaseModel):
     randomization_enabled: bool = True
     option_shuffle_enabled: bool = True
     question_order_randomization: bool = True
-    
-    @validator('total_questions')
-    def validate_total_questions(cls, v):
+
+    @field_validator("total_questions")
+    @classmethod
+    def validate_total_questions(cls, v: int) -> int:
         if v <= 0 or v > 200:
-            raise ValueError('Total questions must be between 1 and 200')
+            raise ValueError("Total questions must be between 1 and 200")
         return v
-    
-    @validator('total_points')
-    def validate_total_points(cls, v):
+
+    @field_validator("total_points")
+    @classmethod
+    def validate_total_points(cls, v: int) -> int:
         if v <= 0 or v > 1000:
-            raise ValueError('Total points must be between 1 and 1000')
+            raise ValueError("Total points must be between 1 and 1000")
         return v
-    
-    @validator('requirements')
-    def validate_requirements(cls, v, values):
-        if 'total_questions' in values:
-            total_required = sum(req.question_count for req in v)
-            if total_required != values['total_questions']:
-                raise ValueError(f'Sum of requirement questions ({total_required}) must equal total questions ({values["total_questions"]})')
-        return v
+
+    @model_validator(mode="after")
+    def validate_requirements_sum(self) -> Self:
+        total_required = sum(req.question_count for req in self.requirements)
+        if total_required != self.total_questions:
+            raise ValueError(
+                f"Sum of requirement questions ({total_required}) must equal "
+                f"total questions ({self.total_questions})"
+            )
+        return self
 
 
 class ExamBlueprintUpdate(BaseModel):
@@ -68,6 +72,8 @@ class ExamBlueprintUpdate(BaseModel):
 
 class ExamBlueprintResponse(BaseModel):
     """Exam blueprint response schema."""
+    model_config = ConfigDict(from_attributes=True)
+
     id: str
     examination_id: str
     total_questions: int
@@ -80,14 +86,11 @@ class ExamBlueprintResponse(BaseModel):
     created_by: str
     created_at: datetime
     updated_at: datetime
-    
+
     @property
     def is_validated(self) -> bool:
         """Check if blueprint is validated."""
         return self.status == "validated"
-    
-    class Config:
-        from_attributes = True
 
 
 class BlueprintValidationRequest(BaseModel):
@@ -118,22 +121,28 @@ class ExamScheduleCreate(BaseModel):
     duration_minutes: int
     venue_assignments: List[Dict[str, Any]]
     special_accommodations: Optional[List[Dict[str, Any]]] = None
-    
-    @validator('duration_minutes')
-    def validate_duration(cls, v):
+
+    @field_validator("duration_minutes")
+    @classmethod
+    def validate_duration(cls, v: int) -> int:
         if v < 30 or v > 480:
-            raise ValueError('Duration must be between 30 and 480 minutes')
+            raise ValueError("Duration must be between 30 and 480 minutes")
         return v
-    
-    @validator('venue_assignments')
-    def validate_venue_assignments(cls, v):
+
+    @field_validator("venue_assignments")
+    @classmethod
+    def validate_venue_assignments(
+        cls, v: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
         if not v:
-            raise ValueError('At least one venue assignment is required')
+            raise ValueError("At least one venue assignment is required")
         return v
 
 
 class ExamScheduleResponse(BaseModel):
     """Exam schedule response schema."""
+    model_config = ConfigDict(from_attributes=True)
+
     id: str
     examination_id: str
     exam_date: date
@@ -147,14 +156,11 @@ class ExamScheduleResponse(BaseModel):
     created_by: str
     created_at: datetime
     updated_at: datetime
-    
+
     @property
     def is_confirmed(self) -> bool:
         """Check if schedule is confirmed."""
         return self.status == "confirmed"
-    
-    class Config:
-        from_attributes = True
 
 
 class VenueAssignment(BaseModel):
@@ -240,6 +246,8 @@ class ExamConfigurationSummary(BaseModel):
 
 class BlueprintTemplate(BaseModel):
     """Blueprint template for reuse."""
+    model_config = ConfigDict(from_attributes=True)
+
     id: str
     name: str
     description: str
@@ -251,9 +259,6 @@ class BlueprintTemplate(BaseModel):
     usage_count: int
     created_by: str
     created_at: datetime
-    
-    class Config:
-        from_attributes = True
 
 
 class BlueprintTemplateCreate(BaseModel):
@@ -263,11 +268,12 @@ class BlueprintTemplateCreate(BaseModel):
     course_id: str
     requirements: List[BlueprintRequirement]
     settings: Dict[str, Any]
-    
-    @validator('name')
-    def validate_name(cls, v):
+
+    @field_validator("name")
+    @classmethod
+    def validate_name(cls, v: str) -> str:
         if not v or len(v.strip()) < 3:
-            raise ValueError('Template name must be at least 3 characters long')
+            raise ValueError("Template name must be at least 3 characters long")
         return v.strip()
 
 
@@ -277,7 +283,7 @@ class BlueprintStatistics(BaseModel):
     validated_blueprints: int
     pending_validation: int
     failed_validation: int
-    
+
     by_course: Dict[str, int]
     by_difficulty_distribution: Dict[str, Dict[str, int]]
     by_cognitive_level_distribution: Dict[str, Dict[str, int]]
