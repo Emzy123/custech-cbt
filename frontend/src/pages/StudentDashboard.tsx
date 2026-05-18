@@ -92,22 +92,28 @@ const StudentDashboard: React.FC = () => {
         }
 
         const exams = await apiRequest<ExaminationApi[]>('/api/v1/examinations?limit=10');
+        const now = new Date();
         const mapped: Exam[] = exams.map((exam) => {
           const startAt = new Date(exam.start_time);
+          const examDate = exam.exam_date || startAt.toISOString().slice(0, 10);
+          const examTime = startAt.toTimeString().slice(0, 5);
+          const examDateTime = new Date(`${examDate}T${examTime}`);
+          const diffMs = examDateTime.getTime() - now.getTime();
+          const within24h = diffMs > 0 && diffMs <= 24 * 60 * 60 * 1000;
           return {
             id: exam.id,
-            courseCode: exam.course_id || 'GST',
+            courseCode: exam.course_id || '',
             courseTitle: exam.title,
-            date: exam.exam_date || startAt.toISOString().slice(0, 10),
-            time: startAt.toTimeString().slice(0, 5),
+            date: examDate,
+            time: examTime,
             venue: 'TBA',
             duration: exam.duration_minutes,
+            isWithin24Hours: within24h,
           };
         });
 
-        const now = new Date();
         const upcoming = mapped.filter((exam) => new Date(`${exam.date}T${exam.time}`) > now);
-        setNextExam(upcoming.length > 0 ? { ...upcoming[0], isWithin24Hours: true } : null);
+        setNextExam(upcoming.length > 0 ? upcoming[0] : null);
         setUpcomingExams(upcoming.slice(0, 5));
 
         // Fetch real results (embargo-aware)
@@ -115,7 +121,7 @@ const StudentDashboard: React.FC = () => {
           const rawResults = await apiRequest<ResultApi[]>('/api/v1/examinations/my/results');
           const mappedResults: Result[] = rawResults.map((r) => ({
             id: r.instance_id,
-            courseCode: r.course_id || 'GST',
+            courseCode: r.course_id || '',
             courseTitle: r.exam_title,
             score: r.score,
             grade: r.grade,

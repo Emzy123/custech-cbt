@@ -4,7 +4,7 @@ Academic structure models: sessions, semesters, departments, and courses using B
 
 from typing import Optional
 import enum
-from datetime import datetime
+from datetime import datetime, timezone
 from beanie import Document
 from pydantic import Field
 
@@ -101,3 +101,14 @@ class CourseDepartment(BaseDocument):
 
     class Settings:
         name = "course_departments"
+
+
+class LecturerCourse(BaseDocument):
+    """Lecturer-Course assignment relationship."""
+    course_id: str
+    lecturer_id: str
+    assigned_by: Optional[str] = None
+    assigned_at: datetime = Field(default_factory=lambda: datetime.now())
+
+    class Settings:
+        name = "lecturer_courses"

@@ -4,7 +4,7 @@ Database models for CBT system.
 
 from .base import BaseDocument
 from .user import User, UserRoleAssignment
-from .academic import AcademicSession, Semester, Department, Course, CourseDepartment
+from .academic import AcademicSession, Semester, Department, Course, CourseDepartment, LecturerCourse
 from .student import Student, StudentCourse
 from .question import QuestionBank, Question, QuestionOption, QuestionAnswer
 from .exam import Examination, ExamQuestion, ExamInstance, ExamAnswer
@@ -26,6 +26,7 @@ __all__ = [
     "Department",
     "Course",
     "CourseDepartment",
+    "LecturerCourse",
     "Student",
     "StudentCourse",
     "QuestionBank",

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { apiRequest } from '../lib/api';
-import { Plus, Search, Trash2, Edit2, Eye, Lock, UserPlus, RefreshCw, Shield, Users, Building2, BookOpen, GraduationCap, FileText, Activity, Settings, X, ChevronDown, ChevronRight } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { apiRequest, clearAuthStorage } from '../lib/api';
+import { Plus, Search, Trash2, Lock, UserPlus, RefreshCw, Shield, Users, Building2, BookOpen, GraduationCap, FileText, Activity, Settings, X, ChevronDown, ChevronRight, LogOut, UserCheck } from 'lucide-react';
 
 // --- Interfaces ---
 interface User {
@@ -81,22 +82,27 @@ interface SystemHealth {
   redis: { status: string };
 }
 
-type TabType = 'overview' | 'users' | 'academics' | 'courses' | 'venues' | 'audit' | 'system' | 'students';
+type TabType = 'overview' | 'users' | 'academics' | 'courses' | 'venues' | 'audit' | 'system';
 
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState<TabType>('overview');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const navigate = useNavigate();
 
   const menuItems: { id: TabType; label: string; icon: React.ReactNode }[] = [
     { id: 'overview', label: 'Overview', icon: <Activity size={20} /> },
     { id: 'users', label: 'User Management', icon: <Users size={20} /> },
     { id: 'academics', label: 'Academic Structure', icon: <Building2 size={20} /> },
-    { id: 'courses', label: 'Courses', icon: <BookOpen size={20} /> },
+    { id: 'courses', label: 'Courses & Lecturers', icon: <BookOpen size={20} /> },
     { id: 'venues', label: 'Venues', icon: <GraduationCap size={20} /> },
     { id: 'audit', label: 'Audit Logs', icon: <FileText size={20} /> },
     { id: 'system', label: 'System Health', icon: <Settings size={20} /> },
-    { id: 'students', label: 'Student Import', icon: <UserPlus size={20} /> },
   ];
+
+  const handleLogout = () => {
+    clearAuthStorage();
+    navigate('/', { replace: true });
+  };
 
   return (
     <div className="flex h-screen bg-gray-50">
@@ -130,8 +136,16 @@ export default function AdminDashboard() {
           </ul>
         </nav>
         <div className="p-4 border-t border-slate-800">
+          <button
+            onClick={handleLogout}
+            className="w-full flex items-center gap-3 px-3 py-2 rounded-md text-red-400 hover:bg-slate-800 hover:text-red-300 transition-colors"
+            title={sidebarCollapsed ? 'Logout' : undefined}
+          >
+            <LogOut size={20} />
+            {!sidebarCollapsed && <span className="text-sm">Logout</span>}
+          </button>
           {!sidebarCollapsed && (
-            <div className="text-xs text-gray-400">
+            <div className="text-xs text-gray-400 mt-2">
               <p>System Administrator</p>
               <p className="mt-1">v1.0.0</p>
             </div>
@@ -155,7 +169,6 @@ export default function AdminDashboard() {
           {activeTab === 'venues' && <VenuesSection />}
           {activeTab === 'audit' && <AuditSection />}
           {activeTab === 'system' && <SystemSection />}
-          {activeTab === 'students' && <StudentImportSection />}
         </main>
       </div>
     </div>
@@ -466,13 +479,13 @@ function OverviewSection() {
     const fetchStats = async () => {
       try {
         const [users, courses, departments, venues] = await Promise.all([
-          apiRequest<{ total: number }>('/api/v1/users/?limit=1').catch(() => ({ total: 0 })),
-          apiRequest<{ length: number }>('/api/v1/academics/courses').catch(() => []),
-          apiRequest<{ length: number }>('/api/v1/academics/departments').catch(() => []),
-          apiRequest<{ length: number }>('/api/v1/venues').catch(() => []),
+          apiRequest<unknown[]>('/api/v1/users/?limit=200').catch(() => []),
+          apiRequest<unknown[]>('/api/v1/academics/courses').catch(() => []),
+          apiRequest<unknown[]>('/api/v1/academics/departments').catch(() => []),
+          apiRequest<unknown[]>('/api/v1/venues').catch(() => []),
         ]);
         setStats({
-          users: users.total || 0,
+          users: Array.isArray(users) ? users.length : 0,
           courses: Array.isArray(courses) ? courses.length : 0,
           departments: Array.isArray(departments) ? departments.length : 0,
           venues: Array.isArray(venues) ? venues.length : 0,
@@ -790,13 +803,27 @@ function DepartmentsTable({ departments, loading, onRefresh }: { departments: De
 }
 
 // --- Courses Section ---
+interface LecturerAssignment {
+  assignment_id: string;
+  lecturer_id: string;
+  course_id: string;
+  full_name: string;
+  email: string;
+  username: string;
+}
+
 function CoursesSection() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [assignModal, setAssignModal] = useState<{ show: boolean; course: Course | null }>({ show: false, course: null });
   const [formData, setFormData] = useState({ code: '', title: '', description: '', credit_units: 3, level: 100, semester_type: 'FIRST' });
+  const [lecturers, setLecturers] = useState<User[]>([]);
+  const [courseAssignments, setCourseAssignments] = useState<LecturerAssignment[]>([]);
+  const [selectedLecturerId, setSelectedLecturerId] = useState('');
+  const [assignLoading, setAssignLoading] = useState(false);
 
-  useEffect(() => { fetchCourses(); }, []);
+  useEffect(() => { fetchCourses(); fetchLecturers(); }, []);
 
   const fetchCourses = async () => {
     setLoading(true);
@@ -807,6 +834,55 @@ function CoursesSection() {
       console.error('Failed to load courses', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchLecturers = async () => {
+    try {
+      const data = await apiRequest<User[]>('/api/v1/users/?role=LECTURER&limit=200');
+      setLecturers(data);
+    } catch (err) {
+      console.error('Failed to load lecturers', err);
+    }
+  };
+
+  const openAssignModal = async (course: Course) => {
+    setAssignModal({ show: true, course });
+    setSelectedLecturerId('');
+    setAssignLoading(true);
+    try {
+      const data = await apiRequest<LecturerAssignment[]>(`/api/v1/academics/courses/${course.id}/lecturers`);
+      setCourseAssignments(data);
+    } catch (err) {
+      setCourseAssignments([]);
+    } finally {
+      setAssignLoading(false);
+    }
+  };
+
+  const handleAssignLecturer = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!assignModal.course || !selectedLecturerId) return;
+    try {
+      await apiRequest(`/api/v1/academics/courses/${assignModal.course.id}/lecturers`, {
+        method: 'POST',
+        body: JSON.stringify({ lecturer_id: selectedLecturerId })
+      });
+      const data = await apiRequest<LecturerAssignment[]>(`/api/v1/academics/courses/${assignModal.course.id}/lecturers`);
+      setCourseAssignments(data);
+      setSelectedLecturerId('');
+    } catch (err: any) {
+      alert(err.message || 'Failed to assign lecturer');
+    }
+  };
+
+  const handleUnassignLecturer = async (courseId: string, lecturerId: string) => {
+    if (!confirm('Remove this lecturer from the course?')) return;
+    try {
+      await apiRequest(`/api/v1/academics/courses/${courseId}/lecturers/${lecturerId}`, { method: 'DELETE' });
+      setCourseAssignments(prev => prev.filter(a => a.lecturer_id !== lecturerId));
+    } catch (err: any) {
+      alert(err.message || 'Failed to remove lecturer');
     }
   };
 
@@ -835,11 +911,11 @@ function CoursesSection() {
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-gray-50">
-            <tr><th className="px-6 py-3">Code</th><th className="px-6 py-3">Title</th><th className="px-6 py-3">Credits</th><th className="px-6 py-3">Level</th><th className="px-6 py-3">Semester</th></tr>
+            <tr><th className="px-6 py-3">Code</th><th className="px-6 py-3">Title</th><th className="px-6 py-3">Credits</th><th className="px-6 py-3">Level</th><th className="px-6 py-3">Semester</th><th className="px-6 py-3">Actions</th></tr>
           </thead>
           <tbody>
-            {loading ? <tr><td colSpan={5} className="px-6 py-4 text-center">Loading...</td></tr> :
-              courses.length === 0 ? <tr><td colSpan={5} className="px-6 py-4 text-center text-gray-500">No courses found</td></tr> :
+            {loading ? <tr><td colSpan={6} className="px-6 py-4 text-center">Loading...</td></tr> :
+              courses.length === 0 ? <tr><td colSpan={6} className="px-6 py-4 text-center text-gray-500">No courses found</td></tr> :
               courses.map(c => (
                 <tr key={c.id} className="border-b">
                   <td className="px-6 py-4 font-medium">{c.code}</td>
@@ -847,11 +923,22 @@ function CoursesSection() {
                   <td className="px-6 py-4">{c.credit_units}</td>
                   <td className="px-6 py-4">{c.level}L</td>
                   <td className="px-6 py-4"><span className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs">{c.semester_type}</span></td>
+                  <td className="px-6 py-4">
+                    <button
+                      onClick={() => openAssignModal(c)}
+                      className="flex items-center gap-1 text-indigo-600 hover:text-indigo-800 text-xs"
+                      title="Assign Lecturer"
+                    >
+                      <UserCheck size={16} /> Assign Lecturer
+                    </button>
+                  </td>
                 </tr>
               ))}
           </tbody>
         </table>
       </div>
+
+      {/* Create Course Modal */}
       {showModal && (
         <Modal title="Create Course" onClose={() => setShowModal(false)}>
           <form onSubmit={handleCreate} className="space-y-4">
@@ -879,6 +966,59 @@ function CoursesSection() {
               <button type="submit" className="px-4 py-2 bg-indigo-600 text-white rounded-lg">Create</button>
             </div>
           </form>
+        </Modal>
+      )}
+
+      {/* Assign Lecturer Modal */}
+      {assignModal.show && assignModal.course && (
+        <Modal title={`Assign Lecturer — ${assignModal.course.code}: ${assignModal.course.title}`} onClose={() => setAssignModal({ show: false, course: null })}>
+          <div className="space-y-4">
+            <h4 className="text-sm font-medium text-gray-700">Currently Assigned Lecturers</h4>
+            {assignLoading ? (
+              <p className="text-sm text-gray-500">Loading...</p>
+            ) : courseAssignments.length === 0 ? (
+              <p className="text-sm text-gray-500">No lecturers assigned yet.</p>
+            ) : (
+              <div className="space-y-2">
+                {courseAssignments.map(a => (
+                  <div key={a.assignment_id} className="flex items-center justify-between bg-gray-50 px-3 py-2 rounded-lg">
+                    <div>
+                      <p className="text-sm font-medium">{a.full_name}</p>
+                      <p className="text-xs text-gray-500">{a.email}</p>
+                    </div>
+                    <button
+                      onClick={() => handleUnassignLecturer(assignModal.course!.id, a.lecturer_id)}
+                      className="text-red-500 hover:text-red-700"
+                      title="Remove"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <hr />
+            <form onSubmit={handleAssignLecturer} className="space-y-3">
+              <label className="block text-sm font-medium text-gray-700">Add Lecturer</label>
+              <select
+                value={selectedLecturerId}
+                onChange={e => setSelectedLecturerId(e.target.value)}
+                className="w-full px-3 py-2 border rounded-lg text-sm"
+                required
+              >
+                <option value="">— Select a lecturer —</option>
+                {lecturers
+                  .filter(l => !courseAssignments.some(a => a.lecturer_id === l.id))
+                  .map(l => (
+                    <option key={l.id} value={l.id}>{l.full_name} ({l.email})</option>
+                  ))}
+              </select>
+              <div className="flex justify-end gap-2">
+                <button type="button" onClick={() => setAssignModal({ show: false, course: null })} className="px-4 py-2 border rounded-lg text-sm">Close</button>
+                <button type="submit" disabled={!selectedLecturerId} className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm disabled:bg-indigo-400">Assign</button>
+              </div>
+            </form>
+          </div>
         </Modal>
       )}
     </div>
@@ -1061,74 +1201,6 @@ function SystemSection() {
         <div className="grid grid-cols-2 gap-4 text-sm">
           <div><span className="text-gray-500">Version:</span> <span className="font-medium">{health?.version || '-'}</span></div>
           <div><span className="text-gray-500">Environment:</span> <span className="font-medium capitalize">{health?.environment || '-'}</span></div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// --- Student Import Section ---
-function StudentImportSection() {
-  const [file, setFile] = useState<File | null>(null);
-  const [uploading, setUploading] = useState(false);
-  const [result, setResult] = useState<any>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) {
-      setFile(e.target.files[0]);
-    }
-  };
-
-  const handleUpload = async () => {
-    if (!file) return;
-    setUploading(true);
-    setError(null);
-    setResult(null);
-
-    const formData = new FormData();
-    formData.append('file', file);
-
-    try {
-      const response = await fetch('/api/v1/students/import/csv', {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('authToken')}` },
-        body: formData,
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || 'Upload failed');
-      }
-
-      const data = await response.json();
-      setResult(data);
-    } catch (err: any) {
-      setError(err.message || 'An error occurred');
-    } finally {
-      setUploading(false);
-    }
-  };
-
-  return (
-    <div className="max-w-2xl">
-      <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-        <h3 className="text-lg font-medium text-gray-900 mb-4">Bulk Import Students (CSV)</h3>
-        <div className="space-y-4">
-          <input type="file" accept=".csv" onChange={handleFileChange} className="block w-full text-sm border rounded-lg p-2" />
-          <button onClick={handleUpload} disabled={!file || uploading} className="bg-indigo-600 text-white px-4 py-2 rounded-lg disabled:bg-indigo-400 flex items-center gap-2">
-            {uploading ? <RefreshCw className="animate-spin" size={18} /> : <UserPlus size={18} />}
-            {uploading ? 'Uploading...' : 'Import Students'}
-          </button>
-          {error && <div className="p-4 text-red-800 rounded-lg bg-red-50"><span className="font-medium">Error:</span> {error}</div>}
-          {result && (
-            <div className="p-4 text-green-800 rounded-lg bg-green-50">
-              <p className="font-medium">Import Successful!</p>
-              <p>Processed: {result.total_processed}</p>
-              <p>Success: {result.successful_imports}</p>
-              {result.failed_imports > 0 && <p className="text-red-600">Failed: {result.failed_imports}</p>}
-            </div>
-          )}
         </div>
       </div>
     </div>

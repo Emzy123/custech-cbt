@@ -37,7 +37,7 @@ async def init_db():
         
         # Import all models here to avoid circular imports
         from ..models.user import User, UserRoleAssignment
-        from ..models.academic import AcademicSession, Semester, Department, Course, CourseDepartment
+        from ..models.academic import AcademicSession, Semester, Department, Course, CourseDepartment, LecturerCourse
         from ..models.student import Student, StudentCourse
         from ..models.question import QuestionBank, Question, QuestionOption, QuestionAnswer
         from ..models.exam import Examination, ExamQuestion, ExamInstance, ExamAnswer
@@ -60,7 +60,7 @@ async def init_db():
 
         # Add models to Beanie
         document_models = [
-            User, UserRoleAssignment, Department, Course, CourseDepartment,
+            User, UserRoleAssignment, Department, Course, CourseDepartment, LecturerCourse,
             AcademicSession, Semester, Student, StudentCourse,
             QuestionBank, Question, QuestionOption, QuestionAnswer,
             Examination, ExamQuestion, ExamInstance, ExamAnswer,

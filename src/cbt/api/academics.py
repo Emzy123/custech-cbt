@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field
 
 from ..models.academic import (
     AcademicSession, Semester, Department, Course,
-    CourseDepartment, SemesterType, CourseLevel,
+    CourseDepartment, LecturerCourse, SemesterType, CourseLevel,
 )
 from ..core.database import get_db
 from .deps import get_current_active_user, require_permission
@@ -71,6 +71,9 @@ class CourseDepartmentLink(BaseModel):
     course_id: str
     department_id: str
     is_mandatory: bool = False
+
+class LecturerCourseAssign(BaseModel):
+    lecturer_id: str
 
 
 # ──────────────────────────── Academic Sessions ───────────────────────────────
@@ -339,6 +342,87 @@ async def unlink_course_department(
     if not obj:
         raise HTTPException(status_code=404, detail="Link not found")
     await obj.delete()
+
+
+# ──────────────────────────── Lecturer ↔ Course assignments ──────────────────
+
+@router.get("/courses/{course_id}/lecturers",
+            dependencies=[Depends(require_permission("course.read"))])
+async def get_course_lecturers(
+    course_id: str,
+    current_user=Depends(get_current_active_user),
+    db: Any = Depends(get_db),
+) -> List[dict]:
+    """Get all lecturers assigned to a course."""
+    from ..models.user import User
+    assignments = await LecturerCourse.find({"course_id": course_id}).to_list()
+    result = []
+    for a in assignments:
+        user = await User.get(a.lecturer_id)
+        if user:
+            result.append({
+                "assignment_id": str(a.id),
+                "lecturer_id": a.lecturer_id,
+                "course_id": a.course_id,
+                "full_name": user.full_name,
+                "email": user.email,
+                "username": user.username,
+            })
+    return result
+
+
+@router.post("/courses/{course_id}/lecturers", status_code=status.HTTP_201_CREATED,
+             dependencies=[Depends(require_permission("course.update"))])
+async def assign_lecturer_to_course(
+    course_id: str,
+    data: LecturerCourseAssign,
+    current_user=Depends(get_current_active_user),
+    db: Any = Depends(get_db),
+) -> dict:
+    """Assign a lecturer to a course."""
+    course = await Course.get(course_id)
+    if not course:
+        raise HTTPException(status_code=404, detail="Course not found")
+    existing = await LecturerCourse.find_one({"course_id": course_id, "lecturer_id": data.lecturer_id})
+    if existing:
+        raise HTTPException(status_code=409, detail="Lecturer already assigned to this course")
+    obj = LecturerCourse(course_id=course_id, lecturer_id=data.lecturer_id, assigned_by=str(current_user.id))
+    await obj.insert()
+    return {"assignment_id": str(obj.id), "course_id": course_id, "lecturer_id": data.lecturer_id,
+            "message": "Lecturer assigned successfully"}
+
+
+@router.delete("/courses/{course_id}/lecturers/{lecturer_id}",
+               status_code=status.HTTP_204_NO_CONTENT,
+               dependencies=[Depends(require_permission("course.update"))])
+async def unassign_lecturer_from_course(
+    course_id: str,
+    lecturer_id: str,
+    current_user=Depends(get_current_active_user),
+    db: Any = Depends(get_db),
+):
+    """Remove a lecturer from a course."""
+    obj = await LecturerCourse.find_one({"course_id": course_id, "lecturer_id": lecturer_id})
+    if not obj:
+        raise HTTPException(status_code=404, detail="Assignment not found")
+    await obj.delete()
+
+
+@router.get("/lecturers/{lecturer_id}/courses",
+            dependencies=[Depends(require_permission("course.read"))])
+async def get_lecturer_courses(
+    lecturer_id: str,
+    current_user=Depends(get_current_active_user),
+    db: Any = Depends(get_db),
+) -> List[dict]:
+    """Get all courses assigned to a lecturer."""
+    assignments = await LecturerCourse.find({"lecturer_id": lecturer_id}).to_list()
+    result = []
+    for a in assignments:
+        course = await Course.get(a.course_id)
+        if course:
+            result.append(_doc(course))
+    return result
 
 
 # ──────────────────────────── Helper ─────────────────────────────────────────

@@ -4,6 +4,7 @@ import LoginPage from './pages/LoginPage';
 import StudentDashboard from './pages/StudentDashboard';
 import ExaminationInterface from './pages/ExaminationInterface';
 import LecturerQuestionBank from './pages/LecturerQuestionBank';
+import LecturerDashboard from './pages/LecturerDashboard';
 import InvigilatorDashboard from './pages/InvigilatorDashboard';
 import ImplementationRoadmap from './pages/ImplementationRoadmap';
 import AdminDashboard from './pages/AdminDashboard';
@@ -32,7 +33,7 @@ function roleHomeRoute(role: string): string {
     case 'admin': case 'administrator': case 'super_admin': return '/admin/dashboard';
     case 'officer': case 'exam_officer': return '/officer';
     case 'invigilator': return '/invigilator/dashboard';
-    case 'lecturer': return '/lecturer/questions';
+    case 'lecturer': return '/lecturer/dashboard';
     default: return '/dashboard'; // student
   }
 }
@@ -84,6 +85,14 @@ function App() {
         />
 
         {/* Lecturer */}
+        <Route
+          path="/lecturer/dashboard"
+          element={
+            <RoleRoute allowed={['lecturer', 'admin', 'administrator', 'super_admin']}>
+              <LecturerDashboard />
+            </RoleRoute>
+          }
+        />
         <Route
           path="/lecturer/questions"
           element={

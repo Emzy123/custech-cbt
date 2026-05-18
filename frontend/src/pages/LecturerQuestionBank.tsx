@@ -112,7 +112,6 @@ const LecturerQuestionBank: React.FC = () => {
     search: ''
   });
 
-  // Mock data - replace with actual API calls
   useEffect(() => {
     const loadQuestions = async () => {
       try {
