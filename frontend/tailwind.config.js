@@ -7,36 +7,63 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        // Primary Palette
-        'primary-blue': {
-          50: '#F0F4F8',
-          100: '#E8ECF1',
-          200: '#D1D9E6',
-          300: '#B3C0D6',
-          400: '#8FA5C1',
-          500: '#6B8CAC',
-          600: '#4A7396',
-          700: '#2D5F8A',
-          800: '#1A3A5C',
-          900: '#0F2440',
+        // CUStech Brand Colors
+        'custech': {
+          primary: '#591F00',
+          'primary-light': '#7A2C0D',
+          'primary-dark': '#4A1900',
+          gold: '#FFD54F',
+          'gold-light': '#FFECB3',
+          green: '#3DB166',
+          'navy': '#163269',
         },
-        // Surface Colors
-        'surface': {
-          white: '#FFFFFF',
-          grey: '#F5F7FA',
-          'grey-dark': '#E8ECF1',
-        },
-        // Semantic Palette
-        'success': '#2E7D32',
-        'warning': '#F59E0B',
-        'danger': '#DC2626',
-        'info': '#2563EB',
+        // Gradients
+        'gradient-primary': 'linear-gradient(135deg, #591F00 0%, #7A2C0D 50%, #4A1900 100%)',
+        'gradient-gold': 'linear-gradient(to bottom, #FFD54F, #FFECB3)',
         // Text Colors
         'text': {
-          primary: '#1F2937',
-          secondary: '#6B7280',
-          disabled: '#9CA3AF',
-        }
+          heading: '#161616',
+          body: '#6B6B6B',
+          muted: '#747474',
+          dark: '#4E4E4E',
+          placeholder: '#5E5E5E',
+        },
+        // Link Colors
+        'link': {
+          default: '#545454',
+          hover: '#591F00',
+        },
+        // Background Colors
+        'bg': {
+          white: '#FFFFFF',
+          light: '#F4F4F4',
+          dark: '#181818',
+          darker: '#202020',
+        },
+        // Border Colors
+        'border': {
+          default: '#E6E6E6',
+          light: '#D7D7D7',
+          input: '#D7D7D7',
+          nav: '#E8E8E8',
+          card: 'rgba(255, 255, 255, 0.15)',
+        },
+        // Glassmorphism
+        'glass': {
+          bg: 'rgba(255, 255, 255, 0.08)',
+          'bg-hover': 'rgba(255, 255, 255, 0.15)',
+        },
+        // Semantic Palette (Updated)
+        'success': '#3DB166',
+        'warning': '#FFD54F',
+        'danger': '#DC2626',
+        'info': '#163269',
+        // Legacy Surface Colors (Mapped)
+        'surface': {
+          white: '#FFFFFF',
+          grey: '#F4F4F4',
+          'grey-dark': '#E6E6E6',
+        },
       },
       fontFamily: {
         'inter': ['Inter', 'sans-serif'],

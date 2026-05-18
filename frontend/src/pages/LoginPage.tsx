@@ -95,7 +95,7 @@ const LoginPage: React.FC = () => {
   return (
     <div className="min-h-screen flex">
       {/* Left side - Branding */}
-      <div className="hidden lg:flex lg:w-2/5 bg-primary-blue-900 flex-col justify-between p-12 relative overflow-hidden">
+      <div className="hidden lg:flex lg:w-2/5 bg-custech-gradient flex-col justify-between p-12 relative overflow-hidden">
         {/* Background pattern */}
         <div className="absolute inset-0 opacity-10">
           <div className="absolute top-10 left-10 w-32 h-32 border-4 border-white rounded-full"></div>
@@ -136,25 +136,25 @@ const LoginPage: React.FC = () => {
       </div>
 
       {/* Right side - Login Form */}
-      <div className="flex-1 bg-surface-grey flex items-center justify-center p-8">
+      <div className="flex-1 bg-light flex items-center justify-center p-8">
         <div className="w-full max-w-md">
           {/* Mobile branding */}
           <div className="lg:hidden text-center mb-8">
-            <h1 className="text-2xl font-bold text-primary-blue-800 mb-2">CUSTECH</h1>
-            <p className="text-sm text-text-secondary">GST Examination Portal</p>
+            <h1 className="text-2xl font-bold text-custech-primary mb-2">CUSTECH</h1>
+            <p className="text-sm text-body">GST Examination Portal</p>
           </div>
 
           <Card elevation={1} className="p-8">
             <div className="text-center mb-8">
-              <h2 className="text-3xl font-semibold text-text-primary mb-2">Sign In</h2>
-              <p className="text-text-secondary">
+              <h2 className="text-3xl font-semibold text-heading mb-2">Sign In</h2>
+              <p className="text-body">
                 Enter your matric number and password to continue
               </p>
             </div>
 
             {error && (
               <div 
-                className="mb-6 p-4 bg-red-50 border border-red-200 rounded-md"
+                className="mb-6 p-4 bg-danger bg-opacity-10 border border-danger border-opacity-30 rounded-md"
                 role="alert"
               >
                 <p className="text-danger text-sm font-medium">{error}</p>
@@ -191,7 +191,7 @@ const LoginPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-9 text-text-secondary hover:text-text-primary focus:outline-none focus:text-text-primary"
+                  className="absolute right-3 top-9 text-muted hover:text-body focus:outline-none focus:text-heading"
                   aria-label={showPassword ? 'Hide password' : 'Show password'}
                 >
                   {showPassword ? (
@@ -205,7 +205,7 @@ const LoginPage: React.FC = () => {
               <div className="flex justify-end">
                 <button
                   type="button"
-                  className="text-sm text-info hover:text-info-dark focus:outline-none focus:underline"
+                  className="text-sm text-custech-navy hover:text-custech-primary focus:outline-none focus:underline"
                   onClick={async () => {
                     const email = window.prompt('Enter your registered email address');
                     if (!email) return;
@@ -235,12 +235,12 @@ const LoginPage: React.FC = () => {
               </Button>
             </form>
 
-            <div className="mt-6 pt-6 border-t border-surface-grey-dark">
-              <p className="text-center text-sm text-text-secondary">
+            <div className="mt-6 pt-6 border-t border-default">
+              <p className="text-center text-sm text-body">
                 Need help? Contact the{' '}
                 <a 
                   href="mailto:ict@custech.edu.ng" 
-                  className="text-info hover:text-info-dark focus:underline"
+                  className="text-custech-navy hover:text-custech-primary focus:underline"
                 >
                   ICT Helpdesk
                 </a>

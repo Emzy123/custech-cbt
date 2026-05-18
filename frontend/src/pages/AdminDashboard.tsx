@@ -105,14 +105,14 @@ export default function AdminDashboard() {
   };
 
   return (
-    <div className="flex h-screen bg-gray-50">
+    <div className="flex h-screen bg-light">
       {/* Sidebar */}
-      <div className={`${sidebarCollapsed ? 'w-16' : 'w-64'} bg-slate-900 text-white flex flex-col transition-all duration-300`}>
+      <div className={`${sidebarCollapsed ? 'w-16' : 'w-64'} bg-dark text-white flex flex-col transition-all duration-300`}>
         <div className="p-4 flex items-center justify-between">
           {!sidebarCollapsed && <h1 className="text-xl font-bold tracking-tight">CBT Admin</h1>}
           <button 
             onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-            className="p-1 hover:bg-slate-700 rounded"
+            className="p-1 hover:bg-darker rounded"
           >
             {sidebarCollapsed ? <ChevronRight size={20} /> : <ChevronDown size={20} />}
           </button>
@@ -124,7 +124,7 @@ export default function AdminDashboard() {
                 <button
                   onClick={() => setActiveTab(item.id)}
                   className={`w-full flex items-center gap-3 px-3 py-2 rounded-md transition-colors ${
-                    activeTab === item.id ? 'bg-indigo-600 text-white' : 'text-gray-300 hover:bg-slate-800'
+                    activeTab === item.id ? 'bg-custech-primary text-white' : 'text-gray-300 hover:bg-darker hover:text-white'
                   }`}
                   title={sidebarCollapsed ? item.label : undefined}
                 >
@@ -135,28 +135,26 @@ export default function AdminDashboard() {
             ))}
           </ul>
         </nav>
-        <div className="p-4 border-t border-slate-800">
+        <div className="p-4 border-t border-darker">
           <button
             onClick={handleLogout}
-            className="w-full flex items-center gap-3 px-3 py-2 rounded-md text-red-400 hover:bg-slate-800 hover:text-red-300 transition-colors"
-            title={sidebarCollapsed ? 'Logout' : undefined}
+            className="w-full flex items-center gap-3 px-3 py-2 rounded-md text-custech-gold hover:bg-darker hover:text-white transition-colors"
           >
             <LogOut size={20} />
             {!sidebarCollapsed && <span className="text-sm">Logout</span>}
           </button>
           {!sidebarCollapsed && (
-            <div className="text-xs text-gray-400 mt-2">
-              <p>System Administrator</p>
-              <p className="mt-1">v1.0.0</p>
+            <div className="text-xs text-muted mt-2">
+              Admin Panel v1.0
             </div>
           )}
         </div>
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 overflow-auto bg-gray-50">
-        <header className="bg-white border-b border-gray-200 px-6 py-4 sticky top-0 z-10">
-          <h2 className="text-2xl font-semibold text-gray-800">
+      <div className="flex-1 overflow-auto bg-light">
+        <header className="bg-white border-b border-default px-6 py-4 sticky top-0 z-10">
+          <h2 className="text-2xl font-semibold text-heading">
             {menuItems.find(m => m.id === activeTab)?.label || 'Dashboard'}
           </h2>
         </header>
@@ -274,27 +272,27 @@ function UsersSection() {
       <div className="flex justify-between items-center">
         <div className="flex gap-2">
           <div className="relative">
-            <Search className="absolute left-3 top-2.5 text-gray-400" size={18} />
+            <Search className="absolute left-3 top-2.5 text-muted" size={18} />
             <input
               type="text"
               placeholder="Search users..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+              className="pl-10 pr-4 py-2 border border-default rounded-lg focus:ring-2 focus:ring-custech-navy focus:border-custech-navy"
             />
           </div>
         </div>
         <button
           onClick={() => setShowModal(true)}
-          className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 flex items-center gap-2"
+          className="bg-custech-primary text-white px-4 py-2 rounded-lg hover:bg-custech-primary hover:shadow-lg flex items-center gap-2"
         >
           <Plus size={18} /> Add User
         </button>
       </div>
 
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+      <div className="bg-white rounded-xl shadow-sm border border-default overflow-hidden">
         <table className="w-full text-sm text-left">
-          <thead className="text-xs text-gray-700 uppercase bg-gray-50">
+          <thead className="text-xs text-muted uppercase bg-light">
             <tr>
               <th className="px-6 py-3">User</th>
               <th className="px-6 py-3">Email</th>
@@ -308,19 +306,19 @@ function UsersSection() {
             {loading ? (
               <tr><td colSpan={6} className="px-6 py-4 text-center">Loading...</td></tr>
             ) : users.length === 0 ? (
-              <tr><td colSpan={6} className="px-6 py-4 text-center text-gray-500">No users found</td></tr>
+              <tr><td colSpan={6} className="px-6 py-4 text-center text-body">No users found</td></tr>
             ) : (
               users.map((user) => (
-                <tr key={user.id} className="border-b hover:bg-gray-50">
+                <tr key={user.id} className="border-b hover:bg-light">
                   <td className="px-6 py-4">
-                    <div className="font-medium text-gray-900">{user.full_name}</div>
-                    <div className="text-gray-500">@{user.username}</div>
+                    <div className="font-medium text-heading">{user.full_name}</div>
+                    <div className="text-body">@{user.username}</div>
                   </td>
                   <td className="px-6 py-4">{user.email}</td>
                   <td className="px-6 py-4">
                     <div className="flex flex-wrap gap-1">
                       {user.roles.map(role => (
-                        <span key={role} className="bg-indigo-100 text-indigo-800 text-xs px-2 py-0.5 rounded">
+                        <span key={role} className="bg-custech-navy bg-opacity-10 text-custech-navy text-xs px-2 py-0.5 rounded">
                           {role}
                         </span>
                       ))}
@@ -329,26 +327,26 @@ function UsersSection() {
                   <td className="px-6 py-4">
                     <button
                       onClick={() => handleToggleActive(user)}
-                      className={`px-2 py-1 rounded text-xs ${user.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}
+                      className={`px-2 py-1 rounded text-xs ${user.is_active ? 'bg-custech-green bg-opacity-20 text-custech-green' : 'bg-danger bg-opacity-20 text-danger'}`}
                     >
                       {user.is_active ? 'Active' : 'Inactive'}
                     </button>
                   </td>
-                  <td className="px-6 py-4 text-gray-500">
+                  <td className="px-6 py-4 text-body">
                     {user.last_login_at ? new Date(user.last_login_at).toLocaleDateString() : 'Never'}
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex gap-2">
                       <button
                         onClick={() => setRoleModal({ show: true, user })}
-                        className="text-indigo-600 hover:text-indigo-800"
+                        className="text-custech-navy hover:text-custech-primary"
                         title="Assign Role"
                       >
                         <Shield size={16} />
                       </button>
                       <button
                         onClick={() => handleResetPassword(user.id)}
-                        className="text-amber-600 hover:text-amber-800"
+                        className="text-custech-navy hover:text-custech-primary"
                         title="Reset Password"
                       >
                         <Lock size={16} />
@@ -508,10 +506,10 @@ function OverviewSection() {
     <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {cards.map((card) => (
-          <div key={card.label} className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+          <div key={card.label} className="bg-white p-6 rounded-xl shadow-sm border border-default">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-500">{card.label}</p>
+                <p className="text-sm text-body">{card.label}</p>
                 <p className="text-2xl font-bold mt-1">{loading ? '-' : card.value}</p>
               </div>
               <div className={`${card.color} text-white p-3 rounded-lg`}>{card.icon}</div>
@@ -519,10 +517,10 @@ function OverviewSection() {
           </div>
         ))}
       </div>
-      <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-        <h3 className="text-lg font-medium text-gray-900 mb-4">Welcome to CBT Admin Dashboard</h3>
-        <p className="text-gray-600">Use the sidebar to navigate through different management sections.</p>
-        <ul className="mt-4 space-y-2 text-sm text-gray-600">
+      <div className="bg-white p-6 rounded-xl shadow-sm border border-default">
+        <h3 className="text-lg font-medium text-heading mb-4">Welcome to CBT Admin Dashboard</h3>
+        <p className="text-body">Use the sidebar to navigate through different management sections.</p>
+        <ul className="mt-4 space-y-2 text-sm text-body">
           <li>• <strong>User Management:</strong> Create and manage users, assign roles</li>
           <li>• <strong>Academic Structure:</strong> Manage sessions, semesters, departments</li>
           <li>• <strong>Courses:</strong> Add and edit courses, link to departments</li>
@@ -572,7 +570,7 @@ function AcademicsSection() {
             key={tab}
             onClick={() => setActiveSubTab(tab)}
             className={`px-4 py-2 rounded-md text-sm capitalize ${
-              activeSubTab === tab ? 'bg-indigo-600 text-white' : 'text-gray-600 hover:bg-gray-100'
+              activeSubTab === tab ? 'bg-indigo-600 text-white' : 'text-body hover:bg-gray-100'
             }`}
           >
             {tab}
@@ -618,18 +616,18 @@ function SessionsTable({ sessions, loading, onRefresh }: { sessions: Session[]; 
   return (
     <div className="space-y-4">
       <div className="flex justify-end">
-        <button onClick={() => setShowModal(true)} className="bg-indigo-600 text-white px-4 py-2 rounded-lg flex items-center gap-2">
+        <button onClick={() => setShowModal(true)} className="bg-custech-primary text-white px-4 py-2 rounded-lg flex items-center gap-2">
           <Plus size={18} /> Add Session
         </button>
       </div>
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+      <div className="bg-white rounded-xl shadow-sm border border-default overflow-hidden">
         <table className="w-full text-sm">
-          <thead className="bg-gray-50">
+          <thead className="bg-light">
             <tr><th className="px-6 py-3">Session Code</th><th className="px-6 py-3">Start Date</th><th className="px-6 py-3">End Date</th><th className="px-6 py-3">Status</th></tr>
           </thead>
           <tbody>
             {loading ? <tr><td colSpan={4} className="px-6 py-4 text-center">Loading...</td></tr> :
-              sessions.length === 0 ? <tr><td colSpan={4} className="px-6 py-4 text-center text-gray-500">No sessions found</td></tr> :
+              sessions.length === 0 ? <tr><td colSpan={4} className="px-6 py-4 text-center text-body">No sessions found</td></tr> :
               sessions.map(s => (
                 <tr key={s.id} className="border-b">
                   <td className="px-6 py-4 font-medium">{s.session_code}</td>
@@ -691,22 +689,22 @@ function SemestersTable({ semesters, loading, onRefresh }: { semesters: Semester
   return (
     <div className="space-y-4">
       <div className="flex justify-end">
-        <button onClick={() => setShowModal(true)} className="bg-indigo-600 text-white px-4 py-2 rounded-lg flex items-center gap-2">
+        <button onClick={() => setShowModal(true)} className="bg-custech-primary text-white px-4 py-2 rounded-lg flex items-center gap-2">
           <Plus size={18} /> Add Semester
         </button>
       </div>
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+      <div className="bg-white rounded-xl shadow-sm border border-default overflow-hidden">
         <table className="w-full text-sm">
-          <thead className="bg-gray-50">
+          <thead className="bg-light">
             <tr><th className="px-6 py-3">Semester</th><th className="px-6 py-3">Session ID</th><th className="px-6 py-3">Start Date</th><th className="px-6 py-3">End Date</th><th className="px-6 py-3">Status</th></tr>
           </thead>
           <tbody>
             {loading ? <tr><td colSpan={5} className="px-6 py-4 text-center">Loading...</td></tr> :
-              semesters.length === 0 ? <tr><td colSpan={5} className="px-6 py-4 text-center text-gray-500">No semesters found</td></tr> :
+              semesters.length === 0 ? <tr><td colSpan={5} className="px-6 py-4 text-center text-body">No semesters found</td></tr> :
               semesters.map(s => (
                 <tr key={s.id} className="border-b">
                   <td className="px-6 py-4 font-medium">{s.semester_type}</td>
-                  <td className="px-6 py-4 text-gray-500">{s.academic_session_id.slice(0, 8)}...</td>
+                  <td className="px-6 py-4 text-body">{s.academic_session_id.slice(0, 8)}...</td>
                   <td className="px-6 py-4">{new Date(s.start_date).toLocaleDateString()}</td>
                   <td className="px-6 py-4">{new Date(s.end_date).toLocaleDateString()}</td>
                   <td className="px-6 py-4">
@@ -763,18 +761,18 @@ function DepartmentsTable({ departments, loading, onRefresh }: { departments: De
   return (
     <div className="space-y-4">
       <div className="flex justify-end">
-        <button onClick={() => setShowModal(true)} className="bg-indigo-600 text-white px-4 py-2 rounded-lg flex items-center gap-2">
+        <button onClick={() => setShowModal(true)} className="bg-custech-primary text-white px-4 py-2 rounded-lg flex items-center gap-2">
           <Plus size={18} /> Add Department
         </button>
       </div>
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+      <div className="bg-white rounded-xl shadow-sm border border-default overflow-hidden">
         <table className="w-full text-sm">
-          <thead className="bg-gray-50">
+          <thead className="bg-light">
             <tr><th className="px-6 py-3">Code</th><th className="px-6 py-3">Name</th><th className="px-6 py-3">Faculty</th></tr>
           </thead>
           <tbody>
             {loading ? <tr><td colSpan={3} className="px-6 py-4 text-center">Loading...</td></tr> :
-              departments.length === 0 ? <tr><td colSpan={3} className="px-6 py-4 text-center text-gray-500">No departments found</td></tr> :
+              departments.length === 0 ? <tr><td colSpan={3} className="px-6 py-4 text-center text-body">No departments found</td></tr> :
               departments.map(d => (
                 <tr key={d.id} className="border-b">
                   <td className="px-6 py-4 font-medium">{d.code}</td>
@@ -904,18 +902,18 @@ function CoursesSection() {
   return (
     <div className="space-y-4">
       <div className="flex justify-end">
-        <button onClick={() => setShowModal(true)} className="bg-indigo-600 text-white px-4 py-2 rounded-lg flex items-center gap-2">
+        <button onClick={() => setShowModal(true)} className="bg-custech-primary text-white px-4 py-2 rounded-lg flex items-center gap-2">
           <Plus size={18} /> Add Course
         </button>
       </div>
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+      <div className="bg-white rounded-xl shadow-sm border border-default overflow-hidden">
         <table className="w-full text-sm">
-          <thead className="bg-gray-50">
+          <thead className="bg-light">
             <tr><th className="px-6 py-3">Code</th><th className="px-6 py-3">Title</th><th className="px-6 py-3">Credits</th><th className="px-6 py-3">Level</th><th className="px-6 py-3">Semester</th><th className="px-6 py-3">Actions</th></tr>
           </thead>
           <tbody>
             {loading ? <tr><td colSpan={6} className="px-6 py-4 text-center">Loading...</td></tr> :
-              courses.length === 0 ? <tr><td colSpan={6} className="px-6 py-4 text-center text-gray-500">No courses found</td></tr> :
+              courses.length === 0 ? <tr><td colSpan={6} className="px-6 py-4 text-center text-body">No courses found</td></tr> :
               courses.map(c => (
                 <tr key={c.id} className="border-b">
                   <td className="px-6 py-4 font-medium">{c.code}</td>
@@ -975,16 +973,16 @@ function CoursesSection() {
           <div className="space-y-4">
             <h4 className="text-sm font-medium text-gray-700">Currently Assigned Lecturers</h4>
             {assignLoading ? (
-              <p className="text-sm text-gray-500">Loading...</p>
+              <p className="text-sm text-body">Loading...</p>
             ) : courseAssignments.length === 0 ? (
-              <p className="text-sm text-gray-500">No lecturers assigned yet.</p>
+              <p className="text-sm text-body">No lecturers assigned yet.</p>
             ) : (
               <div className="space-y-2">
                 {courseAssignments.map(a => (
-                  <div key={a.assignment_id} className="flex items-center justify-between bg-gray-50 px-3 py-2 rounded-lg">
+                  <div key={a.assignment_id} className="flex items-center justify-between bg-light px-3 py-2 rounded-lg">
                     <div>
                       <p className="text-sm font-medium">{a.full_name}</p>
-                      <p className="text-xs text-gray-500">{a.email}</p>
+                      <p className="text-xs text-body">{a.email}</p>
                     </div>
                     <button
                       onClick={() => handleUnassignLecturer(assignModal.course!.id, a.lecturer_id)}
@@ -1061,18 +1059,18 @@ function VenuesSection() {
   return (
     <div className="space-y-4">
       <div className="flex justify-end">
-        <button onClick={() => setShowModal(true)} className="bg-indigo-600 text-white px-4 py-2 rounded-lg flex items-center gap-2">
+        <button onClick={() => setShowModal(true)} className="bg-custech-primary text-white px-4 py-2 rounded-lg flex items-center gap-2">
           <Plus size={18} /> Add Venue
         </button>
       </div>
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+      <div className="bg-white rounded-xl shadow-sm border border-default overflow-hidden">
         <table className="w-full text-sm">
-          <thead className="bg-gray-50">
+          <thead className="bg-light">
             <tr><th className="px-6 py-3">Code</th><th className="px-6 py-3">Name</th><th className="px-6 py-3">Capacity</th><th className="px-6 py-3">Status</th></tr>
           </thead>
           <tbody>
             {loading ? <tr><td colSpan={4} className="px-6 py-4 text-center">Loading...</td></tr> :
-              venues.length === 0 ? <tr><td colSpan={4} className="px-6 py-4 text-center text-gray-500">No venues found</td></tr> :
+              venues.length === 0 ? <tr><td colSpan={4} className="px-6 py-4 text-center text-body">No venues found</td></tr> :
               venues.map(v => (
                 <tr key={v.id} className="border-b">
                   <td className="px-6 py-4 font-medium">{v.code}</td>
@@ -1125,21 +1123,21 @@ function AuditSection() {
 
   return (
     <div className="space-y-4">
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+      <div className="bg-white rounded-xl shadow-sm border border-default overflow-hidden">
         <table className="w-full text-sm">
-          <thead className="bg-gray-50">
+          <thead className="bg-light">
             <tr><th className="px-6 py-3">Time</th><th className="px-6 py-3">Action</th><th className="px-6 py-3">Resource</th><th className="px-6 py-3">Status</th><th className="px-6 py-3">IP</th></tr>
           </thead>
           <tbody>
             {loading ? <tr><td colSpan={5} className="px-6 py-4 text-center">Loading...</td></tr> :
-              logs.length === 0 ? <tr><td colSpan={5} className="px-6 py-4 text-center text-gray-500">No audit logs found</td></tr> :
+              logs.length === 0 ? <tr><td colSpan={5} className="px-6 py-4 text-center text-body">No audit logs found</td></tr> :
               logs.map(log => (
                 <tr key={log.id} className="border-b">
-                  <td className="px-6 py-4 text-gray-500">{new Date(log.created_at).toLocaleString()}</td>
+                  <td className="px-6 py-4 text-body">{new Date(log.created_at).toLocaleString()}</td>
                   <td className="px-6 py-4"><span className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs">{log.action}</span></td>
                   <td className="px-6 py-4">{log.resource_type}</td>
                   <td className="px-6 py-4">{log.success ? <span className="text-green-600">Success</span> : <span className="text-red-600">Failed</span>}</td>
-                  <td className="px-6 py-4 text-gray-500">{log.ip_address || '-'}</td>
+                  <td className="px-6 py-4 text-body">{log.ip_address || '-'}</td>
                 </tr>
               ))}
           </tbody>
@@ -1174,33 +1172,33 @@ function SystemSection() {
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-          <h3 className="text-sm text-gray-500">System Status</h3>
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-default">
+          <h3 className="text-sm text-body">System Status</h3>
           <div className="flex items-center gap-2 mt-2">
             <div className={`w-3 h-3 rounded-full ${health?.status === 'healthy' ? 'bg-green-500' : 'bg-red-500'}`}></div>
             <span className="text-xl font-bold">{health?.status === 'healthy' ? 'Healthy' : 'Unhealthy'}</span>
           </div>
         </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-          <h3 className="text-sm text-gray-500">Database</h3>
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-default">
+          <h3 className="text-sm text-body">Database</h3>
           <div className="flex items-center gap-2 mt-2">
             <div className={`w-3 h-3 rounded-full ${health?.database?.status === 'healthy' ? 'bg-green-500' : 'bg-red-500'}`}></div>
             <span className="text-xl font-bold capitalize">{health?.database?.status || 'Unknown'}</span>
           </div>
         </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-          <h3 className="text-sm text-gray-500">Redis</h3>
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-default">
+          <h3 className="text-sm text-body">Redis</h3>
           <div className="flex items-center gap-2 mt-2">
             <div className={`w-3 h-3 rounded-full ${health?.redis?.status === 'healthy' ? 'bg-green-500' : 'bg-red-500'}`}></div>
             <span className="text-xl font-bold capitalize">{health?.redis?.status || 'Unknown'}</span>
           </div>
         </div>
       </div>
-      <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-        <h3 className="text-lg font-medium text-gray-900 mb-4">System Information</h3>
+      <div className="bg-white p-6 rounded-xl shadow-sm border border-default">
+        <h3 className="text-lg font-medium text-heading mb-4">System Information</h3>
         <div className="grid grid-cols-2 gap-4 text-sm">
-          <div><span className="text-gray-500">Version:</span> <span className="font-medium">{health?.version || '-'}</span></div>
-          <div><span className="text-gray-500">Environment:</span> <span className="font-medium capitalize">{health?.environment || '-'}</span></div>
+          <div><span className="text-body">Version:</span> <span className="font-medium">{health?.version || '-'}</span></div>
+          <div><span className="text-body">Environment:</span> <span className="font-medium capitalize">{health?.environment || '-'}</span></div>
         </div>
       </div>
     </div>
@@ -1214,7 +1212,7 @@ function Modal({ title, children, onClose }: { title: string; children: React.Re
       <div className="bg-white rounded-xl shadow-lg max-w-lg w-full max-h-[90vh] overflow-y-auto">
         <div className="flex justify-between items-center p-4 border-b">
           <h3 className="text-lg font-semibold">{title}</h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
+          <button onClick={onClose} className="text-gray-400 hover:text-body"><X size={20} /></button>
         </div>
         <div className="p-4">{children}</div>
       </div>

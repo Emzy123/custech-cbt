@@ -12,9 +12,9 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
     const inputId = id || `input-${React.useId()}`;
     
     const inputClasses = clsx(
-      'w-full h-12 bg-surface-white border-2 rounded-md transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-info focus:ring-opacity-15',
+      'w-full h-12 bg-white border-2 rounded-md transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-custech-navy focus:ring-opacity-15 text-text-dark placeholder-text-placeholder',
       {
-        'border-surface-grey-dark': !error,
+        'border-input': !error,
         'border-danger': error,
       },
       className
@@ -25,7 +25,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
         {label && (
           <label 
             htmlFor={inputId}
-            className="block text-text-secondary text-sm font-medium transition-colors duration-150 peer-focus:text-info"
+            className="block text-body text-sm font-medium transition-colors duration-150 peer-focus:text-custech-navy"
           >
             {label}
           </label>
@@ -44,7 +44,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
           </p>
         )}
         {helperText && !error && (
-          <p id={`${inputId}-helper`} className="text-text-secondary text-sm">
+          <p id={`${inputId}-helper`} className="text-muted text-sm">
             {helperText}
           </p>
         )}

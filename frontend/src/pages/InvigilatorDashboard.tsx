@@ -183,10 +183,10 @@ const InvigilatorDashboard: React.FC = () => {
 
   const getStatusBgColor = (status: string) => {
     switch (status) {
-      case 'normal': return 'bg-green-50 border-green-200';
-      case 'warning': return 'bg-amber-50 border-amber-200';
-      case 'critical': return 'bg-red-50 border-red-200';
-      default: return 'bg-green-50 border-green-200';
+      case 'normal': return 'bg-custech-green bg-opacity-10 border-custech-green border-opacity-30';
+      case 'warning': return 'bg-custech-gold bg-opacity-10 border-custech-gold border-opacity-30';
+      case 'critical': return 'bg-danger bg-opacity-10 border-danger border-opacity-30';
+      default: return 'bg-custech-green bg-opacity-10 border-custech-green border-opacity-30';
     }
   };
 
@@ -207,40 +207,40 @@ const InvigilatorDashboard: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-surface-grey flex items-center justify-center">
+      <div className="min-h-screen bg-light flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-blue-800 mx-auto mb-4"></div>
-          <p className="text-text-secondary">Loading monitoring dashboard...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-custech-primary mx-auto mb-4"></div>
+          <p className="text-body">Loading monitoring dashboard...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-surface-grey">
+    <div className="min-h-screen bg-light">
       {/* Header */}
-      <header className="bg-surface-white shadow-elevation-1 h-16 flex items-center justify-between px-6">
+      <header className="bg-white shadow-elevation-1 h-16 flex items-center justify-between px-6">
         <div className="flex items-center gap-4">
-          <ChartLine size={24} weight="bold" className="text-primary-blue-800" />
-          <h1 className="text-xl font-semibold text-text-primary">
+          <ChartLine size={24} weight="bold" className="text-custech-primary" />
+          <h1 className="text-xl font-semibold text-heading">
             Live Examination Monitoring
           </h1>
         </div>
         
         <div className="flex items-center gap-3">
           <Button
-            variant="tertiary"
+            variant="outline"
             size="sm"
             onClick={() => setShowAlertsPanel(!showAlertsPanel)}
           >
             <Warning size={16} weight="bold" className="mr-2" />
             Alerts ({alerts.length})
           </Button>
-          <div className="text-sm text-text-secondary">
+          <div className="text-sm text-body">
             Last updated: {new Date().toLocaleTimeString()}
           </div>
           <Button
-            variant="tertiary"
+            variant="outline"
             size="sm"
             onClick={async () => { await logout(); navigate('/', { replace: true }); }}
           >
@@ -251,23 +251,23 @@ const InvigilatorDashboard: React.FC = () => {
       </header>
 
       {/* Stats Bar */}
-      <div className="bg-surface-white border-b border-surface-grey-dark px-6 py-4">
+      <div className="bg-white border-b border-default px-6 py-4">
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <Card elevation={0} className="p-4 text-center">
-            <div className="text-2xl font-bold text-primary-blue-800">{stats.totalActive}</div>
-            <div className="text-sm text-text-secondary">Total Active Students</div>
+            <div className="text-2xl font-bold text-custech-primary">{stats.totalActive}</div>
+            <div className="text-sm text-body">Total Active Students</div>
           </Card>
           <Card elevation={0} className="p-4 text-center">
             <div className="text-2xl font-bold text-warning">{stats.flagged}</div>
-            <div className="text-sm text-text-secondary">Students Flagged</div>
+            <div className="text-sm text-body">Students Flagged</div>
           </Card>
           <Card elevation={0} className="p-4 text-center">
             <div className="text-2xl font-bold text-danger">{stats.incidents}</div>
-            <div className="text-sm text-text-secondary">Confirmed Incidents</div>
+            <div className="text-sm text-body">Confirmed Incidents</div>
           </Card>
           <Card elevation={0} className="p-4 text-center">
             <div className="text-2xl font-bold text-success">{stats.completed}</div>
-            <div className="text-sm text-text-secondary">Exams Completed</div>
+            <div className="text-sm text-body">Exams Completed</div>
           </Card>
         </div>
       </div>
@@ -295,21 +295,21 @@ const InvigilatorDashboard: React.FC = () => {
                           className="w-12 h-12 rounded-full object-cover"
                         />
                       ) : (
-                        <div className="w-12 h-12 bg-primary-blue-100 rounded-full flex items-center justify-center">
-                          <User size={20} weight="bold" className="text-primary-blue-800" />
+                        <div className="w-12 h-12 bg-custech-gold bg-opacity-20 rounded-full flex items-center justify-center">
+                          <User size={20} weight="bold" className="text-custech-primary" />
                         </div>
                       )}
                     </div>
                     
                     {/* Student Info */}
                     <div className="flex-1 min-w-0">
-                      <h3 className="font-semibold text-text-primary truncate">
+                      <h3 className="font-semibold text-heading truncate">
                         {student.name}
                       </h3>
-                      <p className="text-sm text-text-secondary">
+                      <p className="text-sm text-body">
                         {student.matricNumber}
                       </p>
-                      <p className="text-sm text-text-secondary">
+                      <p className="text-sm text-body">
                         {student.courseCode}
                       </p>
                     </div>
@@ -326,14 +326,14 @@ const InvigilatorDashboard: React.FC = () => {
                   {/* Progress Bar */}
                   <div className="mt-4">
                     <div className="flex justify-between text-sm mb-1">
-                      <span className="text-text-secondary">Progress</span>
-                      <span className="text-text-primary font-medium">
+                      <span className="text-body">Progress</span>
+                      <span className="text-heading font-medium">
                         {student.progress.answered}/{student.progress.total}
                       </span>
                     </div>
-                    <div className="w-full bg-surface-grey-dark rounded-full h-2">
+                    <div className="w-full bg-light rounded-full h-2">
                       <div 
-                        className="bg-primary-blue-800 h-2 rounded-full transition-all duration-300"
+                        className="bg-custech-primary h-2 rounded-full transition-all duration-300"
                         style={{ width: `${(student.progress.answered / student.progress.total) * 100}%` }}
                       ></div>
                     </div>
@@ -349,7 +349,7 @@ const InvigilatorDashboard: React.FC = () => {
                   {/* Quick Actions */}
                   <div className="mt-3 flex gap-2">
                     <Button
-                      variant="tertiary"
+                      variant="outline"
                       size="sm"
                       onClick={(e) => {
                         e.stopPropagation();
@@ -359,7 +359,7 @@ const InvigilatorDashboard: React.FC = () => {
                       <ChatCircle size={14} weight="bold" />
                     </Button>
                     <Button
-                      variant="tertiary"
+                      variant="outline"
                       size="sm"
                       onClick={(e) => {
                         e.stopPropagation();
@@ -369,7 +369,7 @@ const InvigilatorDashboard: React.FC = () => {
                       <Pause size={14} weight="bold" />
                     </Button>
                     <Button
-                      variant="tertiary"
+                      variant="outline"
                       size="sm"
                       onClick={(e) => {
                         e.stopPropagation();
@@ -387,10 +387,10 @@ const InvigilatorDashboard: React.FC = () => {
             {students.length === 0 && (
               <Card elevation={1} className="p-12 text-center">
                 <Users size={48} weight="duotone" className="text-text-disabled mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-text-primary mb-2">
+                <h3 className="text-lg font-medium text-heading mb-2">
                   No active examinations
                 </h3>
-                <p className="text-text-secondary">
+                <p className="text-body">
                   Student monitoring data will appear here when examinations are in progress.
                 </p>
               </Card>
@@ -401,8 +401,8 @@ const InvigilatorDashboard: React.FC = () => {
           {showAlertsPanel && (
             <aside className="hidden lg:block w-80">
               <Card elevation={2} className="h-fit sticky top-6">
-                <div className="p-4 border-b border-surface-grey-dark">
-                  <h2 className="font-semibold text-text-primary flex items-center gap-2">
+                <div className="p-4 border-b border-default">
+                  <h2 className="font-semibold text-heading flex items-center gap-2">
                     <Warning size={20} weight="bold" className="text-warning" />
                     Live Alerts
                   </h2>
@@ -410,11 +410,11 @@ const InvigilatorDashboard: React.FC = () => {
                 
                 <div className="max-h-96 overflow-y-auto">
                   {alerts.length > 0 ? (
-                    <div className="divide-y divide-surface-grey-dark">
+                    <div className="divide-y divide-default">
                       {alerts.map((alert) => (
                         <div 
                           key={alert.id}
-                          className="p-4 hover:bg-surface-grey cursor-pointer transition-colors duration-150"
+                          className="p-4 hover:bg-light cursor-pointer transition-colors duration-150"
                           onClick={() => {
                             const student = students.find(s => s.id === alert.studentId);
                             if (student) setSelectedStudent(student);
@@ -425,13 +425,13 @@ const InvigilatorDashboard: React.FC = () => {
                               <div className={`status-dot ${alert.event.type === 'multiple_faces' ? 'amber' : 'red'}`}></div>
                             </div>
                             <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium text-text-primary">
+                              <p className="text-sm font-medium text-heading">
                                 {alert.studentName}
                               </p>
-                              <p className="text-xs text-text-secondary mt-1">
+                              <p className="text-xs text-body mt-1">
                                 {alert.event.description}
                               </p>
-                              <p className="text-xs text-text-secondary mt-1">
+                              <p className="text-xs text-body mt-1">
                                 {new Date(alert.timestamp).toLocaleTimeString()}
                               </p>
                             </div>
@@ -442,10 +442,10 @@ const InvigilatorDashboard: React.FC = () => {
                   ) : (
                     <div className="p-8 text-center">
                       <CheckCircle size={48} weight="duotone" className="text-success mx-auto mb-4" />
-                      <h3 className="text-sm font-medium text-text-primary mb-2">
+                      <h3 className="text-sm font-medium text-heading mb-2">
                         No alerts
                       </h3>
-                      <p className="text-xs text-text-secondary">
+                      <p className="text-xs text-body">
                         All students are proceeding normally
                       </p>
                     </div>
@@ -463,11 +463,11 @@ const InvigilatorDashboard: React.FC = () => {
           <Card elevation={3} className="max-w-2xl w-full max-h-[80vh] overflow-y-auto">
             <div className="p-6">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-xl font-semibold text-text-primary">
+                <h3 className="text-xl font-semibold text-heading">
                   Student Details
                 </h3>
                 <Button
-                  variant="tertiary"
+                  variant="outline"
                   size="sm"
                   onClick={() => setSelectedStudent(null)}
                 >
@@ -486,18 +486,18 @@ const InvigilatorDashboard: React.FC = () => {
                         className="w-16 h-16 rounded-full object-cover"
                       />
                     ) : (
-                      <div className="w-16 h-16 bg-primary-blue-100 rounded-full flex items-center justify-center">
-                        <User size={24} weight="bold" className="text-primary-blue-800" />
+                      <div className="w-16 h-16 bg-custech-gold bg-opacity-20 rounded-full flex items-center justify-center">
+                        <User size={24} weight="bold" className="text-custech-primary" />
                       </div>
                     )}
                     <div>
-                      <h4 className="font-semibold text-text-primary">
+                      <h4 className="font-semibold text-heading">
                         {selectedStudent.name}
                       </h4>
-                      <p className="text-sm text-text-secondary">
+                      <p className="text-sm text-body">
                         {selectedStudent.matricNumber}
                       </p>
-                      <p className="text-sm text-text-secondary">
+                      <p className="text-sm text-body">
                         {selectedStudent.courseCode}
                       </p>
                     </div>
@@ -505,31 +505,31 @@ const InvigilatorDashboard: React.FC = () => {
                   
                   <div>
                     <div className="flex items-center gap-2 mb-2">
-                      <span className="text-sm font-medium text-text-secondary">Status:</span>
+                      <span className="text-sm font-medium text-body">Status:</span>
                       <span className={`badge badge-${selectedStudent.status === 'normal' ? 'success' : selectedStudent.status === 'warning' ? 'warning' : 'danger'}`}>
                         {selectedStudent.statusMessage}
                       </span>
                     </div>
                     
                     <div className="flex items-center gap-2 mb-2">
-                      <Clock size={16} weight="regular" className="text-text-secondary" />
-                      <span className="text-sm text-text-secondary">
+                      <Clock size={16} weight="regular" className="text-body" />
+                      <span className="text-sm text-body">
                         Last active: {selectedStudent.lastActive.toLocaleTimeString()}
                       </span>
                     </div>
                   </div>
                   
                   <div>
-                    <div className="text-sm font-medium text-text-secondary mb-2">Progress</div>
+                    <div className="text-sm font-medium text-body mb-2">Progress</div>
                     <div className="flex justify-between text-sm mb-1">
                       <span>Questions Answered</span>
                       <span className="font-medium">
                         {selectedStudent.progress.answered}/{selectedStudent.progress.total}
                       </span>
                     </div>
-                    <div className="w-full bg-surface-grey-dark rounded-full h-2">
+                    <div className="w-full bg-light rounded-full h-2">
                       <div 
-                        className="bg-primary-blue-800 h-2 rounded-full"
+                        className="bg-custech-primary h-2 rounded-full"
                         style={{ width: `${(selectedStudent.progress.answered / selectedStudent.progress.total) * 100}%` }}
                       ></div>
                     </div>
@@ -538,24 +538,24 @@ const InvigilatorDashboard: React.FC = () => {
                 
                 {/* Proctoring Events */}
                 <div>
-                  <h5 className="font-medium text-text-primary mb-3">Proctoring Events</h5>
+                  <h5 className="font-medium text-heading mb-3">Proctoring Events</h5>
                   {selectedStudent.proctoringEvents.length > 0 ? (
                     <div className="space-y-3 max-h-64 overflow-y-auto">
                       {selectedStudent.proctoringEvents.map((event) => (
-                        <div key={event.id} className="p-3 bg-surface-grey rounded">
+                        <div key={event.id} className="p-3 bg-light rounded">
                           <div className="flex items-center gap-2 mb-1">
-                            <Camera size={14} weight="bold" className="text-text-secondary" />
-                            <span className="text-sm font-medium text-text-primary">
+                            <Camera size={14} weight="bold" className="text-body" />
+                            <span className="text-sm font-medium text-heading">
                               {event.type.replace('_', ' ').toUpperCase()}
                             </span>
-                            <span className="text-xs text-text-secondary">
+                            <span className="text-xs text-body">
                               ({event.confidence}% confidence)
                             </span>
                           </div>
-                          <p className="text-xs text-text-secondary mb-1">
+                          <p className="text-xs text-body mb-1">
                             {event.description}
                           </p>
-                          <p className="text-xs text-text-secondary">
+                          <p className="text-xs text-body">
                             {event.timestamp.toLocaleTimeString()}
                           </p>
                           {event.snapshot && (
@@ -563,7 +563,7 @@ const InvigilatorDashboard: React.FC = () => {
                               <img 
                                 src={event.snapshot} 
                                 alt="Proctoring snapshot"
-                                className="w-full h-20 object-cover rounded border border-surface-grey-dark"
+                                className="w-full h-20 object-cover rounded border border-default"
                               />
                             </div>
                           )}
@@ -573,7 +573,7 @@ const InvigilatorDashboard: React.FC = () => {
                   ) : (
                     <div className="text-center py-8">
                       <CheckCircle size={32} weight="duotone" className="text-success mx-auto mb-2" />
-                      <p className="text-sm text-text-secondary">
+                      <p className="text-sm text-body">
                         No proctoring events recorded
                       </p>
                     </div>
@@ -600,7 +600,7 @@ const InvigilatorDashboard: React.FC = () => {
                   Pause Exam
                 </Button>
                 <Button
-                  variant="tertiary"
+                  variant="outline"
                   size="sm"
                   onClick={() => handleStudentAction(selectedStudent.id, 'terminate')}
                   className="border-danger text-danger hover:bg-red-50"

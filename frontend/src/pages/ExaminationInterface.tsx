@@ -78,6 +78,7 @@ const ExaminationInterface: React.FC = () => {
   const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected'>('connected');
   const [lastSyncTime, setLastSyncTime] = useState<Date>(new Date());
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
   const submittingRef = useRef(false);
   const autoFinalizeRef = useRef(false);
@@ -129,8 +130,10 @@ const ExaminationInterface: React.FC = () => {
           flaggedQuestions: [],
           isSubmitted: false,
         }));
+        setLoading(false);
       } catch (error) {
         setLoadError(error instanceof Error ? error.message : 'Failed to load examination');
+        setLoading(false);
       }
     };
 
@@ -202,6 +205,8 @@ const ExaminationInterface: React.FC = () => {
         .map(([key]) => Number(key)),
     [examState.answers],
   );
+
+  const unansweredCount = examState.questions.length - answeredQuestions.length;
 
   const saveProgress = useCallback(async () => {
     try {
@@ -336,50 +341,63 @@ const ExaminationInterface: React.FC = () => {
     void handleSubmitExam();
   }, [instanceId, examState.isSubmitted, examState.timeRemaining, handleSubmitExam]);
 
-  const currentQuestionData = examState.questions[examState.currentQuestion - 1];
-  const unansweredCount = examState.questions.length - answeredQuestions.length;
-
   if (loadError) {
     return (
-      <div className="min-h-screen bg-surface-grey flex items-center justify-center p-8">
-        <Card elevation={2} className="max-w-lg w-full p-6">
-          <h2 className="text-xl font-semibold text-text-primary mb-2">Unable to load exam</h2>
-          <p className="text-text-secondary mb-4">{loadError}</p>
+      <div className="min-h-screen bg-light flex items-center justify-center p-8">
+        <div className="text-center">
+          <h2 className="text-xl font-semibold text-heading mb-2">Unable to load exam</h2>
+          <p className="text-body mb-4">{loadError}</p>
           <Button variant="secondary" size="md" onClick={() => navigate('/dashboard')}>
             Return to Dashboard
           </Button>
-        </Card>
+        </div>
       </div>
     );
   }
 
-  // Pre-exam rules gateway
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-light flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-custech-primary mx-auto mb-4"></div>
+          <p className="text-body">Loading question bank...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Rules acceptance step
   if (preExamStep === 'rules') {
     return (
-      <div className="min-h-screen bg-surface-grey flex items-center justify-center p-4">
+      <div className="min-h-screen bg-light flex items-center justify-center p-4">
         <Card elevation={2} className="max-w-2xl w-full p-8">
-          <div className="flex items-center gap-3 mb-6">
-            <LockKey size={32} weight="duotone" className="text-primary-blue-700" />
-            <h1 className="text-2xl font-semibold text-text-primary">Examination Rules & Instructions</h1>
+          <div className="text-center mb-6">
+            <LockKey size={32} weight="duotone" className="text-custech-primary mx-auto mb-4" />
+            <h1 className="text-2xl font-semibold text-heading">Examination Rules & Instructions</h1>
+            <p className="text-body mt-2">Please read and accept the following rules to begin your examination</p>
           </div>
-          <ol className="space-y-3 text-text-secondary list-decimal list-inside mb-8">
-            <li>Ensure you are in a quiet environment before proceeding.</li>
-            <li>Do not navigate away from this page or switch browser tabs during the exam — each occurrence will be recorded as a proctoring event.</li>
-            <li>Your answers are auto-saved every time you select an option. If you lose connectivity, they will sync automatically when you reconnect.</li>
-            <li>The timer is server-authoritative. Do not rely on your device clock.</li>
-            <li>Once you click <strong>Submit Exam</strong>, your attempt cannot be undone.</li>
-            <li>Any form of academic dishonesty will result in disqualification.</li>
+          
+          <ol className="space-y-3 text-body list-decimal list-inside mb-8">
+            <li>You must complete this examination within the allotted time</li>
+            <li>You cannot navigate to other websites or applications during the exam</li>
+            <li>All answers must be submitted before the time expires</li>
+            <li>You cannot refresh the page or open new browser tabs</li>
+            <li>Any attempt to cheat will result in automatic disqualification</li>
+            <li>Ensure you have a stable internet connection throughout the exam</li>
+            <li>Your screen may be monitored for academic integrity</li>
           </ol>
+          
           <label className="flex items-start gap-3 mb-6 cursor-pointer">
             <input
               type="checkbox"
               id="rules-accept"
-              className="mt-1 rounded border-surface-grey-dark"
+              className="mt-1 rounded border-default"
               checked={rulesAccepted}
               onChange={(e) => setRulesAccepted(e.target.checked)}
             />
-            <span className="text-text-primary font-medium">I have read and agree to abide by all examination rules stated above.</span>
+            <span className="text-heading font-medium">I have read and agree to abide by all examination rules stated above.</span>
           </label>
+          
           <div className="flex justify-end">
             <Button
               variant="primary"
@@ -400,13 +418,13 @@ const ExaminationInterface: React.FC = () => {
 
   if (examState.isSubmitted) {
     return (
-      <div className="min-h-screen bg-surface-grey flex items-center justify-center p-8">
+      <div className="min-h-screen bg-light flex items-center justify-center p-8">
         <Card elevation={2} className="max-w-md w-full p-8 text-center">
           <CheckCircle size={64} weight="duotone" className="text-success mx-auto mb-4" />
-          <h2 className="text-2xl font-semibold text-text-primary mb-2">
+          <h2 className="text-2xl font-semibold text-heading mb-2">
             Your examination has been submitted successfully
           </h2>
-          <p className="text-text-secondary mb-6">
+          <p className="text-body mb-6">
             Your answers have been recorded. Results will be available after the examination window closes.
           </p>
           <Button variant="secondary" size="md" onClick={() => navigate('/dashboard')}>
@@ -418,12 +436,12 @@ const ExaminationInterface: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-surface-grey flex">
+    <div className="min-h-screen bg-light flex">
       <a href="#question-content" className="skip-to-main">
         Skip to question content
       </a>
 
-      <header className="fixed top-0 left-0 right-0 h-14 bg-primary-blue-800 text-white flex items-center justify-between px-6 z-50">
+      <header className="fixed top-0 left-0 right-0 h-14 bg-custech-primary text-white flex items-center justify-between px-6 z-50">
         <div className="flex items-center gap-4">
           <div>
             <h1 className="font-semibold">
@@ -445,7 +463,7 @@ const ExaminationInterface: React.FC = () => {
               </span>
             </div>
             <Button
-              variant="tertiary"
+              variant="outline"
               size="sm"
               onClick={() => {
                 const firstUnanswered = examState.questions.find(
@@ -471,7 +489,7 @@ const ExaminationInterface: React.FC = () => {
                 Connection lost. Your answers are saved on your device and will sync when the connection is restored.
               </span>
             </div>
-            <span className="text-sm text-text-secondary">
+            <span className="text-sm text-body">
               Last synced {Math.floor((new Date().getTime() - lastSyncTime.getTime()) / 1000)}s ago
             </span>
           </div>
@@ -479,7 +497,7 @@ const ExaminationInterface: React.FC = () => {
       )}
 
       <div className="flex-1 flex pt-14">
-        <aside className="hidden md:block w-60 bg-surface-white border-r border-surface-grey-dark p-6 overflow-y-auto">
+        <aside className="hidden md:block w-60 bg-white border-r border-default p-6 overflow-y-auto">
           <QuestionNavigationGrid
             totalQuestions={examState.questions.length}
             currentQuestion={examState.currentQuestion}
@@ -494,7 +512,7 @@ const ExaminationInterface: React.FC = () => {
             <Card elevation={1} className="p-8">
               <div className="mb-6">
                 <div className="flex items-center justify-between mb-4">
-                  <div className="text-sm text-text-secondary">
+                  <div className="text-sm text-body">
                     Question {examState.currentQuestion} of {examState.questions.length}
                   </div>
                   <button
@@ -503,7 +521,7 @@ const ExaminationInterface: React.FC = () => {
                     className={`flex items-center gap-2 px-3 py-1 rounded-md text-sm font-medium transition-colors duration-150 ${
                       examState.flaggedQuestions.includes(examState.currentQuestion)
                         ? 'bg-amber-100 text-warning hover:bg-amber-200'
-                        : 'bg-surface-grey text-text-secondary hover:bg-surface-grey-dark'
+                        : 'bg-light text-body hover:bg-light-dark'
                     }`}
                   >
                     <Flag
@@ -515,9 +533,11 @@ const ExaminationInterface: React.FC = () => {
                 </div>
               </div>
 
-              {currentQuestionData && (
+              {(() => {
+                const currentQuestionData = examState.questions.find(q => q.sequence === examState.currentQuestion);
+                return currentQuestionData && (
                 <div className="space-y-6">
-                  <div className="font-lora text-lg text-text-primary leading-relaxed">{currentQuestionData.stem}</div>
+                  <div className="font-lora text-lg text-heading leading-relaxed">{currentQuestionData.stem}</div>
 
                   <div className="space-y-3">
                     {currentQuestionData.options.map((option) => (
@@ -533,9 +553,10 @@ const ExaminationInterface: React.FC = () => {
                     ))}
                   </div>
                 </div>
-              )}
+                );
+              })()}
 
-              <div className="flex items-center justify-between mt-8 pt-6 border-t border-surface-grey-dark">
+              <div className="flex items-center justify-between mt-8 pt-6 border-t border-default">
                 <Button variant="secondary" size="md" onClick={handlePreviousQuestion} disabled={examState.currentQuestion === 1}>
                   <ArrowLeft size={16} weight="bold" className="mr-2" />
                   Previous
@@ -567,8 +588,8 @@ const ExaminationInterface: React.FC = () => {
       {showSubmitConfirm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <Card elevation={3} className="max-w-md w-full p-6">
-            <h3 className="text-xl font-semibold text-text-primary mb-4">Submit Examination</h3>
-            <p className="text-text-secondary mb-6">
+            <h3 className="text-xl font-semibold text-heading mb-4">Submit Examination</h3>
+            <p className="text-body mb-6">
               You are about to submit your examination. You have answered {answeredQuestions.length} of{' '}
               {examState.questions.length} questions.
               {unansweredCount > 0 && ` ${unansweredCount} questions are unanswered.`} This action cannot be undone.
@@ -578,7 +599,7 @@ const ExaminationInterface: React.FC = () => {
               <label className="flex items-center gap-2">
                 <input
                   type="checkbox"
-                  className="rounded border-surface-grey-dark"
+                  className="rounded border-default"
                   onChange={(e) => {
                     const submitBtn = document.getElementById('confirm-submit-btn') as HTMLButtonElement | null;
                     if (submitBtn) {
@@ -586,7 +607,7 @@ const ExaminationInterface: React.FC = () => {
                     }
                   }}
                 />
-                <span className="text-sm text-text-primary">I understand this cannot be undone</span>
+                <span className="text-sm text-heading">I understand this cannot be undone</span>
               </label>
 
               <div className="flex gap-3 justify-end">

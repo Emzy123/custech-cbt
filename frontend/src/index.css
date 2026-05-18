@@ -13,11 +13,26 @@
     font-family: 'Inter', sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    background-color: #FFFFFF;
+    color: #6B6B6B;
+  }
+  
+  h1, h2, h3, h4, h5, h6 {
+    color: #161616;
+  }
+  
+  a {
+    color: #545454;
+    transition: color 0.2s ease;
+  }
+  
+  a:hover {
+    color: #591F00;
   }
   
   /* Focus styles for accessibility */
   *:focus-visible {
-    @apply ring-2 ring-info ring-offset-2 rounded;
+    @apply ring-2 ring-custech-navy ring-offset-2 rounded;
   }
   
   /* Skip to main content link */
@@ -26,7 +41,7 @@
   }
   
   .skip-to-main:focus {
-    @apply not-sr-only absolute top-4 left-4 bg-primary-blue-800 text-white px-4 py-2 rounded-md z-50;
+    @apply not-sr-only absolute top-4 left-4 bg-custech-primary text-white px-4 py-2 rounded-md z-50;
   }
 }
 
@@ -34,28 +49,32 @@
 @layer components {
   /* Button Components */
   .btn-primary {
-    @apply bg-primary-blue-800 text-white font-semibold text-base py-3 px-6 rounded-md hover:bg-primary-blue-700 focus:ring-2 focus:ring-info focus:ring-offset-2 disabled:bg-surface-grey-dark disabled:text-text-disabled transition-colors duration-150;
+    @apply bg-custech-primary text-white font-semibold text-base py-3 px-6 rounded-md hover:bg-custech-primary focus:ring-2 focus:ring-custech-navy focus:ring-offset-2 disabled:bg-border-default disabled:text-text-muted transition-all duration-150 hover:shadow-lg hover:scale-105;
   }
   
   .btn-secondary {
-    @apply bg-transparent text-primary-blue-800 font-medium text-base py-3 px-6 border-2 border-primary-blue-800 rounded-md hover:bg-surface-white focus:ring-2 focus:ring-info focus:ring-offset-2 transition-colors duration-150;
+    @apply bg-transparent text-custech-primary font-medium text-base py-3 px-6 border-2 border-custech-primary rounded-md hover:bg-custech-primary hover:text-white focus:ring-2 focus:ring-custech-navy focus:ring-offset-2 transition-all duration-150;
   }
   
-  .btn-tertiary {
-    @apply bg-transparent text-text-secondary font-medium text-sm py-3 px-6 rounded-md hover:bg-surface-grey hover:text-text-primary focus:ring-2 focus:ring-info focus:ring-offset-2 transition-colors duration-150;
+  .btn-outline {
+    @apply bg-transparent text-custech-primary font-medium text-base py-3 px-6 border-2 border-custech-primary rounded-md hover:bg-custech-primary hover:text-white focus:ring-2 focus:ring-custech-navy focus:ring-offset-2 transition-all duration-150;
+  }
+  
+  .btn-light {
+    @apply bg-white text-custech-primary font-medium text-base py-3 px-6 rounded-md hover:bg-gray-50 focus:ring-2 focus:ring-custech-navy focus:ring-offset-2 transition-all duration-150;
   }
   
   /* Form Components */
   .form-input {
-    @apply w-full h-12 bg-surface-white border-2 border-surface-grey-dark rounded-md focus:border-info focus:ring-2 focus:ring-info focus:ring-opacity-15 transition-colors duration-150;
+    @apply w-full h-12 bg-white border-2 border-input rounded-md focus:border-custech-navy focus:ring-2 focus:ring-custech-navy focus:ring-opacity-15 transition-colors duration-150 text-text-dark placeholder-text-placeholder;
   }
   
   .form-label {
-    @apply block text-text-secondary text-sm font-medium mb-2 transition-colors duration-150;
+    @apply block text-body text-sm font-medium mb-2 transition-colors duration-150;
   }
   
   .form-label:focus-within {
-    @apply text-info;
+    @apply text-custech-navy;
   }
   
   .form-error {
@@ -64,59 +83,77 @@
   
   /* Card Components */
   .card {
-    @apply bg-surface-white rounded-md shadow-elevation-1;
+    @apply bg-white rounded-md shadow-elevation-1;
   }
   
   .card-elevated {
-    @apply bg-surface-white rounded-md shadow-elevation-2;
+    @apply bg-white rounded-md shadow-elevation-2;
   }
   
   .card-modal {
-    @apply bg-surface-white rounded-lg shadow-elevation-3;
+    @apply bg-white rounded-lg shadow-elevation-3;
+  }
+  
+  /* CUStech Announcement Style Cards */
+  .card-announcement {
+    @apply bg-glass-bg backdrop-blur-md rounded-md border border-card hover:bg-glass-bg-hover transition-all duration-300 relative overflow-hidden;
+  }
+  
+  .card-announcement::before {
+    content: '';
+    @apply absolute left-0 top-0 bottom-0 w-1 bg-gradient-gold;
+  }
+  
+  .card-featured {
+    @apply bg-gradient-primary text-white rounded-md p-6 relative overflow-hidden;
+  }
+  
+  .card-featured .card-icon {
+    @apply text-custech-gold;
   }
   
   /* Option Card for Exam Questions */
   .option-card {
-    @apply bg-surface-white border-2 border-surface-grey-dark rounded-md p-4 cursor-pointer transition-all duration-150 hover:border-info;
+    @apply bg-white border-2 border-default rounded-md p-4 cursor-pointer transition-all duration-150 hover:border-custech-navy;
   }
   
   .option-card.selected {
-    @apply border-info bg-blue-50;
+    @apply border-custech-navy bg-custech-primary bg-opacity-10;
   }
   
   /* Timer Component */
   .timer-normal {
-    @apply bg-surface-grey text-text-secondary;
+    @apply bg-light text-body;
   }
   
   .timer-warning {
-    @apply bg-amber-50 text-warning;
+    @apply bg-custech-gold bg-opacity-20 text-custech-primary;
   }
   
   .timer-critical {
-    @apply bg-red-50 text-danger animate-pulse-slow;
+    @apply bg-danger bg-opacity-20 text-danger animate-pulse-slow;
   }
   
   /* Question Navigation Grid */
   .question-grid-box {
-    @apply w-10 h-10 border-2 border-surface-grey-dark rounded flex items-center justify-center text-sm font-medium cursor-pointer transition-colors duration-150;
+    @apply w-10 h-10 border-2 border-default rounded flex items-center justify-center text-sm font-medium cursor-pointer transition-colors duration-150;
   }
   
   .question-grid-box.answered {
-    @apply bg-info text-surface-white border-info;
+    @apply bg-custech-navy text-white border-custech-navy;
   }
   
   .question-grid-box.current {
-    @apply ring-2 ring-info ring-offset-2;
+    @apply ring-2 ring-custech-navy ring-offset-2;
   }
   
   .question-grid-box.current.answered {
-    @apply bg-info text-surface-white border-info;
+    @apply bg-custech-navy text-white border-custech-navy;
   }
   
   .question-grid-box.flagged::after {
     content: '';
-    @apply absolute top-0 right-0 w-0 h-0 border-l-4 border-l-transparent border-r-4 border-r-transparent border-t-4 border-t-warning;
+    @apply absolute top-0 right-0 w-0 h-0 border-l-4 border-l-transparent border-r-4 border-r-transparent border-t-4 border-custech-gold;
   }
   
   /* Status Indicators */
@@ -125,11 +162,11 @@
   }
   
   .status-dot.green {
-    @apply bg-success;
+    @apply bg-custech-green;
   }
   
   .status-dot.amber {
-    @apply bg-warning;
+    @apply bg-custech-gold;
   }
   
   .status-dot.red {
@@ -142,24 +179,28 @@
   }
   
   .badge-success {
-    @apply bg-green-100 text-success;
+    @apply bg-custech-green bg-opacity-20 text-custech-green;
   }
   
   .badge-warning {
-    @apply bg-amber-100 text-warning;
+    @apply bg-custech-gold bg-opacity-20 text-custech-primary;
   }
   
   .badge-danger {
-    @apply bg-red-100 text-danger;
+    @apply bg-danger bg-opacity-20 text-danger;
   }
   
   .badge-info {
-    @apply bg-blue-100 text-info;
+    @apply bg-custech-navy bg-opacity-20 text-custech-navy;
+  }
+  
+  .badge-new {
+    @apply bg-custech-primary text-white;
   }
   
   /* Loading States */
   .skeleton {
-    @apply bg-gray-200 rounded animate-pulse;
+    @apply bg-light rounded animate-pulse;
   }
   
   /* Responsive Utilities */
@@ -174,12 +215,44 @@
 
 /* Custom utilities */
 @layer utilities {
-  .ring-info-opacity-15 {
-    --tw-ring-color: rgb(37 99 235 0.15);
+  .ring-custech-navy-opacity-15 {
+    --tw-ring-color: rgb(22 50 105 0.15);
   }
   
   .text-balance {
     text-wrap: balance;
+  }
+  
+  /* CUStech specific utilities */
+  .bg-custech-gradient {
+    background: linear-gradient(135deg, #591F00 0%, #7A2C0D 50%, #4A1900 100%);
+  }
+  
+  .bg-custech-gold-gradient {
+    background: linear-gradient(to bottom, #FFD54F, #FFECB3);
+  }
+  
+  .text-custech-link {
+    color: #545454;
+    transition: color 0.2s ease;
+  }
+  
+  .text-custech-link:hover {
+    color: #591F00;
+  }
+  
+  /* Navigation utilities */
+  .nav-active {
+    border-bottom: 2px solid #591F00;
+  }
+  
+  /* Footer utilities */
+  .footer-bg {
+    background-color: #181818;
+  }
+  
+  .footer-copyright-bg {
+    background-color: #202020;
   }
   
   /* Animation utilities */

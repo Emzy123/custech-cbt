@@ -19,11 +19,11 @@ const OptionCard: React.FC<OptionCardProps> = ({
   children 
 }) => {
   const cardClasses = clsx(
-    'bg-surface-white border-2 rounded-md p-4 cursor-pointer transition-all duration-150 animate-on-hover',
+    'bg-white border-2 rounded-md p-4 cursor-pointer transition-all duration-150 animate-on-hover',
     {
-      'border-surface-grey-dark hover:border-info': !selected && !disabled,
-      'border-info bg-blue-50': selected && !disabled,
-      'border-surface-grey-dark cursor-not-allowed opacity-50': disabled,
+      'border-default hover:border-custech-navy': !selected && !disabled,
+      'border-custech-navy bg-custech-primary bg-opacity-10': selected && !disabled,
+      'border-default cursor-not-allowed opacity-50': disabled,
     }
   );
   
@@ -48,21 +48,21 @@ const OptionCard: React.FC<OptionCardProps> = ({
             className={clsx(
               'w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all duration-200',
               {
-                'border-surface-grey-dark': !selected,
-                'border-info bg-info': selected,
+                'border-default': !selected,
+                'border-custech-navy bg-custech-navy': selected,
               }
             )}
           >
             {selected && (
-              <div className="w-2 h-2 rounded-full bg-surface-white" />
+              <div className="w-2 h-2 rounded-full bg-white" />
             )}
           </div>
         </div>
         <div className="flex-1">
-          <div className="font-medium text-text-primary mb-1">
+          <div className="font-medium text-heading mb-1">
             {label}
           </div>
-          <div className="text-text-primary">
+          <div className="text-body">
             {children}
           </div>
         </div>

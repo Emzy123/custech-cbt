@@ -27,11 +27,11 @@ const QuestionNavigationGrid: React.FC<QuestionNavigationGridProps> = ({
     const boxClasses = clsx(
       'w-10 h-10 border-2 rounded-md flex items-center justify-center text-sm font-medium cursor-pointer transition-all duration-150 relative',
       {
-        'border-surface-grey-dark text-text-secondary': !isAnswered && !isCurrent,
-        'bg-info text-surface-white border-info': isAnswered && !isCurrent,
-        'ring-2 ring-info ring-offset-2': isCurrent && !isAnswered,
-        'bg-info text-surface-white border-info ring-2 ring-info ring-offset-2': isCurrent && isAnswered,
-        'hover:border-info': !isCurrent,
+        'border-default text-muted': !isAnswered && !isCurrent,
+        'bg-custech-navy text-white border-custech-navy': isAnswered && !isCurrent,
+        'ring-2 ring-custech-navy ring-offset-2': isCurrent && !isAnswered,
+        'bg-custech-navy text-white border-custech-navy ring-2 ring-custech-navy ring-offset-2': isCurrent && isAnswered,
+        'hover:border-custech-navy': !isCurrent,
       }
     );
     
@@ -48,7 +48,7 @@ const QuestionNavigationGrid: React.FC<QuestionNavigationGridProps> = ({
           <BookmarkSimple 
             size={12} 
             weight="fill" 
-            className="absolute -top-1 -right-1 text-warning"
+            className="absolute -top-1 -right-1 text-custech-gold"
             aria-hidden="true"
           />
         )}
@@ -62,7 +62,7 @@ const QuestionNavigationGrid: React.FC<QuestionNavigationGridProps> = ({
   
   return (
     <div className={clsx('space-y-4', className)}>
-      <div className="text-sm font-medium text-text-secondary">
+      <div className="text-sm font-medium text-body">
         Questions
       </div>
       
@@ -72,16 +72,16 @@ const QuestionNavigationGrid: React.FC<QuestionNavigationGridProps> = ({
       
       <div className="space-y-2 text-sm">
         <div className="flex justify-between">
-          <span className="text-text-secondary">Answered:</span>
-          <span className="font-medium text-text-primary">{answeredCount}</span>
+          <span className="text-body">Answered:</span>
+          <span className="font-medium text-heading">{answeredCount}</span>
         </div>
         <div className="flex justify-between">
-          <span className="text-text-secondary">Unanswered:</span>
-          <span className="font-medium text-text-primary">{unansweredCount}</span>
+          <span className="text-body">Unanswered:</span>
+          <span className="font-medium text-heading">{unansweredCount}</span>
         </div>
         <div className="flex justify-between">
-          <span className="text-text-secondary">Flagged:</span>
-          <span className="font-medium text-warning">{flaggedCount}</span>
+          <span className="text-body">Flagged:</span>
+          <span className="font-medium text-custech-gold">{flaggedCount}</span>
         </div>
       </div>
     </div>

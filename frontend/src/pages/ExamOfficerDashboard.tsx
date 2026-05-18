@@ -6,7 +6,7 @@ import {
   LayoutDashboard, BookOpen, BarChart3, ChevronRight, User, LogOut,
   ClipboardList, School, FileCheck, TrendingUp, Activity, MoreHorizontal
 } from 'lucide-react';
-import { apiRequest, logout } from '../lib/api';
+import { apiRequest, logout, getAuthToken } from '../lib/api';
 
 const API_BASE = '/api/v1';
 
@@ -284,25 +284,25 @@ const ExamOfficerDashboard: React.FC = () => {
   const recentExams = [...exams].slice(0, 5);
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex font-sans">
+    <div className="min-h-screen bg-dark text-white flex font-sans">
       {/* Professional Sidebar */}
-      <aside className="w-64 bg-slate-900 border-r border-slate-800 flex flex-col fixed h-full">
+      <aside className="w-64 bg-darker border-r border-darker flex flex-col fixed h-full">
         {/* Logo */}
-        <div className="p-6 border-b border-slate-800">
+        <div className="p-6 border-b border-darker">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-500/20">
+            <div className="w-10 h-10 bg-custech-gradient rounded-xl flex items-center justify-center shadow-lg shadow-custech-primary/20">
               <School size={24} className="text-white" />
             </div>
             <div>
               <h1 className="font-bold text-lg text-white leading-tight">Custech</h1>
-              <p className="text-xs text-slate-400">Exam Management</p>
+              <p className="text-xs text-gray-400">Exam Management</p>
             </div>
           </div>
         </div>
 
         {/* Navigation */}
         <nav className="flex-1 py-6 px-3 space-y-1 overflow-y-auto">
-          <div className="px-3 mb-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+          <div className="px-3 mb-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
             Examination
           </div>
           {tabs.map((tab) => (
@@ -311,67 +311,67 @@ const ExamOfficerDashboard: React.FC = () => {
               onClick={() => setActiveTab(tab.id)}
               className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
                 activeTab === tab.id
-                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-500/20'
-                  : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                  ? 'bg-custech-primary text-white shadow-md shadow-custech-primary/20'
+                  : 'text-gray-300 hover:bg-darker hover:text-white'
               }`}
             >
               {tab.icon}
               <span>{tab.label}</span>
               {tab.id === 'slips' && activeExamId && (
-                <span className="ml-auto w-2 h-2 bg-emerald-400 rounded-full"></span>
+                <span className="ml-auto w-2 h-2 bg-custech-green rounded-full"></span>
               )}
             </button>
           ))}
 
-          <div className="px-3 mt-8 mb-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+          <div className="px-3 mt-8 mb-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
             Resources
           </div>
-          <button className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white transition-all text-sm font-medium">
+          <button className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-300 hover:bg-darker hover:text-white transition-all text-sm font-medium">
             <BookOpen size={20} />
             <span>Courses</span>
           </button>
-          <button className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white transition-all text-sm font-medium">
+          <button className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-300 hover:bg-darker hover:text-white transition-all text-sm font-medium">
             <MapPin size={20} />
             <span>Venues</span>
-            <span className="ml-auto text-xs text-slate-500">{venues.length}</span>
+            <span className="ml-auto text-xs text-muted">{venues.length}</span>
           </button>
-          <button className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white transition-all text-sm font-medium">
+          <button className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-300 hover:bg-darker hover:text-white transition-all text-sm font-medium">
             <Users size={20} />
             <span>Students</span>
           </button>
 
-          <div className="px-3 mt-8 mb-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+          <div className="px-3 mt-8 mb-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
             Quick Stats
           </div>
           <div className="px-3 py-2 space-y-3">
             <div className="flex justify-between items-center text-sm">
-              <span className="text-slate-400">Active Exams</span>
+              <span className="text-muted">Active Exams</span>
               <span className="font-semibold text-emerald-400">{stats.active}</span>
             </div>
             <div className="flex justify-between items-center text-sm">
-              <span className="text-slate-400">Scheduled</span>
+              <span className="text-muted">Scheduled</span>
               <span className="font-semibold text-blue-400">{stats.scheduled}</span>
             </div>
             <div className="flex justify-between items-center text-sm">
-              <span className="text-slate-400">Capacity</span>
+              <span className="text-muted">Capacity</span>
               <span className="font-semibold text-slate-200">{stats.totalCapacity.toLocaleString()}</span>
             </div>
           </div>
         </nav>
 
         {/* User Profile */}
-        <div className="p-4 border-t border-slate-800">
+        <div className="p-4 border-t border-darker">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-full flex items-center justify-center">
               <User size={20} className="text-white" />
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-white truncate">Exam Officer</p>
-              <p className="text-xs text-slate-400">Administrator</p>
+              <p className="text-xs text-muted">Administrator</p>
             </div>
             <button 
               onClick={async () => { await logout(); navigate('/', { replace: true }); }}
-              className="text-slate-400 hover:text-white transition-colors"
+              className="text-muted hover:text-white transition-colors"
             >
               <LogOut size={20} />
             </button>
@@ -382,13 +382,13 @@ const ExamOfficerDashboard: React.FC = () => {
       {/* Main Content */}
       <main className="flex-1 ml-64 min-h-screen">
         {/* Top Header */}
-        <header className="bg-slate-900/50 backdrop-blur-md border-b border-slate-800 sticky top-0 z-30">
+        <header className="bg-darker/50 backdrop-blur-md border-b border-darker sticky top-0 z-30">
           <div className="flex items-center justify-between px-8 py-4">
             <div>
               <h2 className="text-2xl font-bold text-white">
                 {tabs.find(t => t.id === activeTab)?.label}
               </h2>
-              <p className="text-sm text-slate-400 mt-0.5">
+              <p className="text-sm text-muted mt-0.5">
                 {activeTab === 'wizard' && 'Create and schedule examinations'}
                 {activeTab === 'blueprint' && 'Configure question distribution'}
                 {activeTab === 'venue' && 'Allocate examination venues'}
@@ -397,11 +397,11 @@ const ExamOfficerDashboard: React.FC = () => {
               </p>
             </div>
             <div className="flex items-center gap-4">
-              <button className="relative p-2 text-slate-400 hover:text-white transition-colors">
+              <button className="relative p-2 text-muted hover:text-white transition-colors">
                 <Bell size={20} />
                 <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
               </button>
-              <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-800 rounded-lg text-sm text-slate-400">
+              <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-800 rounded-lg text-sm text-muted">
                 <Clock size={14} />
                 <span>{new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</span>
               </div>
@@ -412,14 +412,14 @@ const ExamOfficerDashboard: React.FC = () => {
         <div className="p-8">
           {/* Stats Overview - Show on all tabs */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-            <div className="bg-slate-900 rounded-2xl p-6 border border-slate-800 hover:border-slate-700 transition-colors">
+            <div className="bg-darker rounded-2xl p-6 border border-darker hover:border-slate-700 transition-colors">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-slate-400">Total Exams</p>
+                  <p className="text-sm font-medium text-muted">Total Exams</p>
                   <p className="text-3xl font-bold text-white mt-1">{stats.totalExams}</p>
                 </div>
-                <div className="w-12 h-12 bg-indigo-500/20 rounded-xl flex items-center justify-center">
-                  <ClipboardList size={24} className="text-indigo-400" />
+                <div className="w-12 h-12 bg-custech-primary/20 rounded-xl flex items-center justify-center">
+                  <ClipboardList size={24} className="text-custech-primary" />
                 </div>
               </div>
               <div className="mt-4 flex items-center gap-2 text-sm">
@@ -427,14 +427,14 @@ const ExamOfficerDashboard: React.FC = () => {
                   <TrendingUp size={14} />
                   {stats.scheduled}
                 </span>
-                <span className="text-slate-500">scheduled</span>
+                <span className="text-muted">scheduled</span>
               </div>
             </div>
 
-            <div className="bg-slate-900 rounded-2xl p-6 border border-slate-800 hover:border-slate-700 transition-colors">
+            <div className="bg-darker rounded-2xl p-6 border border-darker hover:border-slate-700 transition-colors">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-slate-400">Active Now</p>
+                  <p className="text-sm font-medium text-muted">Active Now</p>
                   <p className="text-3xl font-bold text-white mt-1">{stats.active}</p>
                 </div>
                 <div className="w-12 h-12 bg-emerald-500/20 rounded-xl flex items-center justify-center">
@@ -451,39 +451,39 @@ const ExamOfficerDashboard: React.FC = () => {
               </div>
             </div>
 
-            <div className="bg-slate-900 rounded-2xl p-6 border border-slate-800 hover:border-slate-700 transition-colors">
+            <div className="bg-darker rounded-2xl p-6 border border-darker hover:border-slate-700 transition-colors">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-slate-400">Total Venues</p>
+                  <p className="text-sm font-medium text-muted">Total Venues</p>
                   <p className="text-3xl font-bold text-white mt-1">{stats.totalVenues}</p>
                 </div>
                 <div className="w-12 h-12 bg-amber-500/20 rounded-xl flex items-center justify-center">
                   <MapPin size={24} className="text-amber-400" />
                 </div>
               </div>
-              <div className="mt-4 text-sm text-slate-500">
+              <div className="mt-4 text-sm text-muted">
                 {stats.totalCapacity.toLocaleString()} total seats
               </div>
             </div>
 
-            <div className="bg-slate-900 rounded-2xl p-6 border border-slate-800 hover:border-slate-700 transition-colors">
+            <div className="bg-darker rounded-2xl p-6 border border-darker hover:border-slate-700 transition-colors">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-slate-400">Completed</p>
+                  <p className="text-sm font-medium text-muted">Completed</p>
                   <p className="text-3xl font-bold text-white mt-1">{stats.completed}</p>
                 </div>
                 <div className="w-12 h-12 bg-purple-500/20 rounded-xl flex items-center justify-center">
                   <FileCheck size={24} className="text-purple-400" />
                 </div>
               </div>
-              <div className="mt-4 text-sm text-slate-500">
+              <div className="mt-4 text-sm text-muted">
                 Exams finished this session
               </div>
             </div>
           </div>
 
           {/* Tab Content */}
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl">
+          <div className="bg-darker border border-darker rounded-2xl p-6 shadow-xl">
             {/* Navigation Tabs */}
             <div className="flex space-x-1 bg-slate-800/50 p-1 rounded-xl mb-6 overflow-x-auto">
               {tabs.map((tab) => (
@@ -492,7 +492,7 @@ const ExamOfficerDashboard: React.FC = () => {
               onClick={() => setActiveTab(tab.id)}
               className={`flex items-center gap-2 px-6 py-3 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${
                 activeTab === tab.id
-                  ? 'bg-indigo-600 text-white shadow-md'
+                  ? 'bg-custech-primary text-white shadow-md'
                   : 'text-gray-400 hover:text-white hover:bg-gray-700/50'
               }`}
             >
@@ -510,7 +510,7 @@ const ExamOfficerDashboard: React.FC = () => {
             <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
               <div className="flex items-center justify-between border-b border-gray-700 pb-4">
                 <h2 className="text-2xl font-semibold">Schedule Examination</h2>
-                <span className="px-3 py-1 bg-indigo-500/20 text-indigo-300 rounded-full text-sm font-medium border border-indigo-500/30">
+                <span className="px-3 py-1 bg-custech-primary/20 text-indigo-300 rounded-full text-sm font-medium border border-indigo-500/30">
                   Step 1 of 5
                 </span>
               </div>
@@ -595,7 +595,7 @@ const ExamOfficerDashboard: React.FC = () => {
                 <button 
                   onClick={handleCreateExam}
                   disabled={isSubmitting}
-                  className="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white px-8 py-3 rounded-xl font-medium transition-all shadow-lg shadow-indigo-500/20 active:scale-95 flex items-center gap-2"
+                  className="bg-custech-primary hover:bg-indigo-500 disabled:opacity-50 text-white px-8 py-3 rounded-xl font-medium transition-all shadow-lg shadow-indigo-500/20 active:scale-95 flex items-center gap-2"
                 >
                   {isSubmitting && <Loader2 className="w-5 h-5 animate-spin" />}
                   {!isSubmitting && <CheckCircle className="w-5 h-5" />}
@@ -677,7 +677,7 @@ const ExamOfficerDashboard: React.FC = () => {
                   <button 
                     onClick={handleSaveBlueprint}
                     disabled={isSubmitting || !activeExamId}
-                    className="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white px-6 py-2 rounded-xl transition-all flex items-center gap-2"
+                    className="bg-custech-primary hover:bg-indigo-500 disabled:opacity-50 text-white px-6 py-2 rounded-xl transition-all flex items-center gap-2"
                   >
                     {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
                     Save Blueprint & Continue
@@ -830,13 +830,13 @@ const ExamOfficerDashboard: React.FC = () => {
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="bg-gradient-to-br from-gray-800 to-gray-900 border border-gray-700 rounded-2xl p-6 group hover:border-indigo-500/50 transition-all">
-                  <div className="w-12 h-12 bg-indigo-500/20 rounded-xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                    <Printer className="w-6 h-6 text-indigo-400" />
+                  <div className="w-12 h-12 bg-custech-primary/20 rounded-xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                    <Printer className="w-6 h-6 text-custech-primary" />
                   </div>
                   <h3 className="text-xl font-medium text-white mb-2">Bulk Slip Generation</h3>
                   <p className="text-gray-400 text-sm mb-6">Generate a consolidated PDF containing exam slips for all 782 allocated students. Optimized for double-sided printing.</p>
                   <button
-                    className="w-full bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-3 rounded-xl font-medium transition-all shadow-lg flex justify-center items-center gap-2"
+                    className="w-full bg-custech-primary hover:bg-indigo-500 text-white px-4 py-3 rounded-xl font-medium transition-all shadow-lg flex justify-center items-center gap-2"
                     onClick={() => activeExamId && downloadFile(`${API_BASE}/examinations/${activeExamId}/slips`, `exam_slips_${activeExamId}.pdf`)}
                     disabled={!activeExamId}
                   >

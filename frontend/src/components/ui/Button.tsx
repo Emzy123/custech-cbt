@@ -2,7 +2,7 @@ import React from 'react';
 import clsx from 'clsx';
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: 'primary' | 'secondary' | 'tertiary';
+  variant?: 'primary' | 'secondary' | 'outline' | 'light';
   size?: 'sm' | 'md' | 'lg';
   loading?: boolean;
   children: React.ReactNode;
@@ -13,9 +13,10 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     const baseClasses = 'inline-flex items-center justify-center font-medium rounded-md transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:cursor-not-allowed';
     
     const variantClasses = {
-      primary: 'bg-primary-blue-800 text-white hover:bg-primary-blue-700 focus:ring-info disabled:bg-surface-grey-dark disabled:text-text-disabled',
-      secondary: 'bg-transparent text-primary-blue-800 border-2 border-primary-blue-800 hover:bg-surface-white focus:ring-info disabled:border-surface-grey-dark disabled:text-text-disabled',
-      tertiary: 'bg-transparent text-text-secondary hover:bg-surface-grey hover:text-text-primary focus:ring-info disabled:text-text-disabled',
+      primary: 'bg-custech-primary text-white hover:bg-custech-primary hover:shadow-lg hover:scale-105 focus:ring-custech-navy disabled:bg-border-default disabled:text-text-muted',
+      secondary: 'bg-transparent text-custech-primary border-2 border-custech-primary hover:bg-custech-primary hover:text-white focus:ring-custech-navy disabled:border-default disabled:text-text-muted',
+      outline: 'bg-transparent text-custech-primary border-2 border-custech-primary hover:bg-custech-primary hover:text-white focus:ring-custech-navy disabled:border-default disabled:text-text-muted',
+      light: 'bg-white text-custech-primary hover:bg-gray-50 focus:ring-custech-navy disabled:bg-light disabled:text-text-muted',
     };
     
     const sizeClasses = {

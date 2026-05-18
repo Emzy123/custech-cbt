@@ -28,9 +28,9 @@ const Timer: React.FC<TimerProps> = ({ timeRemaining, className }) => {
   const timerClasses = clsx(
     'inline-flex items-center gap-2 px-4 py-2 rounded-full font-medium text-sm',
     {
-      'bg-surface-grey text-text-secondary': state === 'normal',
-      'bg-amber-50 text-warning': state === 'warning',
-      'bg-red-50 text-danger animate-pulse-slow': state === 'critical',
+      'bg-light text-body': state === 'normal',
+      'bg-custech-gold bg-opacity-20 text-custech-primary': state === 'warning',
+      'bg-danger bg-opacity-20 text-danger animate-pulse-slow': state === 'critical',
     },
     className
   );

@@ -22,6 +22,7 @@ import {
   FileCsv,
   ChartBar,
 } from '@phosphor-icons/react';
+import Button from '../components/ui/Button';
 import { apiRequest, logout } from '../lib/api';
 
 interface AssignedCourse {
@@ -376,32 +377,32 @@ const LecturerDashboard: React.FC = () => {
     setIsSubmitting(false);
   };
 
-  const diffColor = (d: string) => d === 'easy' ? 'bg-emerald-100 text-emerald-700' : d === 'medium' ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700';
-  const statusColor = (s: string) => s === 'approved' ? 'bg-emerald-100 text-emerald-700' : s === 'submitted' ? 'bg-blue-100 text-blue-700' : s === 'rejected' ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-700';
+  const diffColor = (d: string) => d === 'easy' ? 'bg-custech-green bg-opacity-20 text-custech-green' : d === 'medium' ? 'bg-custech-gold bg-opacity-20 text-custech-primary' : 'bg-danger bg-opacity-20 text-danger';
+  const statusColor = (s: string) => s === 'approved' ? 'bg-custech-green bg-opacity-20 text-custech-green' : s === 'submitted' ? 'bg-custech-navy bg-opacity-20 text-custech-navy' : s === 'rejected' ? 'bg-danger bg-opacity-20 text-danger' : 'bg-light text-muted';
 
   return (
-    <div className="min-h-screen bg-slate-50 flex">
+    <div className="min-h-screen bg-light flex">
       {/* Sidebar */}
-      <aside className="w-64 bg-slate-900 text-white flex flex-col fixed h-full shadow-2xl z-20">
-        <div className="p-6 border-b border-slate-800">
+      <aside className="w-64 bg-dark text-white flex flex-col fixed h-full shadow-2xl z-20">
+        <div className="p-6 border-b border-darker">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center">
+            <div className="w-10 h-10 bg-custech-gradient rounded-xl flex items-center justify-center">
               <GraduationCap size={24} weight="bold" className="text-white" />
             </div>
             <div>
               <h1 className="font-bold text-lg leading-tight">Custech</h1>
-              <p className="text-xs text-slate-400">Lecturer Portal</p>
+              <p className="text-xs text-muted">Lecturer Portal</p>
             </div>
           </div>
         </div>
 
         {/* Course selector */}
-        <div className="px-4 py-3 border-b border-slate-800">
-          <label className="text-xs text-slate-400 uppercase tracking-wider block mb-1">Active Course</label>
+        <div className="px-4 py-3 border-b border-darker">
+          <label className="text-xs text-muted uppercase tracking-wider block mb-1">Active Course</label>
           {coursesLoading ? (
-            <p className="text-xs text-slate-500">Loading courses...</p>
+            <p className="text-xs text-muted">Loading courses...</p>
           ) : assignedCourses.length === 0 ? (
-            <p className="text-xs text-slate-500">No courses assigned.</p>
+            <p className="text-xs text-muted">No courses assigned.</p>
           ) : (
             <select
               value={selectedCourse?.id || ''}
@@ -409,7 +410,7 @@ const LecturerDashboard: React.FC = () => {
                 const c = assignedCourses.find(x => x.id === e.target.value);
                 if (c) setSelectedCourse(c);
               }}
-              className="w-full bg-slate-800 text-white text-sm px-2 py-1.5 rounded border border-slate-700 focus:outline-none"
+              className="w-full bg-darker text-white text-sm px-2 py-1.5 rounded border border-muted focus:outline-none"
             >
               {assignedCourses.map(c => (
                 <option key={c.id} value={c.id}>{c.code} — {c.title}</option>
@@ -421,85 +422,80 @@ const LecturerDashboard: React.FC = () => {
         <nav className="flex-1 py-4 px-3 space-y-1 overflow-y-auto">
           <button
             onClick={() => setActiveTab('overview')}
-            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all ${activeTab === 'overview' ? 'bg-blue-600 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}
+            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all ${activeTab === 'overview' ? 'bg-custech-primary text-white' : 'text-gray-300 hover:bg-darker hover:text-white'}`}
           >
             <ChartBar size={20} />
             <span className="font-medium text-sm">Overview</span>
           </button>
           <button
             onClick={() => setActiveTab('questions')}
-            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all ${activeTab === 'questions' ? 'bg-blue-600 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}
+            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all ${activeTab === 'questions' ? 'bg-custech-primary text-white' : 'text-gray-300 hover:bg-darker hover:text-white'}`}
           >
             <Database size={20} />
             <span className="font-medium text-sm">Question Bank</span>
           </button>
           <button
             onClick={() => setActiveTab('exams')}
-            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all ${activeTab === 'exams' ? 'bg-blue-600 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}
+            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all ${activeTab === 'exams' ? 'bg-custech-primary text-white' : 'text-gray-300 hover:bg-darker hover:text-white'}`}
           >
             <ClipboardText size={20} />
             <span className="font-medium text-sm">Examinations</span>
           </button>
         </nav>
 
-        <div className="p-4 border-t border-slate-800">
+        <div className="p-4 border-t border-darker">
           <div className="flex items-center gap-3 mb-3">
-            <div className="w-9 h-9 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-full flex items-center justify-center flex-shrink-0">
+            <div className="w-9 h-9 bg-custech-gold-gradient rounded-full flex items-center justify-center flex-shrink-0">
               <User size={18} weight="bold" className="text-white" />
             </div>
-            <div className="flex-1 min-w-0">
+            <div className="min-w-0 flex-1">
               <p className="text-sm font-medium text-white truncate">{lecturerName}</p>
-              <p className="text-xs text-slate-400">Lecturer</p>
+              <p className="text-xs text-muted">Lecturer</p>
             </div>
           </div>
           <button
-            onClick={handleLogout}
-            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-red-400 hover:bg-slate-800 hover:text-red-300 transition-all text-sm"
+            onClick={async () => { await logout(); navigate('/', { replace: true }); }}
+            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-custech-gold hover:bg-darker hover:text-white transition-all text-sm font-medium"
           >
-            <SignOut size={18} />
-            <span>Logout</span>
+            <SignOut size={16} weight="bold" />
+            Sign Out
           </button>
         </div>
       </aside>
 
       {/* Main */}
       <main className="flex-1 ml-64">
-        <header className="bg-white shadow-sm border-b border-slate-200 sticky top-0 z-10">
-          <div className="px-8 py-4 flex items-center justify-between">
-            <div>
-              <h2 className="text-xl font-bold text-slate-800">
-                {activeTab === 'overview' ? 'Dashboard Overview' : activeTab === 'questions' ? 'Question Bank' : 'Examinations'}
-              </h2>
-              {selectedCourse && (
-                <p className="text-sm text-slate-500 mt-0.5">{selectedCourse.code} — {selectedCourse.title}</p>
+        <header className="bg-white shadow-sm border-b border-default sticky top-0 z-10">
+          <div className="px-8 py-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-bold text-heading">
+                  {activeTab === 'overview' ? 'Overview' : activeTab === 'questions' ? 'Question Bank' : 'Examinations'}
+                </h2>
+                <p className="text-sm text-body mt-0.5">{selectedCourse?.code} — {selectedCourse?.title}</p>
+              </div>
+              {activeTab === 'questions' && (
+                <div className="flex items-center gap-3">
+                  <Button
+                    variant="light"
+                    size="sm"
+                    onClick={() => navigate('/lecturer/questions')}
+                  >
+                    Open Full Question Bank
+                  </Button>
+                </div>
               )}
             </div>
-            {activeTab === 'questions' && selectedCourse && (
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setShowImportModal(true)}
-                  className="flex items-center gap-2 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm font-medium"
-                >
-                  <Upload size={16} weight="bold" /> Import CSV
-                </button>
-                <button
-                  onClick={handleOpenAdd}
-                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium shadow-sm"
-                >
-                  <Plus size={16} weight="bold" /> Add Question
-                </button>
-              </div>
-            )}
           </div>
         </header>
 
         <div className="p-8">
           {/* No course assigned */}
           {!selectedCourse && !coursesLoading && (
-            <div className="bg-white rounded-2xl p-12 text-center shadow-sm border border-slate-200">
-              <BookOpen size={48} className="text-slate-300 mx-auto mb-4" />
-              <h3 className="text-lg font-semibold text-slate-700 mb-2">No Courses Assigned</h3>
-              <p className="text-slate-500 text-sm">You have not been assigned to any courses yet. Please contact your administrator.</p>
+            <div className="bg-white rounded-2xl p-12 text-center shadow-sm border border-default">
+              <BookOpen size={48} className="text-muted mx-auto mb-4" />
+              <h3 className="text-lg font-semibold text-heading mb-2">No Courses Assigned</h3>
+              <p className="text-body text-sm">You have not been assigned to any courses yet. Please contact your administrator.</p>
             </div>
           )}
 
@@ -509,39 +505,39 @@ const LecturerDashboard: React.FC = () => {
               {/* Stats */}
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 {[
-                  { label: 'Total Questions', value: stats.total, color: 'bg-blue-500' },
-                  { label: 'Approved', value: stats.approved, color: 'bg-emerald-500' },
-                  { label: 'Pending Review', value: stats.submitted, color: 'bg-purple-500' },
-                  { label: 'Drafts', value: stats.draft, color: 'bg-amber-500' },
+                  { label: 'Total Questions', value: stats.total, color: 'bg-custech-navy' },
+                  { label: 'Approved', value: stats.approved, color: 'bg-custech-green' },
+                  { label: 'Pending Review', value: stats.submitted, color: 'bg-custech-primary' },
+                  { label: 'Drafts', value: stats.draft, color: 'bg-custech-gold' },
                 ].map(s => (
-                  <div key={s.label} className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
-                    <p className="text-sm text-slate-500">{s.label}</p>
-                    <p className="text-3xl font-bold text-slate-800 mt-1">{questionsLoading ? '…' : s.value}</p>
+                  <div key={s.label} className="bg-white rounded-2xl p-6 shadow-sm border border-default">
+                    <p className="text-sm text-body">{s.label}</p>
+                    <p className="text-3xl font-bold text-heading mt-1">{questionsLoading ? '…' : s.value}</p>
                     <div className={`mt-3 h-1 rounded-full ${s.color} opacity-60`}></div>
                   </div>
                 ))}
               </div>
 
               {/* Assigned Courses */}
-              <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-                <h3 className="font-semibold text-slate-800 mb-4">My Assigned Courses</h3>
+              <div className="bg-white rounded-2xl shadow-sm border border-default p-6">
+                <h3 className="font-semibold text-heading mb-4">My Assigned Courses</h3>
                 {assignedCourses.length === 0 ? (
-                  <p className="text-slate-400 text-sm">No courses assigned.</p>
+                  <p className="text-muted text-sm">No courses assigned.</p>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     {assignedCourses.map(c => (
                       <div
                         key={c.id}
                         onClick={() => { setSelectedCourse(c); setActiveTab('questions'); }}
-                        className={`flex items-center justify-between p-4 rounded-xl border cursor-pointer transition-all ${selectedCourse?.id === c.id ? 'border-blue-400 bg-blue-50' : 'border-slate-200 hover:border-blue-300 hover:bg-slate-50'}`}
+                        className={`flex items-center justify-between p-4 rounded-xl border cursor-pointer transition-all ${selectedCourse?.id === c.id ? 'border-custech-primary bg-custech-primary bg-opacity-10' : 'border-default hover:border-custech-navy hover:bg-light'}`}
                       >
                         <div>
-                          <p className="font-semibold text-slate-800">{c.code}</p>
-                          <p className="text-sm text-slate-500">{c.title}</p>
+                          <p className="font-semibold text-heading">{c.code}</p>
+                          <p className="text-sm text-body">{c.title}</p>
                         </div>
                         <div className="text-right">
-                          <span className="text-xs bg-slate-100 text-slate-600 px-2 py-1 rounded">{c.level}L</span>
-                          <p className="text-xs text-slate-400 mt-1">{c.semester_type}</p>
+                          <span className="text-xs bg-light text-muted px-2 py-1 rounded">{c.level}L</span>
+                          <p className="text-xs text-muted mt-1">{c.semester_type}</p>
                         </div>
                       </div>
                     ))}
@@ -550,17 +546,17 @@ const LecturerDashboard: React.FC = () => {
               </div>
 
               {/* Recent questions */}
-              <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-                <h3 className="font-semibold text-slate-800 mb-4">Recent Questions</h3>
+              <div className="bg-white rounded-2xl shadow-sm border border-default p-6">
+                <h3 className="font-semibold text-heading mb-4">Recent Questions</h3>
                 {questionsLoading ? (
-                  <p className="text-slate-400 text-sm">Loading...</p>
+                  <p className="text-muted text-sm">Loading...</p>
                 ) : questions.length === 0 ? (
-                  <p className="text-slate-400 text-sm">No questions yet. Start by adding questions to your course.</p>
+                  <p className="text-muted text-sm">No questions yet. Start by adding questions to your course.</p>
                 ) : (
                   <div className="space-y-2">
                     {questions.slice(0, 5).map(q => (
-                      <div key={q.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl">
-                        <p className="text-sm text-slate-700 truncate flex-1 mr-4">{q.question_text}</p>
+                      <div key={q.id} className="flex items-center justify-between p-3 bg-light rounded-xl">
+                        <p className="text-sm text-body truncate flex-1 mr-4">{q.question_text}</p>
                         <span className={`text-xs px-2 py-1 rounded-full font-medium flex-shrink-0 ${statusColor(q.status)}`}>{q.status}</span>
                       </div>
                     ))}
@@ -574,22 +570,22 @@ const LecturerDashboard: React.FC = () => {
           {activeTab === 'questions' && selectedCourse && (
             <div className="space-y-4">
               {/* Filters */}
-              <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4">
+              <div className="bg-white rounded-2xl shadow-sm border border-default p-4">
                 <div className="flex flex-col sm:flex-row gap-3">
                   <input
                     type="text"
                     placeholder="Search questions..."
                     value={searchQuery}
                     onChange={e => setSearchQuery(e.target.value)}
-                    className="flex-1 px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="flex-1 px-4 py-2 bg-light border border-default rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-custech-navy"
                   />
-                  <select value={filterDifficulty} onChange={e => setFilterDifficulty(e.target.value)} className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none">
+                  <select value={filterDifficulty} onChange={e => setFilterDifficulty(e.target.value)} className="px-3 py-2 bg-light border border-default rounded-xl text-sm focus:outline-none">
                     <option value="">All Difficulties</option>
                     <option value="easy">Easy</option>
                     <option value="medium">Medium</option>
                     <option value="hard">Hard</option>
                   </select>
-                  <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none">
+                  <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className="px-3 py-2 bg-light border border-default rounded-xl text-sm focus:outline-none">
                     <option value="">All Statuses</option>
                     <option value="draft">Draft</option>
                     <option value="submitted">Submitted</option>
@@ -600,35 +596,35 @@ const LecturerDashboard: React.FC = () => {
               </div>
 
               {/* Questions Table */}
-              <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+              <div className="bg-white rounded-2xl shadow-sm border border-default overflow-hidden">
                 {questionsLoading ? (
-                  <div className="p-12 text-center text-slate-400">Loading questions...</div>
+                  <div className="p-12 text-center text-muted">Loading questions...</div>
                 ) : filteredQuestions.length === 0 ? (
                   <div className="p-12 text-center">
-                    <Database size={40} className="text-slate-300 mx-auto mb-3" />
-                    <p className="font-semibold text-slate-600">No questions found</p>
-                    <p className="text-sm text-slate-400 mt-1">Add your first question or import from CSV.</p>
+                    <Database size={40} className="text-muted mx-auto mb-3" />
+                    <p className="font-semibold text-heading">No questions found</p>
+                    <p className="text-sm text-body mt-1">Add your first question or import from CSV.</p>
                   </div>
                 ) : (
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
-                      <thead className="bg-slate-50 border-b border-slate-200">
+                      <thead className="bg-light border-b border-default">
                         <tr>
-                          <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Question</th>
-                          <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Topic</th>
-                          <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Difficulty</th>
-                          <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Status</th>
-                          <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Actions</th>
+                          <th className="px-6 py-3 text-left text-xs font-semibold text-muted uppercase">Question</th>
+                          <th className="px-6 py-3 text-left text-xs font-semibold text-muted uppercase">Topic</th>
+                          <th className="px-6 py-3 text-left text-xs font-semibold text-muted uppercase">Difficulty</th>
+                          <th className="px-6 py-3 text-left text-xs font-semibold text-muted uppercase">Status</th>
+                          <th className="px-6 py-3 text-left text-xs font-semibold text-muted uppercase">Actions</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-slate-100">
+                      <tbody className="divide-y divide-default">
                         {filteredQuestions.map(q => (
-                          <tr key={q.id} className="hover:bg-slate-50 transition-colors">
+                          <tr key={q.id} className="hover:bg-light transition-colors">
                             <td className="px-6 py-4 max-w-xs">
-                              <p className="truncate text-slate-800 font-medium" title={q.question_text}>{q.question_text}</p>
+                              <p className="truncate text-heading font-medium" title={q.question_text}>{q.question_text}</p>
                             </td>
                             <td className="px-6 py-4">
-                              <span className="bg-blue-50 text-blue-700 text-xs px-2 py-1 rounded-full">{q.topic || '—'}</span>
+                              <span className="bg-custech-navy bg-opacity-10 text-custech-navy text-xs px-2 py-1 rounded-full">{q.topic || '—'}</span>
                             </td>
                             <td className="px-6 py-4">
                               <span className={`text-xs px-2 py-1 rounded-full font-medium ${diffColor(q.difficulty)}`}>{q.difficulty}</span>
@@ -638,18 +634,18 @@ const LecturerDashboard: React.FC = () => {
                             </td>
                             <td className="px-6 py-4">
                               <div className="flex items-center gap-1">
-                                <button onClick={() => handleOpenEdit(q)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg" title="Edit">
+                                <button onClick={() => handleOpenEdit(q)} className="p-1.5 text-muted hover:text-custech-navy hover:bg-light rounded-lg" title="Edit">
                                   <Pencil size={16} weight="bold" />
                                 </button>
                                 {q.status === 'draft' && (
-                                  <button onClick={() => handleSubmitForReview(q.id)} className="p-1.5 text-slate-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg" title="Submit for review">
+                                  <button onClick={() => handleSubmitForReview(q.id)} className="p-1.5 text-muted hover:text-purple-600 hover:bg-light rounded-lg" title="Submit for review">
                                     <CheckCircle size={16} weight="bold" />
                                   </button>
                                 )}
-                                <button onClick={() => { setReviewingQuestion(q); setShowReviewModal(true); }} className="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg" title="Preview">
+                                <button onClick={() => { setReviewingQuestion(q); setShowReviewModal(true); }} className="p-1.5 text-muted hover:text-emerald-600 hover:bg-light rounded-lg" title="Preview">
                                   <ClipboardText size={16} weight="bold" />
                                 </button>
-                                <button onClick={() => handleDeleteQuestion(q.id)} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg" title="Delete">
+                                <button onClick={() => handleDeleteQuestion(q.id)} className="p-1.5 text-muted hover:text-danger hover:bg-light rounded-lg" title="Delete">
                                   <Trash size={16} weight="bold" />
                                 </button>
                               </div>

@@ -616,56 +616,56 @@ const LecturerQuestionBank: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-surface-grey flex items-center justify-center">
+      <div className="min-h-screen bg-light flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-blue-800 mx-auto mb-4"></div>
-          <p className="text-text-secondary">Loading question bank...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-custech-primary mx-auto mb-4"></div>
+          <p className="text-body">Loading question bank...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 flex">
+    <div className="min-h-screen bg-light flex">
       {/* Professional Sidebar */}
-      <aside className="w-64 bg-slate-900 text-white flex flex-col fixed h-full shadow-2xl">
+      <aside className="w-64 bg-dark text-white flex flex-col fixed h-full shadow-2xl">
         {/* Logo Area */}
-        <div className="p-6 border-b border-slate-800">
+        <div className="p-6 border-b border-darker">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg">
+            <div className="w-10 h-10 bg-custech-gradient rounded-xl flex items-center justify-center shadow-lg">
               <GraduationCap size={24} weight="bold" className="text-white" />
             </div>
             <div>
               <h1 className="font-bold text-lg leading-tight">Custech</h1>
-              <p className="text-xs text-slate-400">CBT System</p>
+              <p className="text-xs text-muted">CBT System</p>
             </div>
           </div>
         </div>
 
         {/* Navigation */}
         <nav className="flex-1 py-6 px-3 space-y-1 overflow-y-auto">
-          <div className="px-3 mb-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+          <div className="px-3 mb-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
             Main Menu
           </div>
-          <a href="#" className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-blue-600 text-white transition-all">
+          <a href="#" className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-custech-primary text-white transition-all">
             <Database size={20} weight="fill" />
             <span className="font-medium">Question Bank</span>
           </a>
-          <a href="#" className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white transition-all">
+          <a href="#" className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-300 hover:bg-darker hover:text-white transition-all">
             <Files size={20} />
             <span className="font-medium">My Courses</span>
           </a>
-          <a href="#" className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white transition-all">
+          <a href="#" className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-300 hover:bg-darker hover:text-white transition-all">
             <ClipboardText size={20} />
             <span className="font-medium">Examinations</span>
             <span className="ml-auto bg-amber-500 text-slate-900 text-xs font-bold px-2 py-0.5 rounded-full">2</span>
           </a>
-          <a href="#" className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white transition-all">
+          <a href="#" className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-300 hover:bg-darker hover:text-white transition-all">
             <ChartBar size={20} />
             <span className="font-medium">Analytics</span>
           </a>
 
-          <div className="px-3 mt-8 mb-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+          <div className="px-3 mt-8 mb-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
             Quick Actions
           </div>
           <button 
@@ -696,11 +696,11 @@ const LecturerQuestionBank: React.FC = () => {
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-white truncate">Dr. Lecturer</p>
-              <p className="text-xs text-slate-400">Lecturer</p>
+              <p className="text-xs text-gray-400">Lecturer</p>
             </div>
             <button 
               onClick={async () => { await logout(); navigate('/', { replace: true }); }}
-              className="text-slate-400 hover:text-white transition-colors"
+              className="text-gray-400 hover:text-white transition-colors"
             >
               <SignOut size={20} />
             </button>
@@ -711,18 +711,18 @@ const LecturerQuestionBank: React.FC = () => {
       {/* Main Content Area */}
       <main className="flex-1 ml-64">
         {/* Top Header */}
-        <header className="bg-white shadow-sm border-b border-slate-200 sticky top-0 z-30">
+        <header className="bg-white shadow-sm border-b border-default sticky top-0 z-30">
           <div className="flex items-center justify-between px-8 py-4">
             <div>
-              <h2 className="text-2xl font-bold text-slate-800">Question Bank</h2>
-              <p className="text-sm text-slate-500 mt-0.5">GST 111 - Use of English</p>
+              <h2 className="text-2xl font-bold text-heading">Question Bank</h2>
+              <p className="text-sm text-muted mt-0.5">GST 111 - Use of English</p>
             </div>
             <div className="flex items-center gap-4">
-              <button className="relative p-2 text-slate-400 hover:text-slate-600 transition-colors">
+              <button className="relative p-2 text-muted hover:text-slate-600 transition-colors">
                 <Bell size={20} weight="bold" />
                 <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
               </button>
-              <div className="flex items-center gap-2 text-sm text-slate-500">
+              <div className="flex items-center gap-2 text-sm text-muted">
                 <Clock size={16} />
                 <span>{new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>
               </div>
@@ -734,11 +734,11 @@ const LecturerQuestionBank: React.FC = () => {
           {/* Statistics Overview */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
             {/* Total Questions */}
-            <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 hover:shadow-md transition-shadow">
+            <div className="bg-white rounded-2xl p-6 shadow-sm border border-default hover:shadow-md transition-shadow">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-slate-500">Total Questions</p>
-                  <p className="text-3xl font-bold text-slate-800 mt-1">{stats.total}</p>
+                  <p className="text-sm font-medium text-muted">Total Questions</p>
+                  <p className="text-3xl font-bold text-heading mt-1">{stats.total}</p>
                 </div>
                 <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
                   <Database size={24} className="text-blue-600" />
@@ -749,16 +749,16 @@ const LecturerQuestionBank: React.FC = () => {
                   <TrendUp size={16} weight="bold" />
                   +{stats.byStatus.approved}
                 </span>
-                <span className="text-slate-400">approved</span>
+                <span className="text-muted">approved</span>
               </div>
             </div>
 
             {/* Approval Rate */}
-            <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 hover:shadow-md transition-shadow">
+            <div className="bg-white rounded-2xl p-6 shadow-sm border border-default hover:shadow-md transition-shadow">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-slate-500">Approval Rate</p>
-                  <p className="text-3xl font-bold text-slate-800 mt-1">{stats.approvalRate}%</p>
+                  <p className="text-sm font-medium text-muted">Approval Rate</p>
+                  <p className="text-3xl font-bold text-heading mt-1">{stats.approvalRate}%</p>
                 </div>
                 <div className="w-12 h-12 bg-emerald-100 rounded-xl flex items-center justify-center">
                   <CheckCircle size={24} className="text-emerald-600" />
@@ -775,27 +775,27 @@ const LecturerQuestionBank: React.FC = () => {
             </div>
 
             {/* Topics Covered */}
-            <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 hover:shadow-md transition-shadow">
+            <div className="bg-white rounded-2xl p-6 shadow-sm border border-default hover:shadow-md transition-shadow">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-slate-500">Topics Covered</p>
-                  <p className="text-3xl font-bold text-slate-800 mt-1">{stats.topics}</p>
+                  <p className="text-sm font-medium text-muted">Topics Covered</p>
+                  <p className="text-3xl font-bold text-heading mt-1">{stats.topics}</p>
                 </div>
                 <div className="w-12 h-12 bg-amber-100 rounded-xl flex items-center justify-center">
                   <Tag size={24} className="text-amber-600" />
                 </div>
               </div>
               <div className="mt-4 flex items-center gap-2 text-sm">
-                <span className="text-slate-400">Across all courses</span>
+                <span className="text-muted">Across all courses</span>
               </div>
             </div>
 
             {/* Pending Review */}
-            <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 hover:shadow-md transition-shadow">
+            <div className="bg-white rounded-2xl p-6 shadow-sm border border-default hover:shadow-md transition-shadow">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-slate-500">Pending Review</p>
-                  <p className="text-3xl font-bold text-slate-800 mt-1">{stats.byStatus.submitted}</p>
+                  <p className="text-sm font-medium text-muted">Pending Review</p>
+                  <p className="text-3xl font-bold text-heading mt-1">{stats.byStatus.submitted}</p>
                 </div>
                 <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
                   <Clock size={24} className="text-purple-600" />
@@ -805,20 +805,20 @@ const LecturerQuestionBank: React.FC = () => {
                 <span className="text-purple-600 font-medium">
                   {stats.byStatus.draft} drafts
                 </span>
-                <span className="text-slate-400">in progress</span>
+                <span className="text-muted">in progress</span>
               </div>
             </div>
           </div>
 
           {/* Difficulty Distribution */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-            <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
-              <h3 className="font-semibold text-slate-800 mb-4">Difficulty Distribution</h3>
+            <div className="bg-white rounded-2xl p-6 shadow-sm border border-default">
+              <h3 className="font-semibold text-heading mb-4">Difficulty Distribution</h3>
               <div className="space-y-4">
                 <div>
                   <div className="flex justify-between text-sm mb-1">
                     <span className="text-slate-600">Easy</span>
-                    <span className="font-medium text-slate-800">{stats.byDifficulty.easy}</span>
+                    <span className="font-medium text-heading">{stats.byDifficulty.easy}</span>
                   </div>
                   <div className="w-full bg-slate-100 rounded-full h-2">
                     <div className="bg-emerald-500 h-2 rounded-full" style={{ width: `${stats.total ? (stats.byDifficulty.easy / stats.total) * 100 : 0}%` }}></div>
@@ -827,7 +827,7 @@ const LecturerQuestionBank: React.FC = () => {
                 <div>
                   <div className="flex justify-between text-sm mb-1">
                     <span className="text-slate-600">Medium</span>
-                    <span className="font-medium text-slate-800">{stats.byDifficulty.medium}</span>
+                    <span className="font-medium text-heading">{stats.byDifficulty.medium}</span>
                   </div>
                   <div className="w-full bg-slate-100 rounded-full h-2">
                     <div className="bg-amber-500 h-2 rounded-full" style={{ width: `${stats.total ? (stats.byDifficulty.medium / stats.total) * 100 : 0}%` }}></div>
@@ -836,7 +836,7 @@ const LecturerQuestionBank: React.FC = () => {
                 <div>
                   <div className="flex justify-between text-sm mb-1">
                     <span className="text-slate-600">Hard</span>
-                    <span className="font-medium text-slate-800">{stats.byDifficulty.hard}</span>
+                    <span className="font-medium text-heading">{stats.byDifficulty.hard}</span>
                   </div>
                   <div className="w-full bg-slate-100 rounded-full h-2">
                     <div className="bg-red-500 h-2 rounded-full" style={{ width: `${stats.total ? (stats.byDifficulty.hard / stats.total) * 100 : 0}%` }}></div>
@@ -846,17 +846,17 @@ const LecturerQuestionBank: React.FC = () => {
             </div>
 
             {/* Recent Activity */}
-            <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 lg:col-span-2">
+            <div className="bg-white rounded-2xl p-6 shadow-sm border border-default lg:col-span-2">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="font-semibold text-slate-800">Recent Activity</h3>
+                <h3 className="font-semibold text-heading">Recent Activity</h3>
                 <button className="text-sm text-blue-600 hover:text-blue-700 font-medium">View All</button>
               </div>
               <div className="space-y-3">
                 {recentQuestions.length === 0 ? (
-                  <p className="text-slate-400 text-sm py-4">No recent activity</p>
+                  <p className="text-muted text-sm py-4">No recent activity</p>
                 ) : (
                   recentQuestions.map((q, idx) => (
-                    <div key={q.id} className="flex items-center gap-4 p-3 hover:bg-slate-50 rounded-xl transition-colors">
+                    <div key={q.id} className="flex items-center gap-4 p-3 hover:bg-light rounded-xl transition-colors">
                       <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
                         q.status === 'approved' ? 'bg-emerald-100' :
                         q.status === 'submitted' ? 'bg-blue-100' :
@@ -868,8 +868,8 @@ const LecturerQuestionBank: React.FC = () => {
                          <Pencil size={20} className="text-amber-600" />}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-slate-800 truncate">{q.stem}</p>
-                        <p className="text-xs text-slate-500">{q.topic} • {new Date(q.lastModified).toLocaleDateString()}</p>
+                        <p className="text-sm font-medium text-heading truncate">{q.stem}</p>
+                        <p className="text-xs text-muted">{q.topic} • {new Date(q.lastModified).toLocaleDateString()}</p>
                       </div>
                       <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                         q.status === 'approved' ? 'bg-emerald-100 text-emerald-700' :
@@ -886,23 +886,23 @@ const LecturerQuestionBank: React.FC = () => {
           </div>
 
           {/* Filters & Actions Bar */}
-          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 mb-6">
+          <div className="bg-white rounded-2xl shadow-sm border border-default p-4 mb-6">
             <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between">
               <div className="flex flex-col sm:flex-row gap-3 flex-1 w-full lg:w-auto">
                 <div className="relative flex-1 max-w-md">
-                  <MagnifyingGlass size={18} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
+                  <MagnifyingGlass size={18} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted" />
                   <input
                     type="text"
                     placeholder="Search questions..."
                     value={filters.search}
                     onChange={(e) => handleFilterChange('search', e.target.value)}
-                    className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all text-sm"
+                    className="w-full pl-10 pr-4 py-2.5 bg-light border border-default rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all text-sm"
                   />
                 </div>
                 <select
                   value={filters.topic}
                   onChange={(e) => handleFilterChange('topic', e.target.value)}
-                  className="px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                  className="px-4 py-2.5 bg-light border border-default rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                 >
                   <option value="">All Topics</option>
                   {getUniqueTopics().map(topic => (
@@ -912,7 +912,7 @@ const LecturerQuestionBank: React.FC = () => {
                 <select
                   value={filters.difficulty}
                   onChange={(e) => handleFilterChange('difficulty', e.target.value)}
-                  className="px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                  className="px-4 py-2.5 bg-light border border-default rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                 >
                   <option value="">All Difficulties</option>
                   <option value="easy">Easy</option>
@@ -922,7 +922,7 @@ const LecturerQuestionBank: React.FC = () => {
                 <select
                   value={filters.status}
                   onChange={(e) => handleFilterChange('status', e.target.value)}
-                  className="px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                  className="px-4 py-2.5 bg-light border border-default rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                 >
                   <option value="">All Statuses</option>
                   <option value="draft">Draft</option>
@@ -942,7 +942,7 @@ const LecturerQuestionBank: React.FC = () => {
                 </button>
                 <button 
                   onClick={handleOpenAddModal}
-                  className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl transition-colors text-sm font-medium shadow-lg shadow-blue-200"
+                  className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 bg-custech-primary hover:bg-blue-700 text-white rounded-xl transition-colors text-sm font-medium shadow-lg shadow-blue-200"
                 >
                   <Plus size={18} weight="bold" />
                   Add Question
@@ -961,7 +961,7 @@ const LecturerQuestionBank: React.FC = () => {
                 <div className="flex items-center gap-2">
                   <button 
                     onClick={() => setSelectedQuestions([])}
-                    className="px-3 py-1.5 text-sm text-slate-600 hover:text-slate-800 transition-colors"
+                    className="px-3 py-1.5 text-sm text-slate-600 hover:text-heading transition-colors"
                   >
                     Clear
                   </button>
@@ -992,10 +992,10 @@ const LecturerQuestionBank: React.FC = () => {
           )}
 
         {/* Questions Table */}
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+        <div className="bg-white rounded-2xl shadow-sm border border-default overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full">
-              <thead className="bg-slate-50 border-b border-slate-200">
+              <thead className="bg-light border-b border-default">
                 <tr>
                   <th className="px-6 py-4 text-left w-12">
                     <input
@@ -1005,29 +1005,29 @@ const LecturerQuestionBank: React.FC = () => {
                       className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
                     />
                   </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">
                     Question
                   </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">
                     Topic
                   </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">
                     Difficulty
                   </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">
                     Status
                   </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">
                     Last Modified
                   </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">
                     Actions
                   </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {filteredQuestions.map((question) => (
-                  <tr key={question.id} className="hover:bg-slate-50 transition-colors duration-150">
+                  <tr key={question.id} className="hover:bg-light transition-colors duration-150">
                     <td className="px-6 py-4">
                       <input
                         type="checkbox"
@@ -1037,7 +1037,7 @@ const LecturerQuestionBank: React.FC = () => {
                       />
                     </td>
                     <td className="px-6 py-4">
-                      <div className="text-sm font-medium text-slate-800 max-w-md truncate" title={question.stem}>
+                      <div className="text-sm font-medium text-heading max-w-md truncate" title={question.stem}>
                         {question.stem}
                       </div>
                     </td>
@@ -1065,12 +1065,12 @@ const LecturerQuestionBank: React.FC = () => {
                         <span className={`w-1.5 h-1.5 rounded-full ${
                           question.status === 'approved' ? 'bg-emerald-500' :
                           question.status === 'submitted' ? 'bg-blue-500' :
-                          question.status === 'rejected' ? 'bg-red-500' : 'bg-slate-500'
+                          question.status === 'rejected' ? 'bg-red-500' : 'bg-light0'
                         }`}></span>
                         {question.status.charAt(0).toUpperCase() + question.status.slice(1)}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-sm text-slate-500">
+                    <td className="px-6 py-4 text-sm text-muted">
                       {new Date(question.lastModified).toLocaleDateString('en-US', {
                         month: 'short',
                         day: 'numeric',
@@ -1081,14 +1081,14 @@ const LecturerQuestionBank: React.FC = () => {
                       <div className="flex items-center gap-1">
                         <button
                           onClick={() => handleOpenEditModal(question)}
-                          className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                          className="p-2 text-muted hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                           title="Edit question"
                         >
                           <Pencil size={18} weight="bold" />
                         </button>
                         <button
                           onClick={() => handleReviewQuestion(question)}
-                          className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+                          className="p-2 text-muted hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
                           title="Review question"
                         >
                           <ChartLine size={18} weight="bold" />
@@ -1104,12 +1104,12 @@ const LecturerQuestionBank: React.FC = () => {
           {filteredQuestions.length === 0 && (
             <div className="text-center py-16">
               <div className="w-20 h-20 bg-slate-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
-                <Database size={40} className="text-slate-400" />
+                <Database size={40} className="text-muted" />
               </div>
-              <h3 className="text-lg font-semibold text-slate-800 mb-2">
+              <h3 className="text-lg font-semibold text-heading mb-2">
                 {questions.length === 0 ? 'No questions yet' : 'No matching questions'}
               </h3>
-              <p className="text-slate-500 mb-6 max-w-md mx-auto">
+              <p className="text-muted mb-6 max-w-md mx-auto">
                 {questions.length === 0 
                   ? "Your question bank is empty. Get started by adding your first question or importing from CSV."
                   : "Try adjusting your filters or search terms to find what you're looking for."
@@ -1119,14 +1119,14 @@ const LecturerQuestionBank: React.FC = () => {
                 <div className="flex items-center justify-center gap-3">
                   <button 
                     onClick={handleOpenAddModal}
-                    className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-medium transition-colors shadow-lg shadow-blue-200"
+                    className="flex items-center gap-2 px-5 py-2.5 bg-custech-primary hover:bg-blue-700 text-white rounded-xl font-medium transition-colors shadow-lg shadow-blue-200"
                   >
                     <Plus size={18} weight="bold" />
                     Add Question
                   </button>
                   <button 
                     onClick={() => setShowImportModal(true)}
-                    className="flex items-center gap-2 px-5 py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl font-medium transition-colors"
+                    className="flex items-center gap-2 px-5 py-2.5 bg-white border border-default hover:bg-light text-slate-700 rounded-xl font-medium transition-colors"
                   >
                     <Upload size={18} weight="bold" />
                     Import CSV
@@ -1237,7 +1237,7 @@ const LecturerQuestionBank: React.FC = () => {
             <div className="p-6">
               <div className="flex items-center justify-between mb-6">
                 <h3 className="text-xl font-semibold text-text-primary">Add New Question</h3>
-                <Button variant="tertiary" size="sm" onClick={handleCloseModals}>×</Button>
+                <Button variant="outline" size="sm" onClick={handleCloseModals}>×</Button>
               </div>
               
               <div className="space-y-4">
@@ -1330,7 +1330,7 @@ const LecturerQuestionBank: React.FC = () => {
             <div className="p-6">
               <div className="flex items-center justify-between mb-6">
                 <h3 className="text-xl font-semibold text-text-primary">Edit Question</h3>
-                <Button variant="tertiary" size="sm" onClick={handleCloseModals}>×</Button>
+                <Button variant="outline" size="sm" onClick={handleCloseModals}>×</Button>
               </div>
               
               <div className="space-y-4">
@@ -1423,7 +1423,7 @@ const LecturerQuestionBank: React.FC = () => {
             <div className="p-6">
               <div className="flex items-center justify-between mb-6">
                 <h3 className="text-xl font-semibold text-text-primary">Import Questions from CSV</h3>
-                <Button variant="tertiary" size="sm" onClick={handleCloseModals}>×</Button>
+                <Button variant="outline" size="sm" onClick={handleCloseModals}>×</Button>
               </div>
               
               <div className="space-y-4">
