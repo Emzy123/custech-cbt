@@ -95,6 +95,9 @@ pnpm-debug.log*
 .DS_Store
 Thumbs.db
 
+# ── Local dev stack (manual testing scripts) ─
+.local/
+
 # ── Docker ───────────────────────────────────
 *.dockerenv
 docker-compose.override.yml

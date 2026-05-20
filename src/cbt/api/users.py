@@ -11,7 +11,7 @@ from ..services.auth_service import AuthService
 from ..services.authorization_service import AuthorizationService
 from ..core.database import get_db
 from ..core.redis import cache_manager, session_manager
-from .deps import get_current_active_user
+from .deps import get_current_active_user, require_permission
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -66,7 +66,7 @@ class UserResponse(BaseModel):
 
 # ──────────────────────────── Users CRUD ────────────────────────────────────
 
-@router.get("/")
+@router.get("/", dependencies=[Depends(require_permission("user.read"))])
 async def list_users(
     role: Optional[str] = Query(None),
     is_active: Optional[bool] = Query(None),
@@ -121,7 +121,7 @@ async def list_users(
     return result
 
 
-@router.post("/", status_code=status.HTTP_201_CREATED)
+@router.post("/", status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_permission("user.create"))])
 async def create_user(
     data: UserCreate,
     current_user=Depends(get_current_active_user),
@@ -190,7 +190,7 @@ async def create_user(
     }
 
 
-@router.get("/{user_id}")
+@router.get("/{user_id}", dependencies=[Depends(require_permission("user.read"))])
 async def get_user(
     user_id: str,
     current_user=Depends(get_current_active_user),
@@ -221,7 +221,7 @@ async def get_user(
     }
 
 
-@router.patch("/{user_id}")
+@router.patch("/{user_id}", dependencies=[Depends(require_permission("user.update"))])
 async def update_user(
     user_id: str,
     data: UserUpdate,
@@ -248,7 +248,7 @@ async def update_user(
     }
 
 
-@router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(require_permission("user.delete"))])
 async def delete_user(
     user_id: str,
     current_user=Depends(get_current_active_user),
@@ -276,7 +276,7 @@ async def delete_user(
 
 # ──────────────────────────── Role Management ───────────────────────────────
 
-@router.post("/{user_id}/roles")
+@router.post("/{user_id}/roles", dependencies=[Depends(require_permission("user.update"))])
 async def assign_role(
     user_id: str,
     data: RoleAssign,
@@ -322,7 +322,7 @@ async def assign_role(
     return {"message": f"Role {user_role.value} assigned successfully"}
 
 
-@router.delete("/{user_id}/roles/{role}")
+@router.delete("/{user_id}/roles/{role}", dependencies=[Depends(require_permission("user.update"))])
 async def remove_role(
     user_id: str,
     role: str,
@@ -353,7 +353,7 @@ async def remove_role(
 
 # ──────────────────────────── Password Reset ────────────────────────────────
 
-@router.post("/{user_id}/reset-password")
+@router.post("/{user_id}/reset-password", dependencies=[Depends(require_permission("user.update"))])
 async def reset_password(
     user_id: str,
     data: PasswordReset,

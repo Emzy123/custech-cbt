@@ -14,13 +14,14 @@ interface OfflineQueueItem {
 }
 
 interface PaperOption {
+  id: string;
   label: string;
   text: string;
 }
 
 interface PaperQuestion {
   sequence: number;
-  id: number;
+  id: string;
   stem: string;
   options: PaperOption[];
 }
@@ -41,7 +42,8 @@ interface ActiveAttemptResponse {
 }
 
 interface StartAttemptResponse {
-  attempt_id: number;
+  attempt_id?: string;
+  instance_id?: string;
 }
 
 interface AttemptClockResponse {
@@ -111,7 +113,10 @@ const ExaminationInterface: React.FC = () => {
           method: 'POST',
           body: JSON.stringify({ rules_accepted: true }),
         });
-        const nextInstanceId = String(started.attempt_id);
+        const nextInstanceId = String(started.attempt_id ?? started.instance_id ?? '');
+        if (!nextInstanceId) {
+          throw new Error('Exam could not be started (no instance id returned)');
+        }
         setInstanceId(nextInstanceId);
 
         const paper = await apiRequest<ExamPayload>(`/api/v1/examinations/${examId}/instances/${nextInstanceId}/paper`);
@@ -227,14 +232,14 @@ const ExaminationInterface: React.FC = () => {
   }, [examState]);
 
   const persistAnswer = useCallback(
-    async (questionIndex: number, label: string, isFlagged: boolean) => {
+    async (questionIndex: number, optionId: string, isFlagged: boolean) => {
       if (!instanceId) return;
       const question = examState.questions[questionIndex - 1];
       if (!question) return;
 
       const payload = {
         question_id: question.id,
-        selected_option_id: label,
+        selected_option_id: optionId,
         is_flagged: isFlagged,
         idempotency_key: `${instanceId}-${question.id}`,
       };
@@ -256,14 +261,14 @@ const ExaminationInterface: React.FC = () => {
   );
 
   const handleAnswerSelect = useCallback(
-    async (questionIndex: number, label: string) => {
+    async (questionIndex: number, optionId: string) => {
       setExamState((prev) => ({
         ...prev,
-        answers: { ...prev.answers, [questionIndex]: label },
+        answers: { ...prev.answers, [questionIndex]: optionId },
       }));
 
       try {
-        await persistAnswer(questionIndex, label, examState.flaggedQuestions.includes(questionIndex));
+        await persistAnswer(questionIndex, optionId, examState.flaggedQuestions.includes(questionIndex));
       } catch {
         setConnectionStatus('disconnected');
       }
@@ -281,7 +286,7 @@ const ExaminationInterface: React.FC = () => {
 
   const handleFlagQuestion = useCallback(async () => {
     const questionIndex = examState.currentQuestion;
-    const selectedLabel = examState.answers[questionIndex];
+    const selectedOptionId = examState.answers[questionIndex];
     const wasFlagged = examState.flaggedQuestions.includes(questionIndex);
     const nextFlagged = wasFlagged
       ? examState.flaggedQuestions.filter((q) => q !== questionIndex)
@@ -292,12 +297,12 @@ const ExaminationInterface: React.FC = () => {
       flaggedQuestions: nextFlagged,
     }));
 
-    if (!instanceId || !selectedLabel) {
+    if (!instanceId || !selectedOptionId) {
       return;
     }
 
     try {
-      await persistAnswer(questionIndex, selectedLabel, nextFlagged.includes(questionIndex));
+      await persistAnswer(questionIndex, selectedOptionId, nextFlagged.includes(questionIndex));
     } catch {
       setConnectionStatus('disconnected');
     }
@@ -323,7 +328,10 @@ const ExaminationInterface: React.FC = () => {
     try {
       await apiRequest(`/api/v1/examinations/${examId}/instances/${instanceId}/submit`, {
         method: 'POST',
-        body: JSON.stringify({}),
+        body: JSON.stringify({
+          answers: [],
+          submission_time: new Date().toISOString(),
+        }),
       });
       setExamState((prev) => ({ ...prev, isSubmitted: true, timeRemaining: 0 }));
     } catch (error) {
@@ -545,8 +553,8 @@ const ExaminationInterface: React.FC = () => {
                         key={`${currentQuestionData.id}-${option.label}`}
                         id={`${currentQuestionData.id}-${option.label}`}
                         label={option.label}
-                        selected={examState.answers[examState.currentQuestion] === option.label}
-                        onClick={() => void handleAnswerSelect(examState.currentQuestion, option.label)}
+                        selected={examState.answers[examState.currentQuestion] === option.id}
+                        onClick={() => void handleAnswerSelect(examState.currentQuestion, option.id)}
                       >
                         {option.text}
                       </OptionCard>

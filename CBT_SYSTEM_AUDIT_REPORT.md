@@ -1,5 +1,7 @@
 # CBT System Comprehensive Audit Report
 
+> **Superseded:** This report is outdated (incorrect stack claims). Use **[CBT_SYSTEM_AUDIT_REPORT_v2.md](CBT_SYSTEM_AUDIT_REPORT_v2.md)** (20 May 2026).
+
 **Date:** May 7, 2026  
 **Auditor:** System Analysis Team  
 **System:** Computer-Based Testing (CBT) System for CUSTECH  

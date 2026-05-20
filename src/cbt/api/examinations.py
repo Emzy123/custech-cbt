@@ -3,9 +3,14 @@ Examination management API endpoints.
 """
 
 from typing import List, Optional, Any, Dict
-from fastapi import APIRouter, Depends, HTTPException, status, Query, Response
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Response, Request, Body
+from pydantic import BaseModel
 
 from ..models.exam import Examination, ExamStatus, ExamInstance, ExamInstanceStatus
+from ..models.student import Student
+from ..core.security import security
+from ..core.redis import cache_manager
+from ..services.authorization_service import AuthorizationService
 from ..schemas.exam import (
     ExaminationCreate, ExaminationUpdate, ExaminationResponse,
     ExamInstanceResponse, ExamSubmissionRequest, ExamSubmissionResponse,
@@ -19,6 +24,32 @@ from ..core.database import get_db
 from .deps import get_current_active_user, require_permission
 
 router = APIRouter(prefix="/examinations", tags=["examinations"])
+
+
+class VenueAllocationBody(BaseModel):
+    venue_ids: List[str]
+
+
+async def _ensure_instance_access(instance_id: str, current_user) -> ExamInstance:
+    """Ensure the caller owns the instance or has staff proctoring permissions."""
+    instance = await ExamInstance.get(instance_id)
+    if not instance:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Exam instance not found")
+
+    authz = AuthorizationService(cache_manager)
+    permissions = await authz.get_user_permissions(str(current_user.id))
+    staff_permissions = {"exam.manage", "exam.invigilate", "system.admin", "*"}
+    if permissions.intersection(staff_permissions):
+        return instance
+
+    student = await Student.find_one(Student.user_id == str(current_user.id))
+    if student and str(instance.student_id) == str(student.id):
+        return instance
+
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Not authorized for this exam instance",
+    )
 
 
 @router.post("/", response_model=ExaminationResponse, status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_permission("exam.create"))])
@@ -237,14 +268,14 @@ async def cancel_examination(
 @router.post("/{exam_id}/allocate-venues", dependencies=[Depends(require_permission("exam.manage"))])
 async def allocate_venues(
     exam_id: str,
-    venue_ids: List[str],
+    body: VenueAllocationBody,
     db: Any = Depends(get_db),
     current_user = Depends(get_current_active_user)
 ):
     """Allocate students to specific venues for the examination."""
     try:
         allocation_service = VenueAllocationService(db)
-        result = await allocation_service.allocate_venues(exam_id, venue_ids, current_user.id)
+        result = await allocation_service.allocate_venues(exam_id, body.venue_ids, current_user.id)
         return result
     except ValueError as e:
         raise HTTPException(
@@ -340,13 +371,34 @@ async def get_exam_instance(
 async def start_exam(
     exam_id: str,
     start_request: ExamStartRequest,
+    request: Request,
     db: Any = Depends(get_db),
     current_user = Depends(get_current_active_user)
 ) -> ExamStartResponse:
     """Start exam for student."""
     try:
+        student = await Student.find_one(Student.user_id == str(current_user.id))
+        if not student:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Student profile not found for this account",
+            )
+
+        student_id = start_request.student_id or str(student.id)
+        if str(student_id) != str(student.id):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Cannot start an exam for another student",
+            )
+
+        if not start_request.rules_accepted:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Exam rules must be accepted before starting",
+            )
+
         exam_service = ExamService(db)
-        result = await exam_service.start_exam(exam_id, start_request.student_id, current_user.id)
+        result = await exam_service.start_exam(exam_id, student_id, current_user.id)
         if not result.success:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -371,6 +423,7 @@ async def get_exam_paper(
 ) -> Dict[str, Any]:
     """Get randomized exam paper."""
     try:
+        await _ensure_instance_access(instance_id, current_user)
         exam_service = ExamService(db)
         return await exam_service.get_paper(instance_id)
     except Exception as e:
@@ -390,6 +443,7 @@ async def save_answer(
 ) -> Dict[str, Any]:
     """Autosave answer."""
     try:
+        await _ensure_instance_access(instance_id, current_user)
         exam_service = ExamService(db)
         return await exam_service.save_answer(instance_id, answer)
     except Exception as e:
@@ -408,6 +462,7 @@ async def sync_clock(
 ) -> Dict[str, Any]:
     """Sync exam clock."""
     try:
+        await _ensure_instance_access(instance_id, current_user)
         exam_service = ExamService(db)
         return await exam_service.sync_clock(instance_id)
     except Exception as e:
@@ -427,6 +482,7 @@ async def log_proctoring_event(
 ) -> Dict[str, Any]:
     """Log proctoring event like focus loss."""
     try:
+        await _ensure_instance_access(instance_id, current_user)
         exam_service = ExamService(db)
         return await exam_service.log_proctoring_event(instance_id, event)
     except Exception as e:
@@ -440,12 +496,15 @@ async def log_proctoring_event(
 async def submit_exam(
     exam_id: str,
     instance_id: str,
-    submission: ExamSubmissionRequest,
+    submission: Optional[ExamSubmissionRequest] = Body(default=None),
     db: Any = Depends(get_db),
     current_user = Depends(get_current_active_user)
 ) -> ExamSubmissionResponse:
     """Submit exam answers."""
     try:
+        await _ensure_instance_access(instance_id, current_user)
+        if submission is None:
+            submission = ExamSubmissionRequest()
         exam_service = ExamService(db)
         result = await exam_service.submit_exam(instance_id, submission, current_user.id)
         if not result.success:
@@ -642,8 +701,14 @@ async def get_my_results(
     current_user = Depends(get_current_active_user),
 ) -> List[Dict[str, Any]]:
     """Return embargo-aware results for the authenticated student."""
+    student = await Student.find_one(Student.user_id == str(current_user.id))
+    if not student:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Student profile not found for this account",
+        )
     exam_service = ExamService(db)
-    return await exam_service.get_student_results(current_user.id, exam_id)
+    return await exam_service.get_student_results(str(student.id), exam_id)
 
 
 @router.get("/{exam_id}/analytics/items", dependencies=[Depends(require_permission("exam.manage"))])

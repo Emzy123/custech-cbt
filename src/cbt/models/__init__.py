@@ -8,6 +8,7 @@ from .academic import AcademicSession, Semester, Department, Course, CourseDepar
 from .student import Student, StudentCourse
 from .question import QuestionBank, Question, QuestionOption, QuestionAnswer
 from .exam import Examination, ExamQuestion, ExamInstance, ExamAnswer
+from .venue import Venue, ExamVenueAssignment
 from .biometric import BiometricTemplate
 from .security import (
     UserSession,
@@ -37,6 +38,8 @@ __all__ = [
     "ExamQuestion",
     "ExamInstance",
     "ExamAnswer",
+    "Venue",
+    "ExamVenueAssignment",
     "UserSession",
     "BiometricTemplate",
     "AuditLog",

@@ -41,6 +41,7 @@ async def init_db():
         from ..models.student import Student, StudentCourse
         from ..models.question import QuestionBank, Question, QuestionOption, QuestionAnswer
         from ..models.exam import Examination, ExamQuestion, ExamInstance, ExamAnswer
+        from ..models.venue import Venue, ExamVenueAssignment
         from ..models.security import (
             UserSession,
             AuditLog,
@@ -64,6 +65,7 @@ async def init_db():
             AcademicSession, Semester, Student, StudentCourse,
             QuestionBank, Question, QuestionOption, QuestionAnswer,
             Examination, ExamQuestion, ExamInstance, ExamAnswer,
+            Venue, ExamVenueAssignment,
             UserSession, AuditLog, SecurityEvent, SecurityScan, Vulnerability,
             BiometricTemplate, BiometricVerification, BiometricDevice,
             BiometricSession, BiometricAnomaly, BiometricConfiguration,

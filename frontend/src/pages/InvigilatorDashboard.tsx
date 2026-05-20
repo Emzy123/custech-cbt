@@ -24,6 +24,7 @@ import { apiRequest, logout } from '../lib/api';
 
 interface Student {
   id: string;
+  instanceId?: string;
   name: string;
   matricNumber: string;
   courseCode: string;
@@ -91,7 +92,8 @@ const InvigilatorDashboard: React.FC = () => {
           const status: 'normal' | 'warning' | 'critical' =
             strikes >= 3 ? 'critical' : strikes >= 1 ? 'warning' : 'normal';
           return {
-            id: String(s.id || s.student_id || ''),
+            id: String(s.student_id || ''),
+            instanceId: String(s.id || ''),
             name: String(s.student_name || 'Student'),
             matricNumber: String(s.matric_number || ''),
             courseCode: String(s.course_code || ''),
@@ -151,17 +153,17 @@ const InvigilatorDashboard: React.FC = () => {
   const handleStudentAction = async (studentId: string, action: 'message' | 'pause' | 'terminate') => {
     try {
       const cachedExamId = localStorage.getItem('activeExamId');
-      if (!cachedExamId) return;
-      // Unified endpoint: invigilator actions now live under the exam instances path
-      const endpoint = `/api/v1/examinations/${cachedExamId}/instances/${studentId}/${action}`;
-      await apiRequest(endpoint, {
-        method: 'POST',
-        body: JSON.stringify(
-          action === 'message'
-            ? { message: 'Please focus and continue your exam.' }
-            : {}
-        ),
-      });
+      if (!cachedExamId || !studentId) return;
+
+      const base = `/api/v1/invigilator-dashboard/examination/${cachedExamId}/student/${studentId}`;
+      if (action === 'message') {
+        const message = encodeURIComponent('Please focus and continue your exam.');
+        await apiRequest(`${base}/message?message=${message}`, { method: 'POST' });
+      } else if (action === 'pause') {
+        await apiRequest(`${base}/pause?reason=${encodeURIComponent('Invigilator pause')}`, { method: 'POST' });
+      } else {
+        await apiRequest(`${base}/terminate?reason=${encodeURIComponent('Invigilator termination')}`, { method: 'POST' });
+      }
       
       if (action === 'terminate') {
         setStudents(prev => prev.filter(s => s.id !== studentId));

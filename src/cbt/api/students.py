@@ -45,7 +45,7 @@ async def create_student(
 async def list_students(
     department_id: Optional[str] = Query(None),
     level: Optional[int] = Query(None),
-    status: Optional[StudentStatus] = Query(None),
+    student_status: Optional[StudentStatus] = Query(None, alias="status"),
     academic_session: Optional[str] = Query(None),
     limit: int = Query(50, le=100),
     cursor: Optional[str] = Query(None),
@@ -58,7 +58,7 @@ async def list_students(
         search_params = StudentSearch(
             department_id=department_id,
             level=level,
-            status=status,
+            status=student_status,
             academic_session=academic_session,
             limit=limit,
             cursor=cursor

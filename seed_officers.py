@@ -6,6 +6,9 @@ import os
 import sys
 from datetime import datetime, timezone
 
+from dotenv import load_dotenv
+
+load_dotenv()
 sys.path.insert(0, 'src')
 
 from cbt.core.database import init_db

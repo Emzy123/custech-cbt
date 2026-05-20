@@ -7,6 +7,14 @@ module.exports = {
   theme: {
     extend: {
       colors: {
+        // Flat aliases (used across dashboards; nested keys are text-*, bg-bg-*, etc.)
+        dark: '#181818',
+        darker: '#202020',
+        muted: '#747474',
+        light: '#F4F4F4',
+        heading: '#161616',
+        body: '#6B6B6B',
+        placeholder: '#5E5E5E',
         // CUStech Brand Colors
         'custech': {
           primary: '#591F00',
@@ -94,6 +102,13 @@ module.exports = {
         'elevation-1': '0 1px 3px rgba(0,0,0,0.08)',
         'elevation-2': '0 4px 12px rgba(0,0,0,0.10)',
         'elevation-3': '0 8px 24px rgba(0,0,0,0.14)',
+      },
+      borderColor: {
+        DEFAULT: '#E6E6E6',
+        default: '#E6E6E6',
+        light: '#D7D7D7',
+        input: '#D7D7D7',
+        nav: '#E8E8E8',
       },
       borderRadius: {
         'sm': '4px',

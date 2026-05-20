@@ -73,6 +73,9 @@ class ExaminationUpdate(BaseModel):
     show_results_immediately: Optional[bool] = None
     max_attempts: Optional[int] = None
     settings: Optional[Dict[str, Any]] = None
+    release_mode: Optional[str] = None
+    release_at: Optional[datetime] = None
+    embargo_active: Optional[bool] = None
 
 
 class ExaminationResponse(ExaminationBase):
@@ -150,17 +153,10 @@ class ExamInstanceResponse(ExamInstanceBase):
 
 class ExamSubmissionRequest(BaseModel):
     """Exam submission request schema."""
-    answers: List[Dict[str, Any]]  # List of answer data
-    submission_time: datetime
+    answers: List[Dict[str, Any]] = []
+    submission_time: Optional[datetime] = None
     client_ip: Optional[str] = None
     user_agent: Optional[str] = None
-
-    @field_validator("answers")
-    @classmethod
-    def validate_answers(cls, v: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        if not v:
-            raise ValueError("At least one answer must be provided")
-        return v
 
 
 class ExamSubmissionResponse(BaseModel):
@@ -177,8 +173,8 @@ class ExamSubmissionResponse(BaseModel):
 
 class ExamStartRequest(BaseModel):
     """Exam start request schema."""
-    student_id: str
-    device_fingerprint: str
+    student_id: Optional[str] = None
+    device_fingerprint: Optional[str] = None
     client_ip: Optional[str] = None
     user_agent: Optional[str] = None
     biometric_verified: bool = False
@@ -205,12 +201,19 @@ class ExamStartResponse(BaseModel):
     success: bool
     message: str
     instance_id: str
+    attempt_id: Optional[str] = None
     start_time: datetime
     end_time: datetime
     duration_minutes: int
     question_count: int
     total_points: int
     biometric_required: bool
+
+    @model_validator(mode="after")
+    def sync_attempt_id(self) -> Self:
+        if not self.attempt_id:
+            self.attempt_id = self.instance_id
+        return self
 
 
 class ExamReviewResponse(BaseModel):

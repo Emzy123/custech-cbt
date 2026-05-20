@@ -290,7 +290,7 @@ const LecturerDashboard: React.FC = () => {
 
   const handleSubmitForReview = async (id: string) => {
     try {
-      await apiRequest(`/api/v1/questions/${id}/submit`, { method: 'POST' });
+      await apiRequest(`/api/v1/questions/${id}/submit-for-review`, { method: 'POST' });
       setQuestions(prev => prev.map(q => q.id === id ? { ...q, status: 'submitted' } : q));
     } catch (err: any) {
       alert(err.message || 'Failed to submit for review.');

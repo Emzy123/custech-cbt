@@ -4,6 +4,10 @@ Seed script — creates the SUPER_ADMIN user in MongoDB.
 import asyncio
 import os
 import sys
+
+from dotenv import load_dotenv
+
+load_dotenv()
 sys.path.insert(0, 'src')
 
 from cbt.core.database import init_db

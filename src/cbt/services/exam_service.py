@@ -420,6 +420,12 @@ class ExamService:
         instance = await self.get_exam_instance(instance_id)
         if not instance or instance.status != ExamInstanceStatus.IN_PROGRESS:
             raise ValueError("Invalid or inactive exam instance")
+
+        resolved_option_id = await self._resolve_selected_option_id(
+            answer_data.question_id,
+            answer_data.selected_option_id,
+            instance_id=instance_id,
+        )
             
         exam_answer = await ExamAnswer.find_one(
             ExamAnswer.exam_instance_id == instance_id,
@@ -428,7 +434,7 @@ class ExamService:
         if not exam_answer:
             exam_answer = ExamAnswer(exam_instance_id=instance_id, question_id=answer_data.question_id)
             
-        exam_answer.selected_option_id = answer_data.selected_option_id
+        exam_answer.selected_option_id = resolved_option_id
         exam_answer.answer_text = answer_data.answer_text
         exam_answer.is_marked_for_review = answer_data.is_flagged
         await exam_answer.save()
@@ -518,16 +524,37 @@ class ExamService:
                     grade=None,
                 )
 
+            submission_time = submission_data.submission_time or datetime.now(timezone.utc)
             total_points_earned = 0
             processed_answers = 0
 
-            for answer_data in submission_data.answers:
+            answer_rows = list(submission_data.answers or [])
+            if not answer_rows:
+                saved = await ExamAnswer.find(
+                    ExamAnswer.exam_instance_id == instance.id
+                ).to_list()
+                for row in saved:
+                    if not row.selected_option_id and not row.answer_text:
+                        continue
+                    answer_rows.append({
+                        "question_id": row.question_id,
+                        "selected_option_id": row.selected_option_id,
+                        "answer_text": row.answer_text,
+                    })
+
+            for answer_data in answer_rows:
                 question_id = answer_data.get('question_id')
                 selected_option_id = answer_data.get('selected_option_id')
                 answer_text = answer_data.get('answer_text')
                 question = await Question.find_one(Question.id == question_id)
                 if not question:
                     continue
+
+                selected_option_id = await self._resolve_selected_option_id(
+                    question_id,
+                    selected_option_id,
+                    instance_id=instance.id,
+                )
 
                 points_earned = await self._calculate_answer_points(
                     question, selected_option_id, answer_text
@@ -547,7 +574,7 @@ class ExamService:
                 exam_answer.is_correct = points_earned > 0
                 await exam_answer.save()
 
-            instance.end_time = submission_data.submission_time
+            instance.end_time = submission_time
             instance.status = ExamInstanceStatus.SUBMITTED
             instance.total_points_earned = total_points_earned
             instance.percentage_score = (total_points_earned / instance.total_points_possible) * 100 if instance.total_points_possible > 0 else 0
@@ -954,6 +981,34 @@ class ExamService:
                 questions.append(q)
         return questions
     
+    async def _resolve_selected_option_id(
+        self,
+        question_id: str,
+        selected_option_id: Optional[str],
+        instance_id: Optional[str] = None,
+    ) -> Optional[str]:
+        """Map option letter labels to stored option IDs when needed."""
+        if not selected_option_id:
+            return None
+
+        existing = await QuestionOption.find_one(
+            QuestionOption.question_id == question_id,
+            QuestionOption.id == selected_option_id,
+        )
+        if existing:
+            return str(existing.id)
+
+        label = str(selected_option_id).strip().upper()
+        if len(label) == 1 and label in "ABCDE":
+            options = await QuestionOption.find(
+                QuestionOption.question_id == question_id
+            ).sort("+order").to_list()
+            idx = ord(label) - ord("A")
+            if 0 <= idx < len(options):
+                return str(options[idx].id)
+
+        return selected_option_id
+
     async def _calculate_answer_points(self, question, selected_option_id: str, answer_text: str) -> int:
         """Calculate points earned for answer."""
         # Get correct answer
@@ -963,7 +1018,7 @@ class ExamService:
                 QuestionOption.question_id == question.id,
                 QuestionOption.is_correct == True
             )
-            if correct_option and selected_option_id == correct_option.id:
+            if correct_option and selected_option_id and str(selected_option_id) == str(correct_option.id):
                 return question.points_value
             return 0
         else:
