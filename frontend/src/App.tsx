@@ -5,10 +5,10 @@ import StudentDashboard from './pages/StudentDashboard';
 import ExaminationInterface from './pages/ExaminationInterface';
 import LecturerQuestionBank from './pages/LecturerQuestionBank';
 import LecturerDashboard from './pages/LecturerDashboard';
-import InvigilatorDashboard from './pages/InvigilatorDashboard';
 import ImplementationRoadmap from './pages/ImplementationRoadmap';
 import AdminDashboard from './pages/AdminDashboard';
 import ExamOfficerDashboard from './pages/ExamOfficerDashboard';
+import StudentResultsReview from './pages/StudentResultsReview';
 import { getAuthToken } from './lib/api';
 import './index.css';
 
@@ -27,12 +27,22 @@ function getStoredRole(): string {
   return '';
 }
 
+function getStoredUsername(): string {
+  try {
+    const raw = localStorage.getItem('authUser');
+    if (!raw) return '';
+    const user = JSON.parse(raw) as { username?: string };
+    return user.username || '';
+  } catch {
+    // ignore parse errors
+  }
+  return '';
+}
+
 /** Destination route for each role after login. */
 function roleHomeRoute(role: string): string {
   switch (role) {
-    case 'admin': case 'administrator': case 'super_admin': return '/admin/dashboard';
-    case 'officer': case 'exam_officer': return '/officer';
-    case 'invigilator': return '/invigilator/dashboard';
+    case 'admin': case 'administrator': case 'super_admin': case 'officer': case 'exam_officer': return '/admin/dashboard';
     case 'lecturer': return '/lecturer/dashboard';
     default: return '/dashboard'; // student
   }
@@ -55,6 +65,14 @@ const RoleRoute: React.FC<{ allowed: string[]; children: React.ReactNode }> = ({
     return <Navigate to={roleHomeRoute(role)} replace />;
   }
   return <>{children}</>;
+};
+
+const AdminOrOfficerDashboard: React.FC = () => {
+  const username = getStoredUsername();
+  if (username === 'examofficer') {
+    return <ExamOfficerDashboard />;
+  }
+  return <AdminDashboard />;
 };
 
 // ── App ───────────────────────────────────────────────────────────────────────
@@ -83,6 +101,14 @@ function App() {
             </ProtectedRoute>
           }
         />
+        <Route
+          path="/exam/:examId/instances/:instanceId/review"
+          element={
+            <ProtectedRoute>
+              <StudentResultsReview />
+            </ProtectedRoute>
+          }
+        />
 
         {/* Lecturer */}
         <Route
@@ -102,32 +128,12 @@ function App() {
           }
         />
 
-        {/* Invigilator */}
-        <Route
-          path="/invigilator/dashboard"
-          element={
-            <RoleRoute allowed={['invigilator', 'admin', 'administrator', 'super_admin']}>
-              <InvigilatorDashboard />
-            </RoleRoute>
-          }
-        />
-
-        {/* Exam Officer */}
-        <Route
-          path="/officer"
-          element={
-            <RoleRoute allowed={['officer', 'exam_officer', 'admin', 'administrator', 'super_admin']}>
-              <ExamOfficerDashboard />
-            </RoleRoute>
-          }
-        />
-
-        {/* Admin */}
+        {/* Admin / Exam Officer */}
         <Route
           path="/admin/dashboard"
           element={
-            <RoleRoute allowed={['admin', 'administrator', 'super_admin']}>
-              <AdminDashboard />
+            <RoleRoute allowed={['admin', 'administrator', 'super_admin', 'officer', 'exam_officer']}>
+              <AdminOrOfficerDashboard />
             </RoleRoute>
           }
         />

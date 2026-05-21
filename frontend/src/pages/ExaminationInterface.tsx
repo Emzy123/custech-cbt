@@ -186,22 +186,7 @@ const ExaminationInterface: React.FC = () => {
     return () => window.clearInterval(handle);
   }, [instanceId, examId, examState.isSubmitted, showTimeWarning, drainOfflineQueue]);
 
-  useEffect(() => {
-    if (!instanceId || examState.isSubmitted) {
-      return;
-    }
 
-    const sendFocusEvent = () => {
-      if (document.visibilityState !== 'hidden') return;
-      void apiRequest(`/api/v1/examinations/${examId}/instances/${instanceId}/proctoring/events`, {
-        method: 'POST',
-        body: JSON.stringify({ event_type: 'focus_lost', payload: { source: 'visibility' } }),
-      }).catch(() => undefined);
-    };
-
-    document.addEventListener('visibilitychange', sendFocusEvent);
-    return () => document.removeEventListener('visibilitychange', sendFocusEvent);
-  }, [instanceId, examId, examState.isSubmitted]);
 
   const answeredQuestions = useMemo(
     () =>
@@ -386,13 +371,11 @@ const ExaminationInterface: React.FC = () => {
           </div>
           
           <ol className="space-y-3 text-body list-decimal list-inside mb-8">
-            <li>You must complete this examination within the allotted time</li>
-            <li>You cannot navigate to other websites or applications during the exam</li>
-            <li>All answers must be submitted before the time expires</li>
-            <li>You cannot refresh the page or open new browser tabs</li>
-            <li>Any attempt to cheat will result in automatic disqualification</li>
-            <li>Ensure you have a stable internet connection throughout the exam</li>
-            <li>Your screen may be monitored for academic integrity</li>
+            <li>Ensure you complete the examination within the allotted countdown time.</li>
+            <li>All questions are multiple-choice. Select the best option for each question.</li>
+            <li>Ensure you submit your answers by clicking "Submit Exam" when done.</li>
+            <li>If your time expires, your current progress will be automatically submitted.</li>
+            <li>Make sure you have a stable connection throughout the session.</li>
           </ol>
           
           <label className="flex items-start gap-3 mb-6 cursor-pointer">

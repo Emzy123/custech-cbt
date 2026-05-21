@@ -16,7 +16,7 @@ from .core.redis import redis_manager
 from .core.security import security
 from .api.middleware import setup_cors_middleware, setup_security_middleware
 from .services.audit_service import AuditService
-from .api import auth, students, courses, examinations, questions, exam_blueprint, biometric, proctoring, webcam_proctoring, invigilator_dashboard, academics, venues, audit, users, security_hardening, pilot_examination, deployment, question_security
+from .api import auth, students, courses, examinations, questions, academics, users
 
 # Configure logging
 log_file_path = Path(settings.log_file)
@@ -212,27 +212,10 @@ app.include_router(users.router, prefix=settings.api_v1_str)
 app.include_router(students.router, prefix=settings.api_v1_str)
 app.include_router(courses.router, prefix=settings.api_v1_str)
 app.include_router(academics.router, prefix=settings.api_v1_str)
-app.include_router(venues.router, prefix=settings.api_v1_str)
 app.include_router(examinations.router, prefix=settings.api_v1_str)
-app.include_router(audit.router, prefix=settings.api_v1_str)
-app.include_router(security_hardening.router, prefix=settings.api_v1_str)
 
 # Question bank
 app.include_router(questions.router, prefix=settings.api_v1_str)
-app.include_router(exam_blueprint.router, prefix=settings.api_v1_str)
-app.include_router(question_security.router, prefix=settings.api_v1_str)
-
-# Biometric & proctoring
-app.include_router(biometric.router, prefix=settings.api_v1_str)
-app.include_router(proctoring.router, prefix=settings.api_v1_str)
-app.include_router(webcam_proctoring.router, prefix=settings.api_v1_str)
-
-# Invigilator
-app.include_router(invigilator_dashboard.router, prefix=settings.api_v1_str)
-
-# Pilot & deployment
-app.include_router(pilot_examination.router, prefix=settings.api_v1_str)
-app.include_router(deployment.router, prefix=settings.api_v1_str)
 
 
 if __name__ == "__main__":

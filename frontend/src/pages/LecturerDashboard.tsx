@@ -21,6 +21,7 @@ import {
   DownloadSimple,
   FileCsv,
   ChartBar,
+  Users,
 } from '@phosphor-icons/react';
 import Button from '../components/ui/Button';
 import { apiRequest, logout } from '../lib/api';
@@ -62,6 +63,18 @@ interface ExaminationApi {
   duration_minutes: number;
   status: string;
   total_questions?: number;
+}
+
+interface StudentRow {
+  id: string;
+  first_name: string;
+  last_name: string;
+  email: string;
+  matric_number: string;
+  department_id: string;
+  department_code?: string;
+  department_name?: string;
+  is_active: boolean;
 }
 
 type ActiveTab = 'overview' | 'questions' | 'exams';
@@ -110,6 +123,20 @@ const LecturerDashboard: React.FC = () => {
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [importPreview, setImportPreview] = useState<QuestionFormData[]>([]);
 
+  // Registered students modal states
+  const [showStudentsModal, setShowStudentsModal] = useState(false);
+  const [studentsModalExam, setStudentsModalExam] = useState<ExaminationApi | null>(null);
+  const [examStudents, setExamStudents] = useState<StudentRow[]>([]);
+  const [studentsLoading, setStudentsLoading] = useState(false);
+  const [studentsError, setStudentsError] = useState<string | null>(null);
+
+  // Exam Results modal states
+  const [showResultsModal, setShowResultsModal] = useState(false);
+  const [resultsModalExam, setResultsModalExam] = useState<ExaminationApi | null>(null);
+  const [examResults, setExamResults] = useState<any[]>([]);
+  const [resultsLoading, setResultsLoading] = useState(false);
+  const [resultsError, setResultsError] = useState<string | null>(null);
+
   // Load user info and assigned courses
   useEffect(() => {
     const raw = localStorage.getItem('authUser');
@@ -155,7 +182,7 @@ const LecturerDashboard: React.FC = () => {
   const loadExams = useCallback(async (courseId: string) => {
     setExamsLoading(true);
     try {
-      const data = await apiRequest<ExaminationApi[]>(`/api/v1/examinations?course_id=${courseId}&limit=50`);
+      const data = await apiRequest<ExaminationApi[]>(`/api/v1/examinations/?course_id=${courseId}&limit=50`);
       setExams(Array.isArray(data) ? data : []);
     } catch {
       setExams([]);
@@ -163,6 +190,63 @@ const LecturerDashboard: React.FC = () => {
       setExamsLoading(false);
     }
   }, []);
+
+  const handleViewStudents = async (exam: ExaminationApi) => {
+    setStudentsModalExam(exam);
+    setShowStudentsModal(true);
+    setStudentsLoading(true);
+    setStudentsError(null);
+    try {
+      const data = await apiRequest<StudentRow[]>(`/api/v1/examinations/${exam.id}/registered-students`);
+      setExamStudents(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error('Failed to load registered students', err);
+      setStudentsError('Failed to load registered students. Please check your network connection.');
+      setExamStudents([]);
+    } finally {
+      setStudentsLoading(false);
+    }
+  };
+
+  const handleViewResults = async (exam: ExaminationApi) => {
+    setResultsModalExam(exam);
+    setShowResultsModal(true);
+    setResultsLoading(true);
+    setResultsError(null);
+    try {
+      const data = await apiRequest<{ results: any[] }>(`/api/v1/examinations/${exam.id}/results?format=detail`);
+      setExamResults(Array.isArray(data.results) ? data.results : []);
+    } catch (err) {
+      console.error('Failed to load exam results', err);
+      setResultsError('Failed to load exam results. Please check your network connection.');
+      setExamResults([]);
+    } finally {
+      setResultsLoading(false);
+    }
+  };
+
+  const handleExportCSV = async (examId: string) => {
+    try {
+      const token = localStorage.getItem('authToken');
+      const response = await fetch(`/api/v1/examinations/${examId}/results/export`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      if (!response.ok) {
+        throw new Error(`Failed to export: ${response.statusText}`);
+      }
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `results_${examId}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Failed to export results');
+    }
+  };
 
   useEffect(() => {
     if (!selectedCourse) return;
@@ -680,6 +764,7 @@ const LecturerDashboard: React.FC = () => {
                         <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Date</th>
                         <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Duration</th>
                         <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Status</th>
+                        <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -692,6 +777,26 @@ const LecturerDashboard: React.FC = () => {
                             <span className={`text-xs px-2 py-1 rounded-full font-medium ${ex.status === 'published' ? 'bg-emerald-100 text-emerald-700' : ex.status === 'completed' ? 'bg-slate-100 text-slate-700' : 'bg-amber-100 text-amber-700'}`}>
                               {ex.status || 'draft'}
                             </span>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => handleViewStudents(ex)}
+                                className="inline-flex items-center gap-1 px-2 py-1 bg-custech-primary/10 text-custech-primary hover:bg-custech-primary hover:text-white rounded-lg transition-colors font-medium text-xs"
+                                title="View Registered Students"
+                              >
+                                <Users size={14} />
+                                Students
+                              </button>
+                              <button
+                                onClick={() => handleViewResults(ex)}
+                                className="inline-flex items-center gap-1 px-2 py-1 bg-custech-green/10 text-custech-green hover:bg-custech-green hover:text-white rounded-lg transition-colors font-medium text-xs"
+                                title="View Graded Results"
+                              >
+                                <ChartBar size={14} />
+                                Results
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -819,6 +924,230 @@ const LecturerDashboard: React.FC = () => {
                 className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg text-sm font-medium"
               >
                 {isSubmitting ? 'Importing...' : `Import ${importPreview.length} Questions`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Registered Students Modal */}
+      {showStudentsModal && studentsModalExam && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col animate-fade-in">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-5 border-b border-slate-100 bg-slate-50/50">
+              <div>
+                <h3 className="font-semibold text-lg text-slate-800">
+                  Registered Students
+                </h3>
+                <p className="text-xs text-slate-400 mt-1">
+                  Examination: <span className="font-medium text-slate-600">{studentsModalExam.title}</span>
+                </p>
+              </div>
+              <button 
+                onClick={() => setShowStudentsModal(false)} 
+                className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 overflow-y-auto flex-1 min-h-[300px]">
+              {studentsLoading ? (
+                <div className="flex flex-col items-center justify-center py-20 text-slate-400 gap-3">
+                  <div className="w-10 h-10 border-4 border-custech-primary border-t-transparent rounded-full animate-spin"></div>
+                  <p className="text-sm font-medium">Fetching registered students list...</p>
+                </div>
+              ) : studentsError ? (
+                <div className="text-center py-16 text-red-500 space-y-2">
+                  <XCircle size={40} className="mx-auto" />
+                  <p className="font-semibold">{studentsError}</p>
+                </div>
+              ) : examStudents.length === 0 ? (
+                <div className="text-center py-16 text-slate-400">
+                  <Users size={48} className="mx-auto mb-3 text-slate-300" />
+                  <p className="font-semibold text-slate-600">No registered students found</p>
+                  <p className="text-sm text-slate-400 mt-1">No students have registered for this exam course under the current session.</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {/* Summary card inside modal */}
+                  <div className="bg-slate-50 border border-slate-200/60 rounded-xl p-4 flex items-center justify-between">
+                    <div>
+                      <span className="text-xs text-slate-400 block font-medium uppercase tracking-wider">Total Registrations</span>
+                      <span className="text-xl font-bold text-slate-800">{examStudents.length} students</span>
+                    </div>
+                    <div className="bg-slate-200/55 p-2 rounded-lg text-slate-500">
+                      <Users size={20} />
+                    </div>
+                  </div>
+
+                  {/* Student list table inside modal */}
+                  <div className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm">
+                    <div className="overflow-x-auto max-h-[45vh]">
+                      <table className="w-full text-sm text-left border-collapse">
+                        <thead className="bg-slate-50 text-slate-500 text-xs font-semibold border-b border-slate-200 sticky top-0 z-10">
+                          <tr>
+                            <th className="px-5 py-3.5">S/N</th>
+                            <th className="px-5 py-3.5">Matric Number</th>
+                            <th className="px-5 py-3.5">Name</th>
+                            <th className="px-5 py-3.5">Email</th>
+                            <th className="px-5 py-3.5">Department</th>
+                            <th className="px-5 py-3.5">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 text-slate-700">
+                          {examStudents.map((student, idx) => (
+                            <tr key={student.id} className="hover:bg-slate-50/50 transition-colors">
+                              <td className="px-5 py-3.5 font-medium text-slate-400">{idx + 1}</td>
+                              <td className="px-5 py-3.5 font-semibold text-custech-primary">{student.matric_number}</td>
+                              <td className="px-5 py-3.5 font-medium text-slate-800">{student.first_name} {student.last_name}</td>
+                              <td className="px-5 py-3.5 text-slate-500">{student.email}</td>
+                              <td className="px-5 py-3.5 text-slate-500">
+                                {student.department_code ? `${student.department_code} - ${student.department_name}` : student.department_id || '—'}
+                              </td>
+                              <td className="px-5 py-3.5">
+                                <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${
+                                  student.is_active 
+                                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/50' 
+                                    : 'bg-red-50 text-red-700 border border-red-200/50'
+                                }`}>
+                                  {student.is_active ? 'Active' : 'Inactive'}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-5 border-t border-slate-100 flex justify-end bg-slate-50/50">
+              <button 
+                onClick={() => setShowStudentsModal(false)} 
+                className="px-4 py-2 border border-slate-200 hover:bg-slate-100 text-slate-700 rounded-lg text-sm font-medium transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Exam Results Modal */}
+      {showResultsModal && resultsModalExam && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col animate-fade-in">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-5 border-b border-slate-100 bg-slate-50/50">
+              <div>
+                <h3 className="font-semibold text-lg text-slate-800">
+                  Student Results
+                </h3>
+                <p className="text-xs text-slate-400 mt-1">
+                  Examination: <span className="font-medium text-slate-600">{resultsModalExam.title}</span>
+                </p>
+              </div>
+              <button 
+                onClick={() => setShowResultsModal(false)} 
+                className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 overflow-y-auto flex-1 min-h-[300px]">
+              {resultsLoading ? (
+                <div className="flex flex-col items-center justify-center py-20 text-slate-400 gap-3">
+                  <div className="w-10 h-10 border-4 border-custech-primary border-t-transparent rounded-full animate-spin"></div>
+                  <p className="text-sm font-medium">Fetching examination results...</p>
+                </div>
+              ) : resultsError ? (
+                <div className="text-center py-16 text-red-500 space-y-2">
+                  <XCircle size={40} className="mx-auto" />
+                  <p className="font-semibold">{resultsError}</p>
+                </div>
+              ) : examResults.length === 0 ? (
+                <div className="text-center py-16 text-slate-400">
+                  <ChartBar size={48} className="mx-auto mb-3 text-slate-300" />
+                  <p className="font-semibold text-slate-600">No results found</p>
+                  <p className="text-sm text-slate-400 mt-1">No students have taken or submitted results for this exam yet.</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {/* Summary card inside modal */}
+                  <div className="bg-slate-50 border border-slate-200/60 rounded-xl p-4 flex items-center justify-between">
+                    <div>
+                      <span className="text-xs text-slate-400 block font-medium uppercase tracking-wider">Total Submissions</span>
+                      <span className="text-xl font-bold text-slate-800">{examResults.length} students graded</span>
+                    </div>
+                    <button
+                      onClick={() => handleExportCSV(resultsModalExam.id)}
+                      className="inline-flex items-center gap-1.5 px-4 py-2 bg-custech-green hover:bg-emerald-700 text-white rounded-lg transition-colors font-semibold text-sm shadow"
+                    >
+                      <DownloadSimple size={16} weight="bold" />
+                      Export to CSV
+                    </button>
+                  </div>
+
+                  {/* Results table inside modal */}
+                  <div className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm">
+                    <div className="overflow-x-auto max-h-[45vh]">
+                      <table className="w-full text-sm text-left border-collapse">
+                        <thead className="bg-slate-50 text-slate-500 text-xs font-semibold border-b border-slate-200 sticky top-0 z-10">
+                          <tr>
+                            <th className="px-5 py-3.5">S/N</th>
+                            <th className="px-5 py-3.5">Matric No</th>
+                            <th className="px-5 py-3.5">Student Name</th>
+                            <th className="px-5 py-3.5">Score</th>
+                            <th className="px-5 py-3.5">Percentage</th>
+                            <th className="px-5 py-3.5">Grade</th>
+                            <th className="px-5 py-3.5">Date Taken</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 text-slate-700">
+                          {examResults.map((res, idx) => (
+                            <tr key={res.matric_number} className="hover:bg-slate-50/50 transition-colors">
+                              <td className="px-5 py-3.5 font-medium text-slate-400">{idx + 1}</td>
+                              <td className="px-5 py-3.5 font-semibold text-custech-primary">{res.matric_number}</td>
+                              <td className="px-5 py-3.5 font-medium text-slate-800">{res.student_name}</td>
+                              <td className="px-5 py-3.5 font-medium text-slate-700">{res.score} / {res.total_questions}</td>
+                              <td className="px-5 py-3.5 font-semibold text-slate-800">{res.percentage}%</td>
+                              <td className="px-5 py-3.5">
+                                <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-bold ${
+                                  res.grade === 'A' || res.grade === 'B'
+                                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/50' 
+                                    : res.grade === 'F'
+                                    ? 'bg-red-50 text-red-700 border border-red-200/50'
+                                    : 'bg-amber-50 text-amber-700 border border-amber-200/50'
+                                }`}>
+                                  {res.grade}
+                                </span>
+                              </td>
+                              <td className="px-5 py-3.5 text-slate-500">
+                                {new Date(res.date_taken).toLocaleDateString()}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-5 border-t border-slate-100 flex justify-end bg-slate-50/50">
+              <button 
+                onClick={() => setShowResultsModal(false)} 
+                className="px-4 py-2 border border-slate-200 hover:bg-slate-100 text-slate-700 rounded-lg text-sm font-medium transition-colors"
+              >
+                Close
               </button>
             </div>
           </div>

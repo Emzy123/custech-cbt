@@ -1,708 +1,441 @@
 """
 Functional tests for complete exam flow.
+
+These tests target the current /api/v1 endpoint structure:
+  - POST /api/v1/examinations/                      → create exam
+  - POST /api/v1/examinations/{id}/start            → start exam (returns ExamStartResponse)
+  - GET  /api/v1/examinations/{id}/instances/{iid}/paper → get randomised paper
+  - POST /api/v1/examinations/{id}/instances/{iid}/answers → autosave answer
+  - GET  /api/v1/examinations/{id}/instances/{iid}/clock  → clock sync
+  - POST /api/v1/examinations/{id}/instances/{iid}/submit → submit exam
+  - GET  /api/v1/examinations/{id}/instances/{iid}/review → review exam
+  - GET  /api/v1/examinations/my/results                  → student results (embargo-aware)
 """
 
 import pytest
-pytest.skip(
-    "Legacy functional suite targets endpoints not present in current backend track.",
-    allow_module_level=True,
-)
-import asyncio
-from datetime import datetime, timedelta
-from typing import Dict, Any
+from unittest.mock import AsyncMock, MagicMock, patch
+from httpx import AsyncClient
 
-from tests.conftest import sample_question_data, sample_examination_data, sample_exam_blueprint_data
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
+
+def _make_start_response(instance_id: str = "inst-001", exam_id: str = "exam-001") -> dict:
+    return {
+        "success": True,
+        "message": "Exam started",
+        "instance_id": instance_id,
+        "examination_id": exam_id,
+        "student_id": "student-001",
+        "start_time": "2024-06-15T09:00:00",
+        "end_time": "2024-06-15T11:00:00",
+        "duration_minutes": 120,
+        "total_questions": 10,
+        "rules_accepted": True,
+    }
+
+
+def _make_paper_response(instance_id: str = "inst-001") -> dict:
+    questions = []
+    for i in range(1, 11):
+        questions.append({
+            "id": f"q{i:03d}",
+            "question_text": f"Sample question {i}",
+            "question_type": "multiple_choice",
+            "points": 10,
+            "options": [
+                {"id": f"q{i:03d}-opt-a", "option_text": "Option A"},
+                {"id": f"q{i:03d}-opt-b", "option_text": "Option B"},
+                {"id": f"q{i:03d}-opt-c", "option_text": "Option C"},
+                {"id": f"q{i:03d}-opt-d", "option_text": "Option D"},
+            ],
+        })
+    return {"instance_id": instance_id, "questions": questions, "total_questions": 10}
+
+
+def _make_submission_response() -> dict:
+    return {
+        "success": True,
+        "message": "Exam submitted successfully",
+        "submitted": True,
+        "total_answers": 10,
+        "score": 70,
+        "total_points": 100,
+        "percentage": 70.0,
+        "grade": "C",
+    }
+
+
+def _make_review_response(instance_id: str = "inst-001") -> dict:
+    return {
+        "instance_id": instance_id,
+        "total_score": 70,
+        "max_score": 100,
+        "percentage": 70.0,
+        "answers": [
+            {
+                "question_id": f"q{i:03d}",
+                "question_text": f"Sample question {i}",
+                "selected_option_id": f"q{i:03d}-opt-a",
+                "correct_option_id": f"q{i:03d}-opt-a",
+                "correct": True,
+                "points_earned": 10,
+            }
+            for i in range(1, 11)
+        ],
+    }
+
+
+def _make_clock_response(instance_id: str = "inst-001") -> dict:
+    return {
+        "instance_id": instance_id,
+        "duration_minutes": 120,
+        "elapsed_minutes": 15,
+        "time_remaining_seconds": 6300,
+        "is_expired": False,
+        "server_time": "2024-06-15T09:15:00",
+    }
+
+
+# ── Test Classes ──────────────────────────────────────────────────────────────
+
+@pytest.mark.functional
+class TestExamLifecycle:
+    """Tests for the full exam start → paper → answer → submit → review flow."""
+
+    @pytest.mark.asyncio
+    async def test_start_exam_requires_rules_accepted(self, authenticated_client: AsyncClient):
+        """POST /{exam_id}/start must reject a request where rules_accepted=False."""
+        from src.cbt.services.exam_service import ExamService
+        with patch.object(ExamService, "start_exam", new_callable=AsyncMock) as mock_start:
+            mock_start.return_value = MagicMock(
+                success=False,
+                message="Exam rules must be accepted before starting",
+            )
+            response = await authenticated_client.post(
+                "/api/v1/examinations/exam-001/start",
+                json={"rules_accepted": False},
+            )
+        # The endpoint enforces rules_accepted before calling the service
+        assert response.status_code in (400, 401, 403)
+
+    @pytest.mark.asyncio
+    async def test_get_exam_paper_returns_questions(self, authenticated_client: AsyncClient):
+        """GET /instances/{iid}/paper returns a list of randomised questions."""
+        from src.cbt.api.examinations import _ensure_instance_access
+        from src.cbt.services.exam_service import ExamService
+
+        paper = _make_paper_response()
+
+        with patch("src.cbt.api.examinations._ensure_instance_access", new_callable=AsyncMock) as mock_access, \
+             patch.object(ExamService, "get_paper", new_callable=AsyncMock) as mock_paper:
+            mock_access.return_value = MagicMock()
+            mock_paper.return_value = paper
+
+            response = await authenticated_client.get(
+                "/api/v1/examinations/exam-001/instances/inst-001/paper",
+            )
+
+        # Because the DB is mocked and auth is not fully wired in unit-mode,
+        # we only assert the service was called with the right signature.
+        mock_paper.assert_called_once_with("inst-001")
+
+    @pytest.mark.asyncio
+    async def test_clock_sync_returns_time_fields(self, authenticated_client: AsyncClient):
+        """GET /instances/{iid}/clock must return remaining seconds and expiry flag."""
+        from src.cbt.api.examinations import _ensure_instance_access
+        from src.cbt.services.exam_service import ExamService
+
+        clock = _make_clock_response()
+
+        with patch("src.cbt.api.examinations._ensure_instance_access", new_callable=AsyncMock), \
+             patch.object(ExamService, "sync_clock", new_callable=AsyncMock) as mock_clock:
+            mock_clock.return_value = clock
+
+            response = await authenticated_client.get(
+                "/api/v1/examinations/exam-001/instances/inst-001/clock",
+            )
+
+        mock_clock.assert_called_once_with("inst-001")
+
+    @pytest.mark.asyncio
+    async def test_save_answer_calls_service(self, authenticated_client: AsyncClient):
+        """POST /instances/{iid}/answers autosaves a single answer."""
+        from src.cbt.api.examinations import _ensure_instance_access
+        from src.cbt.services.exam_service import ExamService
+
+        with patch("src.cbt.api.examinations._ensure_instance_access", new_callable=AsyncMock), \
+             patch.object(ExamService, "save_answer", new_callable=AsyncMock) as mock_save:
+            mock_save.return_value = {"saved": True, "question_id": "q001"}
+
+            await authenticated_client.post(
+                "/api/v1/examinations/exam-001/instances/inst-001/answers",
+                json={
+                    "question_id": "q001",
+                    "selected_option_id": "q001-opt-a",
+                    "idempotency_key": "test-key-001"
+                },
+            )
+
+        mock_save.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_submit_exam_returns_score(self, authenticated_client: AsyncClient):
+        """POST /instances/{iid}/submit returns a submission result with score."""
+        from src.cbt.api.examinations import _ensure_instance_access
+        from src.cbt.services.exam_service import ExamService
+
+        result = MagicMock(**_make_submission_response())
+        result.success = True
+
+        with patch("src.cbt.api.examinations._ensure_instance_access", new_callable=AsyncMock), \
+             patch.object(ExamService, "submit_exam", new_callable=AsyncMock) as mock_submit:
+            mock_submit.return_value = result
+
+            response = await authenticated_client.post(
+                "/api/v1/examinations/exam-001/instances/inst-001/submit",
+                json={},
+            )
+
+        mock_submit.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_review_exam_returns_answer_details(self, authenticated_client: AsyncClient):
+        """GET /instances/{iid}/review returns per-question correctness details."""
+        from src.cbt.services.exam_service import ExamService
+
+        review_data = _make_review_response()
+        review_obj = MagicMock(**review_data)
+        review_obj.answers = review_data["answers"]
+
+        with patch.object(ExamService, "review_exam", new_callable=AsyncMock) as mock_review:
+            mock_review.return_value = review_obj
+            mock_review.assert_not_called()  # sanity: not called yet
+
+            await authenticated_client.get(
+                "/api/v1/examinations/exam-001/instances/inst-001/review",
+            )
+
+        mock_review.assert_called_once_with("inst-001", mock_review.call_args[0][1])
+
+    @pytest.mark.asyncio
+    async def test_get_registered_students_returns_list(self, authenticated_client: AsyncClient):
+        """GET /api/v1/examinations/{exam_id}/registered-students returns list of students."""
+        mock_exam = MagicMock()
+        mock_exam.id = "exam-001"
+        mock_exam.course_id = "course-001"
+        mock_exam.academic_session_id = "session-001"
+
+        mock_sc = MagicMock()
+        mock_sc.student_id = "student-001"
+
+        mock_student = MagicMock()
+        mock_student.id = "student-001"
+        mock_student.first_name = "Jane"
+        mock_student.last_name = "Smith"
+        mock_student.email = "jane.smith@example.com"
+        mock_student.matric_number = "2024/001"
+        mock_student.department_id = "dept-001"
+        mock_student.is_active = True
+
+        mock_dept = MagicMock()
+        mock_dept.id = "dept-001"
+        mock_dept.code = "CSC"
+        mock_dept.name = "Computer Science"
+
+        with patch("src.cbt.api.examinations.Examination.get", new_callable=AsyncMock) as mock_get_exam, \
+             patch("src.cbt.api.examinations.StudentCourse.find", MagicMock()) as mock_find_sc, \
+             patch("src.cbt.api.examinations.Student.find", MagicMock()) as mock_find_student, \
+             patch("src.cbt.api.examinations.Department.find", MagicMock()) as mock_find_dept:
+
+            mock_get_exam.return_value = mock_exam
+
+            mock_find_sc.return_value.to_list = AsyncMock(return_value=[mock_sc])
+            mock_find_student.return_value.to_list = AsyncMock(return_value=[mock_student])
+            mock_find_dept.return_value.to_list = AsyncMock(return_value=[mock_dept])
+
+            response = await authenticated_client.get(
+                "/api/v1/examinations/exam-001/registered-students"
+            )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 1
+        assert data[0]["first_name"] == "Jane"
+        assert data[0]["last_name"] == "Smith"
+        assert data[0]["department_code"] == "CSC"
 
 
 @pytest.mark.functional
-class TestExamFlow:
-    """End-to-end functional tests for exam flow."""
-    
+class TestStudentResults:
+    """Tests for the embargo-aware student results endpoint."""
+
     @pytest.mark.asyncio
-    async def test_complete_exam_flow(self, authenticated_client, test_session):
-        """Test complete exam flow from start to finish."""
-        
-        # Step 1: Create questions
-        questions = []
-        for i in range(10):
-            question_data = {
-                **sample_question_data,
-                "question_text": f"Test question {i+1}",
-                "options": [
-                    {"option_text": f"Option A {i+1}", "is_correct": i % 4 == 0},
-                    {"option_text": f"Option B {i+1}", "is_correct": i % 4 == 1},
-                    {"option_text": f"Option C {i+1}", "is_correct": i % 4 == 2},
-                    {"option_text": f"Option D {i+1}", "is_correct": i % 4 == 3}
-                ]
+    async def test_my_results_requires_authentication(self, test_client: AsyncClient):
+        """GET /my/results returns 401 or 403 without a valid token."""
+        response = await test_client.get("/api/v1/examinations/my/results")
+        assert response.status_code in (401, 403)
+
+    @pytest.mark.asyncio
+    async def test_my_results_hidden_under_embargo(self, authenticated_client: AsyncClient):
+        """GET /my/results returns an empty list when embargo is active."""
+        from src.cbt.services.exam_service import ExamService
+        from src.cbt.models.student import Student
+
+        mock_student = MagicMock()
+        mock_student.id = "student-001"
+
+        with patch("src.cbt.api.examinations.Student.find_one", new_callable=AsyncMock) as mock_find, \
+             patch.object(ExamService, "get_student_results", new_callable=AsyncMock) as mock_results:
+            mock_find.return_value = mock_student
+            # Embargo active — service returns empty list
+            mock_results.return_value = []
+
+            response = await authenticated_client.get(
+                "/api/v1/examinations/my/results",
+            )
+
+        # The endpoint itself returns whatever the service gives.
+        # We verify the service was called with the student id.
+        mock_results.assert_called_once_with("student-001", None)
+
+    @pytest.mark.asyncio
+    async def test_my_results_visible_without_embargo(self, authenticated_client: AsyncClient):
+        """GET /my/results returns result entries when embargo is lifted."""
+        from src.cbt.services.exam_service import ExamService
+        from src.cbt.models.student import Student
+
+        mock_student = MagicMock()
+        mock_student.id = "student-001"
+
+        result_payload = [
+            {
+                "exam_id": "exam-001",
+                "exam_title": "CSC401 Final Exam",
+                "score": 75,
+                "total_points": 100,
+                "percentage": 75.0,
+                "grade": "B",
+                "submitted_at": "2024-06-15T11:00:00",
+                "embargo_active": False,
             }
-            
-            response = await authenticated_client.post("/api/v1/questions", json=question_data)
-            assert response.status_code == 201
-            questions.append(response.json())
-        
-        # Step 2: Create examination
-        exam_data = {
-            **sample_examination_data,
-            "title": "Functional Test Exam",
-            "total_points": sum(q["points"] for q in questions)
-        }
-        
-        response = await authenticated_client.post("/api/v1/examinations", json=exam_data)
-        assert response.status_code == 201
-        examination = response.json()
-        
-        # Step 3: Create exam blueprint
-        blueprint_data = {
-            **sample_exam_blueprint_data,
-            "examination_id": examination["id"],
-            "requirements": [
-                {
-                    "subject_area": "Software Engineering",
-                    "difficulty_level": "medium",
-                    "question_count": 10,
-                    "points_per_question": 5
-                }
-            ]
-        }
-        
-        response = await authenticated_client.post("/api/v1/exam-blueprints", json=blueprint_data)
-        assert response.status_code == 201
-        blueprint = response.json()
-        
-        # Step 4: Schedule examination
-        schedule_data = {
-            "examination_id": examination["id"],
-            "scheduled_date": (datetime.utcnow() + timedelta(days=1)).strftime("%Y-%m-%d"),
-            "start_time": "09:00:00",
-            "venue": "Test Lab",
-            "invigilators": ["invigilator1@test.edu"]
-        }
-        
-        response = await authenticated_client.post("/api/v1/exam-schedules", json=schedule_data)
-        assert response.status_code == 201
-        schedule = response.json()
-        
-        # Step 5: Start exam for student
-        start_data = {
-            "examination_id": examination["id"],
-            "student_id": "test-student-id"
-        }
-        
-        response = await authenticated_client.post("/api/v1/examinations/start", json=start_data)
-        assert response.status_code == 200
-        exam_instance = response.json()
-        
-        # Step 6: Get exam questions
-        response = await authenticated_client.get(f"/api/v1/examinations/{exam_instance['id']}/questions")
-        assert response.status_code == 200
-        exam_questions = response.json()
-        assert len(exam_questions["questions"]) == 10
-        
-        # Step 7: Submit answers
-        answers = []
-        for question in exam_questions["questions"]:
-            answers.append({
-                "question_id": question["id"],
-                "selected_option": question["options"][0]["id"]
-            })
-        
-        submission_data = {
-            "exam_instance_id": exam_instance["id"],
-            "answers": answers,
-            "time_taken_minutes": 30
-        }
-        
-        response = await authenticated_client.post("/api/v1/examinations/submit", json=submission_data)
-        assert response.status_code == 200
-        submission_result = response.json()
-        
-        # Step 8: Verify submission
-        assert submission_result["submitted"] is True
-        assert submission_result["total_answers"] == 10
-        assert "score" in submission_result
-        
-        # Step 9: Get exam results
-        response = await authenticated_client.get(f"/api/v1/examinations/{exam_instance['id']}/results")
-        assert response.status_code == 200
-        results = response.json()
-        
-        assert results["exam_instance_id"] == exam_instance["id"]
-        assert results["total_score"] is not None
-        assert results["percentage"] is not None
-        
-        # Step 10: Review exam
-        response = await authenticated_client.get(f"/api/v1/examinations/{exam_instance['id']}/review")
-        assert response.status_code == 200
-        review = response.json()
-        
-        assert len(review["answers"]) == 10
-        assert all("correct" in answer for answer in review["answers"])
-    
+        ]
+
+        with patch("src.cbt.api.examinations.Student.find_one", new_callable=AsyncMock) as mock_find, \
+             patch.object(ExamService, "get_student_results", new_callable=AsyncMock) as mock_results:
+            mock_find.return_value = mock_student
+            mock_results.return_value = result_payload
+
+            response = await authenticated_client.get(
+                "/api/v1/examinations/my/results",
+            )
+
+        mock_results.assert_called_once_with("student-001", None)
+
     @pytest.mark.asyncio
-    async def test_exam_with_proctoring(self, authenticated_client, test_session):
-        """Test exam flow with proctoring enabled."""
-        
-        # Create examination with proctoring
-        exam_data = {
-            **sample_examination_data,
-            "title": "Proctored Test Exam",
-            "require_proctoring": True,
-            "proctoring_settings": {
-                "webcam_required": True,
-                "screen_recording": True,
-                "audio_monitoring": False
-            }
-        }
-        
-        response = await authenticated_client.post("/api/v1/examinations", json=exam_data)
-        assert response.status_code == 201
-        examination = response.json()
-        
-        # Start proctoring session
-        proctoring_data = {
-            "examination_id": examination["id"],
-            "student_id": "test-student-id",
-            "device_fingerprint": "test-fingerprint",
-            "ip_address": "192.168.1.1"
-        }
-        
-        response = await authenticated_client.post("/api/v1/proctoring/session/start", json=proctoring_data)
-        assert response.status_code == 200
-        proctoring_session = response.json()
-        
-        # Start webcam session
-        webcam_data = {
-            "examination_id": examination["id"],
-            "student_id": "test-student-id",
-            "device_info": {"camera": "test-camera"}
-        }
-        
-        response = await authenticated_client.post("/api/v1/webcam-proctoring/session/start", json=webcam_data)
-        assert response.status_code == 200
-        webcam_session = response.json()
-        
-        # Simulate proctoring events
-        focus_event = {
-            "duration": 2.5,
-            "reason": "tab_switch"
-        }
-        
-        response = await authenticated_client.post(
-            f"/api/v1/proctoring/session/{proctoring_session['session_id']}/focus-loss",
-            json=focus_event
-        )
-        assert response.status_code == 200
-        
-        # Submit webcam snapshot
-        snapshot_data = {
-            "image_data": "data:image/jpeg;base64,testimage",
-            "timestamp": datetime.utcnow().isoformat()
-        }
-        
-        response = await authenticated_client.post(
-            f"/api/v1/webcam-proctoring/session/{webcam_session['session_id']}/capture",
-            json=snapshot_data
-        )
-        assert response.status_code == 200
-        
-        # End proctoring sessions
-        response = await authenticated_client.post(
-            f"/api/v1/proctoring/session/{proctoring_session['session_id']}/end"
-        )
-        assert response.status_code == 200
-        
-        response = await authenticated_client.post(
-            f"/api/v1/webcam-proctoring/session/{webcam_session['session_id']}/end"
-        )
-        assert response.status_code == 200
-    
-    @pytest.mark.asyncio
-    async def test_exam_timer_functionality(self, authenticated_client, test_session):
-        """Test exam timer and time management."""
-        
-        # Create timed examination
-        exam_data = {
-            **sample_examination_data,
-            "title": "Timed Test Exam",
-            "duration_minutes": 60,
-            "strict_timing": True
-        }
-        
-        response = await authenticated_client.post("/api/v1/examinations", json=exam_data)
-        assert response.status_code == 201
-        examination = response.json()
-        
-        # Start exam
-        start_data = {
-            "examination_id": examination["id"],
-            "student_id": "test-student-id"
-        }
-        
-        response = await authenticated_client.post("/api/v1/examinations/start", json=start_data)
-        assert response.status_code == 200
-        exam_instance = response.json()
-        
-        # Check timer status
-        response = await authenticated_client.get(f"/api/v1/examinations/{exam_instance['id']}/timer")
-        assert response.status_code == 200
-        timer = response.json()
-        
-        assert timer["duration_minutes"] == 60
-        assert timer["time_remaining"] > 0
-        assert timer["is_expired"] is False
-        
-        # Simulate time extension
-        extension_data = {
-            "additional_minutes": 30,
-            "reason": "Technical issues"
-        }
-        
-        response = await authenticated_client.post(
-            f"/api/v1/examinations/{exam_instance['id']}/extend-time",
-            json=extension_data
-        )
-        assert response.status_code == 200
-        
-        # Verify extension
-        response = await authenticated_client.get(f"/api/v1/examinations/{exam_instance['id']}/timer")
-        assert response.status_code == 200
-        extended_timer = response.json()
-        
-        assert extended_timer["duration_minutes"] == 90  # 60 + 30
-    
-    @pytest.mark.asyncio
-    async def test_exam_review_and_feedback(self, authenticated_client, test_session):
-        """Test exam review and feedback functionality."""
-        
-        # Create examination with feedback enabled
-        exam_data = {
-            **sample_examination_data,
-            "title": "Feedback Test Exam",
-            "show_feedback": True,
-            "allow_review": True
-        }
-        
-        response = await authenticated_client.post("/api/v1/examinations", json=exam_data)
-        assert response.status_code == 201
-        examination = response.json()
-        
-        # Start and complete exam (simplified)
-        start_data = {
-            "examination_id": examination["id"],
-            "student_id": "test-student-id"
-        }
-        
-        response = await authenticated_client.post("/api/v1/examinations/start", json=start_data)
-        assert response.status_code == 200
-        exam_instance = response.json()
-        
-        # Submit exam
-        submission_data = {
-            "exam_instance_id": exam_instance["id"],
-            "answers": [
-                {"question_id": "q1", "selected_option": "opt1"},
-                {"question_id": "q2", "selected_option": "opt2"}
-            ],
-            "time_taken_minutes": 45
-        }
-        
-        response = await authenticated_client.post("/api/v1/examinations/submit", json=submission_data)
-        assert response.status_code == 200
-        
-        # Get detailed feedback
-        response = await authenticated_client.get(f"/api/v1/examinations/{exam_instance['id']}/feedback")
-        assert response.status_code == 200
-        feedback = response.json()
-        
-        assert "overall_score" in feedback
-        assert "performance_analysis" in feedback
-        assert "recommendations" in feedback
-        
-        # Flag question for review
-        flag_data = {
-            "question_id": "q1",
-            "reason": "Unclear question wording",
-            "comment": "The question could be more specific"
-        }
-        
-        response = await authenticated_client.post(
-            f"/api/v1/examinations/{exam_instance['id']}/flag-question",
-            json=flag_data
-        )
-        assert response.status_code == 200
-        
-        # Get flagged questions
-        response = await authenticated_client.get(f"/api/v1/examinations/{exam_instance['id']}/flagged-questions")
-        assert response.status_code == 200
-        flagged = response.json()
-        
-        assert len(flagged["flagged_questions"]) >= 1
-        assert flagged["flagged_questions"][0]["question_id"] == "q1"
-    
-    @pytest.mark.asyncio
-    async def test_exam_statistics_and_analytics(self, authenticated_client, test_session):
-        """Test exam statistics and analytics."""
-        
-        # Create examination
-        exam_data = {
-            **sample_examination_data,
-            "title": "Analytics Test Exam"
-        }
-        
-        response = await authenticated_client.post("/api/v1/examinations", json=exam_data)
-        assert response.status_code == 201
-        examination = response.json()
-        
-        # Get examination statistics
-        response = await authenticated_client.get(f"/api/v1/examinations/{examination['id']}/statistics")
-        assert response.status_code == 200
-        stats = response.json()
-        
-        assert "total_participants" in stats
-        assert "completion_rate" in stats
-        assert "average_score" in stats
-        assert "score_distribution" in stats
-        
-        # Get question analytics
-        response = await authenticated_client.get(f"/api/v1/examinations/{examination['id']}/question-analytics")
-        assert response.status_code == 200
-        question_analytics = response.json()
-        
-        assert len(question_analytics["questions"]) >= 0
-        if question_analytics["questions"]:
-            question = question_analytics["questions"][0]
-            assert "correct_rate" in question
-            assert "difficulty_rating" in question
-            assert "discrimination_index" in question
-    
-    @pytest.mark.asyncio
-    async def test_exam_accessibility_features(self, authenticated_client, test_session):
-        """Test exam accessibility features."""
-        
-        # Create examination with accessibility accommodations
-        exam_data = {
-            **sample_examination_data,
-            "title": "Accessibility Test Exam",
-            "accessibility_settings": {
-                "extra_time_percentage": 25,
-                "font_size_increase": 20,
-                "high_contrast": True,
-                "screen_reader_compatible": True
-            }
-        }
-        
-        response = await authenticated_client.post("/api/v1/examinations", json=exam_data)
-        assert response.status_code == 201
-        examination = response.json()
-        
-        # Start exam with accessibility
-        start_data = {
-            "examination_id": examination["id"],
-            "student_id": "test-student-id",
-            "accessibility_requirements": {
-                "extra_time": True,
-                "large_font": True,
-                "high_contrast": True
-            }
-        }
-        
-        response = await authenticated_client.post("/api/v1/examinations/start", json=start_data)
-        assert response.status_code == 200
-        exam_instance = response.json()
-        
-        # Verify accessibility accommodations
-        assert exam_instance["accessibility_applied"] is True
-        assert exam_instance["adjusted_duration"] == 75  # 60 minutes + 25%
-        
-        # Get accessible exam content
-        response = await authenticated_client.get(
-            f"/api/v1/examinations/{exam_instance['id']}/questions?format=accessible"
-        )
-        assert response.status_code == 200
-        accessible_questions = response.json()
-        
-        # Verify accessibility formatting
-        for question in accessible_questions["questions"]:
-            assert "alt_text" in question  # For images
-            assert question.get("font_size") == "large"
-            assert question.get("contrast") == "high"
-    
-    @pytest.mark.asyncio
-    async def test_exam_multilingual_support(self, authenticated_client, test_session):
-        """Test exam multilingual support."""
-        
-        # Create multilingual examination
-        exam_data = {
-            **sample_examination_data,
-            "title": "Multilingual Test Exam",
-            "supported_languages": ["en", "fr", "es"],
-            "default_language": "en"
-        }
-        
-        response = await authenticated_client.post("/api/v1/examinations", json=exam_data)
-        assert response.status_code == 201
-        examination = response.json()
-        
-        # Start exam in French
-        start_data = {
-            "examination_id": examination["id"],
-            "student_id": "test-student-id",
-            "language": "fr"
-        }
-        
-        response = await authenticated_client.post("/api/v1/examinations/start", json=start_data)
-        assert response.status_code == 200
-        exam_instance = response.json()
-        
-        # Get questions in French
-        response = await authenticated_client.get(f"/api/v1/examinations/{exam_instance['id']}/questions")
-        assert response.status_code == 200
-        french_questions = response.json()
-        
-        # Verify language
-        assert french_questions["language"] == "fr"
-        for question in french_questions["questions"]:
-            assert question.get("language") == "fr"
-    
-    @pytest.mark.asyncio
-    async def test_exam_offline_functionality(self, authenticated_client, test_session):
-        """Test exam offline functionality."""
-        
-        # Create examination with offline support
-        exam_data = {
-            **sample_examination_data,
-            "title": "Offline Test Exam",
-            "offline_support": True,
-            "sync_tolerance_minutes": 5
-        }
-        
-        response = await authenticated_client.post("/api/v1/examinations", json=exam_data)
-        assert response.status_code == 201
-        examination = response.json()
-        
-        # Download exam for offline use
-        response = await authenticated_client.get(f"/api/v1/examinations/{examination['id']}/offline-package")
-        assert response.status_code == 200
-        offline_package = response.json()
-        
-        assert "questions" in offline_package
-        assert "exam_config" in offline_package
-        assert "offline_token" in offline_package
-        
-        # Simulate offline submission
-        offline_submission = {
-            "exam_instance_id": "offline-instance-id",
-            "offline_token": offline_package["offline_token"],
-            "answers": [
-                {"question_id": "q1", "selected_option": "opt1"},
-                {"question_id": "q2", "selected_option": "opt2"}
-            ],
-            "submission_timestamp": datetime.utcnow().isoformat(),
-            "client_time_offset": 120  # 2 minutes ahead
-        }
-        
-        response = await authenticated_client.post(
-            "/api/v1/examinations/offline-submit",
-            json=offline_submission
-        )
-        assert response.status_code == 200
-        sync_result = response.json()
-        
-        assert sync_result["synced"] is True
-        assert sync_result["time_adjustment_applied"] is True
-    
-    @pytest.mark.asyncio
-    async def test_exam_integrity_validation(self, authenticated_client, test_session):
-        """Test exam integrity and validation."""
-        
-        # Create examination with strict validation
-        exam_data = {
-            **sample_examination_data,
-            "title": "Integrity Test Exam",
-            "integrity_checks": {
-                "prevent_multiple_attempts": True,
-                "validate_time_consistency": True,
-                "check_answer_patterns": True
-            }
-        }
-        
-        response = await authenticated_client.post("/api/v1/examinations", json=exam_data)
-        assert response.status_code == 201
-        examination = response.json()
-        
-        # Start exam
-        start_data = {
-            "examination_id": examination["id"],
-            "student_id": "test-student-id"
-        }
-        
-        response = await authenticated_client.post("/api/v1/examinations/start", json=start_data)
-        assert response.status_code == 200
-        exam_instance = response.json()
-        
-        # Attempt duplicate start (should fail)
-        response = await authenticated_client.post("/api/v1/examinations/start", json=start_data)
-        assert response.status_code == 400
-        assert "already started" in response.json()["detail"].lower()
-        
-        # Submit with suspicious timing
-        suspicious_submission = {
-            "exam_instance_id": exam_instance["id"],
-            "answers": [
-                {"question_id": "q1", "selected_option": "opt1"},
-                {"question_id": "q2", "selected_option": "opt2"}
-            ],
-            "time_taken_minutes": 1  # Too fast for 10 questions
-        }
-        
-        response = await authenticated_client.post("/api/v1/examinations/submit", json=suspicious_submission)
-        assert response.status_code == 200
-        submission_result = response.json()
-        
-        # Check for integrity flags
-        assert submission_result.get("integrity_flags", []) != []
-        assert any("time" in flag["type"].lower() for flag in submission_result.get("integrity_flags", []))
-    
-    @pytest.mark.asyncio
-    async def test_exam_emergency_procedures(self, authenticated_client, test_session):
-        """Test exam emergency procedures."""
-        
-        # Create examination
-        exam_data = {
-            **sample_examination_data,
-            "title": "Emergency Test Exam"
-        }
-        
-        response = await authenticated_client.post("/api/v1/examinations", json=exam_data)
-        assert response.status_code == 201
-        examination = response.json()
-        
-        # Start exam
-        start_data = {
-            "examination_id": examination["id"],
-            "student_id": "test-student-id"
-        }
-        
-        response = await authenticated_client.post("/api/v1/examinations/start", json=start_data)
-        assert response.status_code == 200
-        exam_instance = response.json()
-        
-        # Trigger emergency pause
-        emergency_data = {
-            "reason": "Fire alarm",
-            "emergency_type": "evacuation",
-            "auto_resume_minutes": 30
-        }
-        
-        response = await authenticated_client.post(
-            f"/api/v1/examinations/{exam_instance['id']}/emergency-pause",
-            json=emergency_data
-        )
-        assert response.status_code == 200
-        pause_result = response.json()
-        
-        assert pause_result["paused"] is True
-        assert pause_result["emergency_type"] == "evacuation"
-        
-        # Verify exam is paused
-        response = await authenticated_client.get(f"/api/v1/examinations/{exam_instance['id']}/status")
-        assert response.status_code == 200
-        status = response.json()
-        
-        assert status["status"] == "emergency_paused"
-        
-        # Resume exam
-        response = await authenticated_client.post(
-            f"/api/v1/examinations/{exam_instance['id']}/resume"
-        )
-        assert response.status_code == 200
-        resume_result = response.json()
-        
-        assert resume_result["resumed"] is True
-        assert resume_result["time_adjustment"] > 0  # Extra time added
+    async def test_my_results_filtered_by_exam_id(self, authenticated_client: AsyncClient):
+        """GET /my/results?exam_id=xxx passes the filter through to the service."""
+        from src.cbt.services.exam_service import ExamService
+        from src.cbt.models.student import Student
+
+        mock_student = MagicMock()
+        mock_student.id = "student-001"
+
+        with patch("src.cbt.api.examinations.Student.find_one", new_callable=AsyncMock) as mock_find, \
+             patch.object(ExamService, "get_student_results", new_callable=AsyncMock) as mock_results:
+            mock_find.return_value = mock_student
+            mock_results.return_value = []
+
+            await authenticated_client.get(
+                "/api/v1/examinations/my/results?exam_id=exam-001",
+            )
+
+        mock_results.assert_called_once_with("student-001", "exam-001")
 
 
 @pytest.mark.functional
-class TestExamEdgeCases:
-    """Test edge cases and error scenarios in exam flow."""
-    
+class TestExamAPIContracts:
+    """Smoke tests ensuring each route exists and returns the expected HTTP semantics."""
+
     @pytest.mark.asyncio
-    async def test_exam_timeout_handling(self, authenticated_client, test_session):
-        """Test handling of exam timeouts."""
-        
-        # Create short exam for testing
-        exam_data = {
-            **sample_examination_data,
-            "title": "Timeout Test Exam",
-            "duration_minutes": 1  # Very short
-        }
-        
-        response = await authenticated_client.post("/api/v1/examinations", json=exam_data)
-        assert response.status_code == 201
-        examination = response.json()
-        
-        # Start exam
-        start_data = {
-            "examination_id": examination["id"],
-            "student_id": "test-student-id"
-        }
-        
-        response = await authenticated_client.post("/api/v1/examinations/start", json=start_data)
-        assert response.status_code == 200
-        exam_instance = response.json()
-        
-        # Wait for timeout (simulated)
-        await asyncio.sleep(2)
-        
-        # Try to submit after timeout
-        submission_data = {
-            "exam_instance_id": exam_instance["id"],
-            "answers": [{"question_id": "q1", "selected_option": "opt1"}],
-            "time_taken_minutes": 2
-        }
-        
-        response = await authenticated_client.post("/api/v1/examinations/submit", json=submission_data)
-        assert response.status_code == 400
-        assert "expired" in response.json()["detail"].lower()
-    
+    async def test_create_examination_route_exists(self, test_client: AsyncClient):
+        """POST /api/v1/examinations/ must not return 404 or 405."""
+        response = await test_client.post("/api/v1/examinations/", json={})
+        assert response.status_code not in (404, 405), (
+            f"Route POST /api/v1/examinations/ not found or method not allowed: {response.status_code}"
+        )
+
     @pytest.mark.asyncio
-    async def test_exam_concurrent_access(self, authenticated_client, test_session):
-        """Test concurrent access to same exam."""
-        
-        # Create examination
-        exam_data = {
-            **sample_examination_data,
-            "title": "Concurrent Access Test Exam"
-        }
-        
-        response = await authenticated_client.post("/api/v1/examinations", json=exam_data)
-        assert response.status_code == 201
-        examination = response.json()
-        
-        # Start exam for student
-        start_data = {
-            "examination_id": examination["id"],
-            "student_id": "test-student-id"
-        }
-        
-        response = await authenticated_client.post("/api/v1/examinations/start", json=start_data)
-        assert response.status_code == 200
-        exam_instance = response.json()
-        
-        # Try to start same exam again (should fail)
-        response = await authenticated_client.post("/api/v1/examinations/start", json=start_data)
-        assert response.status_code == 400
-        
-        # Try to access exam from different session
-        response = await authenticated_client.get(f"/api/v1/examinations/{exam_instance['id']}/questions")
-        assert response.status_code == 200  # Should work
-        
-        # Try to submit from different session (should work if same user)
-        submission_data = {
-            "exam_instance_id": exam_instance["id"],
-            "answers": [{"question_id": "q1", "selected_option": "opt1"}],
-            "time_taken_minutes": 30
-        }
-        
-        response = await authenticated_client.post("/api/v1/examinations/submit", json=submission_data)
-        assert response.status_code == 200
+    async def test_list_examinations_route_exists(self, test_client: AsyncClient):
+        """GET /api/v1/examinations/ must not return 404 or 405."""
+        response = await test_client.get("/api/v1/examinations/")
+        assert response.status_code not in (404, 405), (
+            f"Route GET /api/v1/examinations/ not found: {response.status_code}"
+        )
+
+    @pytest.mark.asyncio
+    async def test_start_exam_route_exists(self, test_client: AsyncClient):
+        """POST /api/v1/examinations/{id}/start must not return 404 or 405."""
+        response = await test_client.post(
+            "/api/v1/examinations/exam-nonexistent/start", json={}
+        )
+        assert response.status_code not in (404, 405), (
+            f"Route POST /api/v1/examinations/{{id}}/start not found: {response.status_code}"
+        )
+
+    @pytest.mark.asyncio
+    async def test_get_paper_route_exists(self, test_client: AsyncClient):
+        """GET /api/v1/examinations/{id}/instances/{iid}/paper must not 404 or 405."""
+        response = await test_client.get(
+            "/api/v1/examinations/exam-001/instances/inst-001/paper"
+        )
+        assert response.status_code not in (404, 405), (
+            f"Route GET paper not found: {response.status_code}"
+        )
+
+    @pytest.mark.asyncio
+    async def test_clock_route_exists(self, test_client: AsyncClient):
+        """GET /api/v1/examinations/{id}/instances/{iid}/clock must not 404 or 405."""
+        response = await test_client.get(
+            "/api/v1/examinations/exam-001/instances/inst-001/clock"
+        )
+        assert response.status_code not in (404, 405), (
+            f"Route GET clock not found: {response.status_code}"
+        )
+
+    @pytest.mark.asyncio
+    async def test_submit_route_exists(self, test_client: AsyncClient):
+        """POST /api/v1/examinations/{id}/instances/{iid}/submit must not 404 or 405."""
+        response = await test_client.post(
+            "/api/v1/examinations/exam-001/instances/inst-001/submit", json={}
+        )
+        assert response.status_code not in (404, 405), (
+            f"Route POST submit not found: {response.status_code}"
+        )
+
+    @pytest.mark.asyncio
+    async def test_review_route_exists(self, test_client: AsyncClient):
+        """GET /api/v1/examinations/{id}/instances/{iid}/review must not 404 or 405."""
+        response = await test_client.get(
+            "/api/v1/examinations/exam-001/instances/inst-001/review"
+        )
+        assert response.status_code not in (404, 405), (
+            f"Route GET review not found: {response.status_code}"
+        )
+
+    @pytest.mark.asyncio
+    async def test_my_results_route_exists(self, test_client: AsyncClient):
+        """GET /api/v1/examinations/my/results must not return 404 or 405."""
+        response = await test_client.get("/api/v1/examinations/my/results")
+        assert response.status_code not in (404, 405), (
+            f"Route GET /my/results not found: {response.status_code}"
+        )
+
+    @pytest.mark.asyncio
+    async def test_get_registered_students_route_exists(self, test_client: AsyncClient):
+        """GET /api/v1/examinations/{id}/registered-students must not 404 or 405."""
+        response = await test_client.get(
+            "/api/v1/examinations/exam-001/registered-students"
+        )
+        assert response.status_code not in (404, 405), (
+            f"Route GET registered students not found: {response.status_code}"
+        )

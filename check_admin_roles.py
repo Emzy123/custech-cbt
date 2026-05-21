@@ -2,11 +2,11 @@ import asyncio
 from beanie import init_beanie
 from motor.motor_asyncio import AsyncIOMotorClient
 from src.cbt.core.config import settings
-from src.cbt.models.user import User, UserRoleAssignment
+from src.cbt.models.user import User
 
 async def main():
     client = AsyncIOMotorClient(settings.database_url)
-    await init_beanie(database=client[settings.database_name], document_models=[User, UserRoleAssignment])
+    await init_beanie(database=client[settings.database_name], document_models=[User])
     
     admin_user = await User.find_one(User.username == "admin")
     if not admin_user:
@@ -14,8 +14,7 @@ async def main():
         return
         
     print(f"Admin User ID: {admin_user.id}")
-    roles = await UserRoleAssignment.find(UserRoleAssignment.user_id == str(admin_user.id)).to_list()
-    print(f"Roles: {[r.role for r in roles]}")
+    print(f"Role (direct): {admin_user.role}")
 
 if __name__ == "__main__":
     asyncio.run(main())

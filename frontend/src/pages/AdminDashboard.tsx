@@ -54,35 +54,7 @@ interface Course {
   semester_type: string;
 }
 
-interface Venue {
-  id: string;
-  name: string;
-  code: string;
-  capacity: number;
-  is_active: boolean;
-}
-
-interface AuditLog {
-  id: string;
-  user_id?: string;
-  action: string;
-  resource_type: string;
-  resource_id?: string;
-  success: boolean;
-  ip_address?: string;
-  created_at: string;
-  details?: string;
-}
-
-interface SystemHealth {
-  status: string;
-  version: string;
-  environment: string;
-  database: { status: string };
-  redis: { status: string };
-}
-
-type TabType = 'overview' | 'users' | 'academics' | 'courses' | 'venues' | 'audit' | 'system';
+type TabType = 'overview' | 'users' | 'academics' | 'courses';
 
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState<TabType>('overview');
@@ -94,9 +66,6 @@ export default function AdminDashboard() {
     { id: 'users', label: 'User Management', icon: <Users size={20} /> },
     { id: 'academics', label: 'Academic Structure', icon: <Building2 size={20} /> },
     { id: 'courses', label: 'Courses & Lecturers', icon: <BookOpen size={20} /> },
-    { id: 'venues', label: 'Venues', icon: <GraduationCap size={20} /> },
-    { id: 'audit', label: 'Audit Logs', icon: <FileText size={20} /> },
-    { id: 'system', label: 'System Health', icon: <Settings size={20} /> },
   ];
 
   const handleLogout = async () => {
@@ -164,9 +133,6 @@ export default function AdminDashboard() {
           {activeTab === 'users' && <UsersSection />}
           {activeTab === 'academics' && <AcademicsSection />}
           {activeTab === 'courses' && <CoursesSection />}
-          {activeTab === 'venues' && <VenuesSection />}
-          {activeTab === 'audit' && <AuditSection />}
-          {activeTab === 'system' && <SystemSection />}
         </main>
       </div>
     </div>
@@ -470,23 +436,21 @@ function UsersSection() {
 
 // --- Overview Section ---
 function OverviewSection() {
-  const [stats, setStats] = useState({ users: 0, courses: 0, departments: 0, venues: 0 });
+  const [stats, setStats] = useState({ users: 0, courses: 0, departments: 0 });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        const [users, courses, departments, venues] = await Promise.all([
+        const [users, courses, departments] = await Promise.all([
           apiRequest<unknown[]>('/api/v1/users/?limit=200').catch(() => []),
           apiRequest<unknown[]>('/api/v1/academics/courses').catch(() => []),
           apiRequest<unknown[]>('/api/v1/academics/departments').catch(() => []),
-          apiRequest<unknown[]>('/api/v1/venues').catch(() => []),
         ]);
         setStats({
           users: Array.isArray(users) ? users.length : 0,
           courses: Array.isArray(courses) ? courses.length : 0,
           departments: Array.isArray(departments) ? departments.length : 0,
-          venues: Array.isArray(venues) ? venues.length : 0,
         });
       } finally {
         setLoading(false);
@@ -499,12 +463,11 @@ function OverviewSection() {
     { label: 'Total Users', value: stats.users, icon: <Users size={24} />, color: 'bg-blue-500' },
     { label: 'Courses', value: stats.courses, icon: <BookOpen size={24} />, color: 'bg-green-500' },
     { label: 'Departments', value: stats.departments, icon: <Building2 size={24} />, color: 'bg-purple-500' },
-    { label: 'Venues', value: stats.venues, icon: <GraduationCap size={24} />, color: 'bg-orange-500' },
   ];
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {cards.map((card) => (
           <div key={card.label} className="bg-white p-6 rounded-xl shadow-sm border border-default">
             <div className="flex items-center justify-between">
@@ -524,8 +487,6 @@ function OverviewSection() {
           <li>• <strong>User Management:</strong> Create and manage users, assign roles</li>
           <li>• <strong>Academic Structure:</strong> Manage sessions, semesters, departments</li>
           <li>• <strong>Courses:</strong> Add and edit courses, link to departments</li>
-          <li>• <strong>Audit Logs:</strong> View system activity and security events</li>
-          <li>• <strong>System Health:</strong> Monitor database and Redis status</li>
         </ul>
       </div>
     </div>
@@ -1019,188 +980,6 @@ function CoursesSection() {
           </div>
         </Modal>
       )}
-    </div>
-  );
-}
-
-// --- Venues Section ---
-function VenuesSection() {
-  const [venues, setVenues] = useState<Venue[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [showModal, setShowModal] = useState(false);
-  const [formData, setFormData] = useState({ name: '', code: '', capacity: 50 });
-
-  useEffect(() => { fetchVenues(); }, []);
-
-  const fetchVenues = async () => {
-    setLoading(true);
-    try {
-      const data = await apiRequest<Venue[]>('/api/v1/venues');
-      setVenues(data);
-    } catch (err) {
-      console.error('Failed to load venues', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleCreate = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      await apiRequest('/api/v1/venues', { method: 'POST', body: JSON.stringify({ ...formData, capacity: Number(formData.capacity) }) });
-      setShowModal(false);
-      setFormData({ name: '', code: '', capacity: 50 });
-      fetchVenues();
-    } catch (err: any) {
-      alert(err.message || 'Failed to create venue');
-    }
-  };
-
-  return (
-    <div className="space-y-4">
-      <div className="flex justify-end">
-        <button onClick={() => setShowModal(true)} className="bg-custech-primary text-white px-4 py-2 rounded-lg flex items-center gap-2">
-          <Plus size={18} /> Add Venue
-        </button>
-      </div>
-      <div className="bg-white rounded-xl shadow-sm border border-default overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-light">
-            <tr><th className="px-6 py-3">Code</th><th className="px-6 py-3">Name</th><th className="px-6 py-3">Capacity</th><th className="px-6 py-3">Status</th></tr>
-          </thead>
-          <tbody>
-            {loading ? <tr><td colSpan={4} className="px-6 py-4 text-center">Loading...</td></tr> :
-              venues.length === 0 ? <tr><td colSpan={4} className="px-6 py-4 text-center text-body">No venues found</td></tr> :
-              venues.map(v => (
-                <tr key={v.id} className="border-b">
-                  <td className="px-6 py-4 font-medium">{v.code}</td>
-                  <td className="px-6 py-4">{v.name}</td>
-                  <td className="px-6 py-4">{v.capacity}</td>
-                  <td className="px-6 py-4">{v.is_active ? <span className="bg-green-100 text-green-800 px-2 py-1 rounded text-xs">Active</span> : <span className="bg-red-100 text-red-800 px-2 py-1 rounded text-xs">Inactive</span>}</td>
-                </tr>
-              ))}
-          </tbody>
-        </table>
-      </div>
-      {showModal && (
-        <Modal title="Create Venue" onClose={() => setShowModal(false)}>
-          <form onSubmit={handleCreate} className="space-y-4">
-            <input placeholder="Venue Name" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="w-full px-3 py-2 border rounded-lg" required />
-            <div className="grid grid-cols-2 gap-4">
-              <input placeholder="Venue Code" value={formData.code} onChange={e => setFormData({...formData, code: e.target.value})} className="w-full px-3 py-2 border rounded-lg uppercase" required />
-              <input placeholder="Capacity" type="number" min={1} value={formData.capacity} onChange={e => setFormData({...formData, capacity: Number(e.target.value)})} className="w-full px-3 py-2 border rounded-lg" required />
-            </div>
-            <div className="flex justify-end gap-2">
-              <button type="button" onClick={() => setShowModal(false)} className="px-4 py-2 border rounded-lg">Cancel</button>
-              <button type="submit" className="px-4 py-2 bg-indigo-600 text-white rounded-lg">Create</button>
-            </div>
-          </form>
-        </Modal>
-      )}
-    </div>
-  );
-}
-
-// --- Audit Section ---
-function AuditSection() {
-  const [logs, setLogs] = useState<AuditLog[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchLogs = async () => {
-      setLoading(true);
-      try {
-        const data = await apiRequest<AuditLog[]>('/api/v1/audit/logs?limit=100');
-        setLogs(data);
-      } catch (err) {
-        console.error('Failed to load audit logs', err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchLogs();
-  }, []);
-
-  return (
-    <div className="space-y-4">
-      <div className="bg-white rounded-xl shadow-sm border border-default overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-light">
-            <tr><th className="px-6 py-3">Time</th><th className="px-6 py-3">Action</th><th className="px-6 py-3">Resource</th><th className="px-6 py-3">Status</th><th className="px-6 py-3">IP</th></tr>
-          </thead>
-          <tbody>
-            {loading ? <tr><td colSpan={5} className="px-6 py-4 text-center">Loading...</td></tr> :
-              logs.length === 0 ? <tr><td colSpan={5} className="px-6 py-4 text-center text-body">No audit logs found</td></tr> :
-              logs.map(log => (
-                <tr key={log.id} className="border-b">
-                  <td className="px-6 py-4 text-body">{new Date(log.created_at).toLocaleString()}</td>
-                  <td className="px-6 py-4"><span className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs">{log.action}</span></td>
-                  <td className="px-6 py-4">{log.resource_type}</td>
-                  <td className="px-6 py-4">{log.success ? <span className="text-green-600">Success</span> : <span className="text-red-600">Failed</span>}</td>
-                  <td className="px-6 py-4 text-body">{log.ip_address || '-'}</td>
-                </tr>
-              ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
-// --- System Section ---
-function SystemSection() {
-  const [health, setHealth] = useState<SystemHealth | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchHealth = async () => {
-      setLoading(true);
-      try {
-        const data = await apiRequest<SystemHealth>('/health');
-        setHealth(data);
-      } catch (err) {
-        console.error('Failed to load health', err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchHealth();
-  }, []);
-
-  if (loading) return <div className="p-8 text-center">Loading...</div>;
-
-  return (
-    <div className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-default">
-          <h3 className="text-sm text-body">System Status</h3>
-          <div className="flex items-center gap-2 mt-2">
-            <div className={`w-3 h-3 rounded-full ${health?.status === 'healthy' ? 'bg-green-500' : 'bg-red-500'}`}></div>
-            <span className="text-xl font-bold">{health?.status === 'healthy' ? 'Healthy' : 'Unhealthy'}</span>
-          </div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-default">
-          <h3 className="text-sm text-body">Database</h3>
-          <div className="flex items-center gap-2 mt-2">
-            <div className={`w-3 h-3 rounded-full ${health?.database?.status === 'healthy' ? 'bg-green-500' : 'bg-red-500'}`}></div>
-            <span className="text-xl font-bold capitalize">{health?.database?.status || 'Unknown'}</span>
-          </div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-default">
-          <h3 className="text-sm text-body">Redis</h3>
-          <div className="flex items-center gap-2 mt-2">
-            <div className={`w-3 h-3 rounded-full ${health?.redis?.status === 'healthy' ? 'bg-green-500' : 'bg-red-500'}`}></div>
-            <span className="text-xl font-bold capitalize">{health?.redis?.status || 'Unknown'}</span>
-          </div>
-        </div>
-      </div>
-      <div className="bg-white p-6 rounded-xl shadow-sm border border-default">
-        <h3 className="text-lg font-medium text-heading mb-4">System Information</h3>
-        <div className="grid grid-cols-2 gap-4 text-sm">
-          <div><span className="text-body">Version:</span> <span className="font-medium">{health?.version || '-'}</span></div>
-          <div><span className="text-body">Environment:</span> <span className="font-medium capitalize">{health?.environment || '-'}</span></div>
-        </div>
-      </div>
     </div>
   );
 }

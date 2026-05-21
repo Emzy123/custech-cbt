@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
-  Settings, Calendar, Users, MapPin, FileText, CheckCircle, AlertTriangle, 
+  Settings, Calendar, Users, FileText, CheckCircle, AlertTriangle, 
   Printer, Download, Loader2, Plus, Trash2, GraduationCap, Bell, Clock,
   LayoutDashboard, BookOpen, BarChart3, ChevronRight, User, LogOut,
   ClipboardList, School, FileCheck, TrendingUp, Activity, MoreHorizontal
@@ -16,11 +16,7 @@ interface Course {
   title: string;
 }
 
-interface Venue {
-  id: string;
-  name: string;
-  capacity: number;
-}
+
 
 interface Exam {
   id: string;
@@ -47,6 +43,14 @@ interface Semester {
 
 interface StudentRow {
   id: string;
+  first_name: string;
+  last_name: string;
+  email: string;
+  matric_number: string;
+  department_id: string;
+  department_code?: string;
+  department_name?: string;
+  is_active: boolean;
 }
 
 const asList = <T,>(data: unknown): T[] => (Array.isArray(data) ? data : []);
@@ -56,12 +60,11 @@ const errorMessage = (err: unknown, fallback: string) =>
 
 const ExamOfficerDashboard: React.FC = () => {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<'wizard' | 'blueprint' | 'venue' | 'slips' | 'results'>('wizard');
+  const [activeTab, setActiveTab] = useState<'wizard' | 'blueprint' | 'slips' | 'results' | 'students'>('wizard');
   const [activeExamId, setActiveExamId] = useState<string>(localStorage.getItem('activeExamId') || '');
 
   // Data states
   const [courses, setCourses] = useState<Course[]>([]);
-  const [venues, setVenues] = useState<Venue[]>([]);
   const [exams, setExams] = useState<Exam[]>([]);
   const [departments, setDepartments] = useState<{ id: string; code: string; name: string }[]>([]);
   const [loading, setLoading] = useState(true);
@@ -83,9 +86,6 @@ const ExamOfficerDashboard: React.FC = () => {
     topics: [{ name: '', percentage: 20, questionCount: 10 }],
   });
 
-  const [venueStatus, setVenueStatus] = useState<'pending' | 'allocated'>('pending');
-  const [allocating, setAllocating] = useState(false);
-  const [selectedVenues, setSelectedVenues] = useState<string[]>([]);
   const [registeredStudents, setRegisteredStudents] = useState(0);
 
   const [resultSettings, setResultSettings] = useState({
@@ -95,15 +95,20 @@ const ExamOfficerDashboard: React.FC = () => {
     passingScore: 40,
   });
 
+  // Students tab states
+  const [examStudents, setExamStudents] = useState<StudentRow[]>([]);
+  const [selectedExamForStudents, setSelectedExamForStudents] = useState<string>('');
+  const [studentsLoading, setStudentsLoading] = useState(false);
+  const [studentsError, setStudentsError] = useState<string | null>(null);
+
   const loadDashboardData = async () => {
     setLoading(true);
     setLoadError(null);
     const failures: string[] = [];
 
-    const [coursesRes, venuesRes, examsRes, sessionsRes, departmentsRes, studentsRes] =
+    const [coursesRes, examsRes, sessionsRes, departmentsRes, studentsRes] =
       await Promise.allSettled([
         apiRequest<unknown>('/api/v1/academics/courses'),
-        apiRequest<unknown>('/api/v1/venues?is_active=true'),
         apiRequest<unknown>('/api/v1/examinations/?limit=100'),
         apiRequest<unknown>('/api/v1/academics/sessions'),
         apiRequest<unknown>('/api/v1/academics/departments'),
@@ -115,13 +120,6 @@ const ExamOfficerDashboard: React.FC = () => {
     } else {
       failures.push(`Courses (${errorMessage(coursesRes.reason, 'access denied')})`);
       setCourses([]);
-    }
-
-    if (venuesRes.status === 'fulfilled') {
-      setVenues(asList<Venue>(venuesRes.value));
-    } else {
-      failures.push(`Venues (${errorMessage(venuesRes.reason, 'access denied')})`);
-      setVenues([]);
     }
 
     if (examsRes.status === 'fulfilled') {
@@ -186,6 +184,46 @@ const ExamOfficerDashboard: React.FC = () => {
     void loadDashboardData();
   }, []);
 
+  const loadExamStudents = async (examId: string) => {
+    if (!examId) {
+      setExamStudents([]);
+      return;
+    }
+    setStudentsLoading(true);
+    setStudentsError(null);
+    try {
+      const data = await apiRequest<StudentRow[]>(`/api/v1/examinations/${examId}/registered-students`);
+      setExamStudents(asList<StudentRow>(data));
+    } catch (err) {
+      console.error('Failed to load registered students:', err);
+      setStudentsError(errorMessage(err, 'Failed to load registered students'));
+    } finally {
+      setStudentsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (selectedExamForStudents) {
+      void loadExamStudents(selectedExamForStudents);
+    } else {
+      setExamStudents([]);
+    }
+  }, [selectedExamForStudents]);
+
+  useEffect(() => {
+    if (activeTab === 'students') {
+      if (!selectedExamForStudents) {
+        if (activeExamId) {
+          setSelectedExamForStudents(activeExamId);
+        } else if (exams.length > 0) {
+          setSelectedExamForStudents(exams[0].id);
+        }
+      } else {
+        void loadExamStudents(selectedExamForStudents);
+      }
+    }
+  }, [activeTab]);
+
   const loadExamDetails = async (examId: string) => {
     try {
       const exam = await apiRequest<Exam>(`/api/v1/examinations/${examId}`);
@@ -228,7 +266,7 @@ const ExamOfficerDashboard: React.FC = () => {
         question_ids: [] as string[],
       };
 
-      const response = await apiRequest<{ id: string }>('/api/v1/examinations', {
+      const response = await apiRequest<{ id: string }>('/api/v1/examinations/', {
         method: 'POST',
         body: JSON.stringify(payload),
       });
@@ -236,7 +274,7 @@ const ExamOfficerDashboard: React.FC = () => {
       setActiveExamId(response.id);
       localStorage.setItem('activeExamId', response.id);
       
-      const updatedExams = await apiRequest<unknown>('/api/v1/examinations?limit=100');
+      const updatedExams = await apiRequest<unknown>('/api/v1/examinations/?limit=100');
       setExams(asList<Exam>(updatedExams));
       
       alert('Exam created successfully!');
@@ -283,7 +321,7 @@ const ExamOfficerDashboard: React.FC = () => {
       });
 
       alert('Blueprint saved successfully!');
-      setActiveTab('venue');
+      setActiveTab('slips');
     } catch (error) {
       alert('Failed to save blueprint. Please try again.');
     } finally {
@@ -291,29 +329,7 @@ const ExamOfficerDashboard: React.FC = () => {
     }
   };
 
-  const handleAllocateVenues = async () => {
-    if (!activeExamId || selectedVenues.length === 0) {
-      alert('Please select at least one venue');
-      return;
-    }
 
-    setAllocating(true);
-    try {
-      await apiRequest(`/api/v1/examinations/${activeExamId}/allocate-venues`, {
-        method: 'POST',
-        body: JSON.stringify({
-          venue_ids: selectedVenues,
-        }),
-      });
-
-      setVenueStatus('allocated');
-      alert('Venues allocated successfully!');
-    } catch (error) {
-      alert('Failed to allocate venues. Please try again.');
-    } finally {
-      setAllocating(false);
-    }
-  };
 
   const handleSaveResultSettings = async () => {
     if (!activeExamId) {
@@ -381,7 +397,6 @@ const ExamOfficerDashboard: React.FC = () => {
   const tabs = [
     { id: 'wizard', label: 'Exam Wizard', icon: <Calendar className="w-5 h-5" /> },
     { id: 'blueprint', label: 'Blueprint Editor', icon: <Settings className="w-5 h-5" /> },
-    { id: 'venue', label: 'Venue Allocation', icon: <MapPin className="w-5 h-5" /> },
     { id: 'slips', label: 'Exam Slips', icon: <Printer className="w-5 h-5" /> },
     { id: 'results', label: 'Result Settings', icon: <FileText className="w-5 h-5" /> },
   ] as const;
@@ -392,8 +407,6 @@ const ExamOfficerDashboard: React.FC = () => {
     scheduled: exams.filter(e => e.status === 'scheduled').length,
     active: exams.filter(e => e.status === 'active').length,
     completed: exams.filter(e => e.status === 'completed').length,
-    totalVenues: venues.length,
-    totalCapacity: venues.reduce((sum, v) => sum + v.capacity, 0),
   };
 
   const recentExams = [...exams].slice(0, 5);
@@ -449,12 +462,14 @@ const ExamOfficerDashboard: React.FC = () => {
             <BookOpen size={20} />
             <span>Courses</span>
           </button>
-          <button className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:bg-darker hover:text-white transition-all text-sm font-medium">
-            <MapPin size={20} />
-            <span>Venues</span>
-            <span className="ml-auto text-xs text-gray-500">{venues.length}</span>
-          </button>
-          <button className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:bg-darker hover:text-white transition-all text-sm font-medium">
+          <button
+            onClick={() => setActiveTab('students')}
+            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all text-sm font-medium ${
+              activeTab === 'students'
+                ? 'bg-custech-primary text-white shadow-md'
+                : 'text-gray-400 hover:bg-darker hover:text-white'
+            }`}
+          >
             <Users size={20} />
             <span>Students</span>
           </button>
@@ -471,10 +486,7 @@ const ExamOfficerDashboard: React.FC = () => {
               <span className="text-gray-400">Scheduled</span>
               <span className="font-semibold text-blue-400">{stats.scheduled}</span>
             </div>
-            <div className="flex justify-between items-center text-sm">
-              <span className="text-gray-400">Capacity</span>
-              <span className="font-semibold text-gray-200">{stats.totalCapacity.toLocaleString()}</span>
-            </div>
+
             <div className="flex justify-between items-center text-sm">
               <span className="text-gray-400">Courses</span>
               <span className="font-semibold text-gray-200">{courses.length}</span>
@@ -518,7 +530,7 @@ const ExamOfficerDashboard: React.FC = () => {
               <p className="text-sm text-muted mt-0.5">
                 {activeTab === 'wizard' && 'Create and schedule examinations'}
                 {activeTab === 'blueprint' && 'Configure question distribution'}
-                {activeTab === 'venue' && 'Allocate examination venues'}
+
                 {activeTab === 'slips' && 'Generate and distribute exam slips'}
                 {activeTab === 'results' && 'Configure result release settings'}
               </p>
@@ -561,7 +573,7 @@ const ExamOfficerDashboard: React.FC = () => {
           ) : (
           <>
           {/* Stats Overview - Show on all tabs */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
             <div className="bg-white rounded-2xl p-6 border border-default shadow-sm hover:shadow-md transition-shadow">
               <div className="flex items-center justify-between">
                 <div>
@@ -598,21 +610,6 @@ const ExamOfficerDashboard: React.FC = () => {
                     style={{ width: `${stats.totalExams ? (stats.active / stats.totalExams) * 100 : 0}%` }}
                   ></div>
                 </div>
-              </div>
-            </div>
-
-            <div className="bg-white rounded-2xl p-6 border border-default shadow-sm hover:shadow-md transition-shadow">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-muted">Total Venues</p>
-                  <p className="text-3xl font-bold text-heading mt-1">{stats.totalVenues}</p>
-                </div>
-                <div className="w-12 h-12 bg-amber-100 rounded-xl flex items-center justify-center">
-                  <MapPin size={24} className="text-amber-600" />
-                </div>
-              </div>
-              <div className="mt-4 text-sm text-muted">
-                {stats.totalCapacity.toLocaleString()} total seats
               </div>
             </div>
 
@@ -661,7 +658,7 @@ const ExamOfficerDashboard: React.FC = () => {
               <div className="flex items-center justify-between border-b border-default pb-4">
                 <h3 className="text-xl font-semibold text-heading">Schedule Examination</h3>
                 <span className="px-3 py-1 bg-custech-primary/10 text-custech-primary rounded-full text-sm font-medium border border-custech-primary/20">
-                  Step 1 of 5
+                  Step 1 of 4
                 </span>
               </div>
               
@@ -761,7 +758,7 @@ const ExamOfficerDashboard: React.FC = () => {
               <div className="flex items-center justify-between border-b border-default pb-4">
                 <h3 className="text-xl font-semibold text-heading">Question Blueprint</h3>
                 <span className="px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-sm font-medium">
-                  Step 2 of 5
+                  Step 2 of 4
                 </span>
               </div>
               <div className="bg-light rounded-xl p-6 border border-default">
@@ -839,132 +836,7 @@ const ExamOfficerDashboard: React.FC = () => {
             </div>
           )}
 
-          {/* Venue Allocation */}
-          {activeTab === 'venue' && (
-            <div className="space-y-6">
-              <div className="flex items-center justify-between border-b border-default pb-4">
-                <h3 className="text-xl font-semibold text-heading">Venue Allocation</h3>
-                <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm font-medium">
-                  Step 3 of 5
-                </span>
-              </div>
-              
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div className="col-span-2 bg-white rounded-xl border border-default overflow-hidden">
-                  <div className="p-4 border-b border-default bg-light flex justify-between items-center">
-                    <h4 className="font-medium text-heading">Available Venues</h4>
-                    <span className="text-xs font-semibold bg-white border border-default px-2 py-1 rounded text-muted">
-                      Selected: {selectedVenues.length} venues
-                    </span>
-                  </div>
-                  <table className="w-full text-sm text-left">
-                    <thead className="bg-light text-muted uppercase text-xs">
-                      <tr>
-                        <th className="px-6 py-3">Select</th>
-                        <th className="px-6 py-3">Venue</th>
-                        <th className="px-6 py-3">Capacity</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {venues.length === 0 ? (
-                        <tr>
-                          <td colSpan={3} className="px-6 py-8 text-center text-muted">
-                            No venues available. Please add venues in the Admin dashboard.
-                          </td>
-                        </tr>
-                      ) : (
-                        venues.map((venue) => (
-                          <tr 
-                            key={venue.id} 
-                            className={`border-b border-default ${selectedVenues.includes(venue.id) ? 'bg-custech-primary/5' : ''}`}
-                          >
-                            <td className="px-6 py-4">
-                              <input
-                                type="checkbox"
-                                checked={selectedVenues.includes(venue.id)}
-                                onChange={(e) => {
-                                  if (e.target.checked) {
-                                    setSelectedVenues(prev => [...prev, venue.id]);
-                                  } else {
-                                    setSelectedVenues(prev => prev.filter(id => id !== venue.id));
-                                  }
-                                }}
-                                className="w-4 h-4 rounded border-input text-custech-primary focus:ring-custech-navy"
-                              />
-                            </td>
-                            <td className="px-6 py-4 font-medium text-heading">{venue.name}</td>
-                            <td className="px-6 py-4 text-body">{venue.capacity} seats</td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
 
-                <div className="bg-light rounded-xl border border-default p-6 flex flex-col justify-between">
-                  <div>
-                    <h4 className="text-lg font-medium text-heading mb-4">Allocation Summary</h4>
-                    <div className="space-y-3">
-                      <div className="flex justify-between text-sm">
-                        <span className="text-muted">Registered Students:</span>
-                        <span className="font-bold text-heading">{registeredStudents || 'N/A'}</span>
-                      </div>
-                      <div className="flex justify-between text-sm">
-                        <span className="text-muted">Selected Capacity:</span>
-                        <span className="font-bold text-heading">
-                          {venues
-                            .filter(v => selectedVenues.includes(v.id))
-                            .reduce((sum, v) => sum + v.capacity, 0)} seats
-                        </span>
-                      </div>
-                      <div className="w-full bg-slate-200 h-2 rounded-full mt-4">
-                        <div 
-                          className="bg-custech-navy h-full rounded-full transition-all min-w-0" 
-                          style={{ 
-                            width: registeredStudents 
-                              ? `${Math.min(100, (venues.filter(v => selectedVenues.includes(v.id)).reduce((sum, v) => sum + v.capacity, 0) / registeredStudents) * 100)}%` 
-                              : '0%' 
-                          }}
-                        ></div>
-                      </div>
-                      <div className="text-xs text-right text-muted mt-1">
-                        {selectedVenues.length} venues selected
-                      </div>
-                    </div>
-                  </div>
-                  
-                  {!activeExamId && (
-                    <p className="text-amber-700 text-sm mt-4">Create an exam first.</p>
-                  )}
-                  
-                  {venueStatus === 'pending' ? (
-                    <button 
-                      onClick={handleAllocateVenues}
-                      disabled={allocating || selectedVenues.length === 0 || !activeExamId}
-                      className="w-full mt-8 bg-custech-navy hover:opacity-90 disabled:opacity-50 text-white px-4 py-3 rounded-lg font-medium transition-all flex justify-center items-center gap-2"
-                    >
-                      {allocating ? (
-                        <Loader2 className="w-5 h-5 animate-spin" />
-                      ) : (
-                        <>
-                          <CheckCircle className="w-5 h-5" />
-                          Run Allocation
-                        </>
-                      )}
-                    </button>
-                  ) : (
-                    <div className="mt-8 bg-emerald-50 border border-emerald-200 text-emerald-800 p-4 rounded-xl flex items-start gap-3">
-                      <CheckCircle className="w-5 h-5 flex-shrink-0 mt-0.5 text-emerald-600" />
-                      <div>
-                        <h4 className="font-medium">Allocation Complete</h4>
-                        <p className="text-sm mt-1 text-emerald-700">Venues allocated successfully.</p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
 
           {/* Exam Slips */}
           {activeTab === 'slips' && (
@@ -972,7 +844,7 @@ const ExamOfficerDashboard: React.FC = () => {
               <div className="flex items-center justify-between border-b border-default pb-4">
                 <h3 className="text-xl font-semibold text-heading">Exam Slips & Documents</h3>
                 <span className="px-3 py-1 bg-emerald-100 text-emerald-700 rounded-full text-sm font-medium">
-                  Step 4 of 5
+                  Step 3 of 4
                 </span>
               </div>
               
@@ -1018,7 +890,7 @@ const ExamOfficerDashboard: React.FC = () => {
               <div className="flex items-center justify-between border-b border-default pb-4">
                 <h3 className="text-xl font-semibold text-heading">Post-Exam & Result Settings</h3>
                 <span className="px-3 py-1 bg-amber-100 text-amber-800 rounded-full text-sm font-medium">
-                  Step 5 of 5
+                  Step 4 of 4
                 </span>
               </div>
               
@@ -1126,6 +998,138 @@ const ExamOfficerDashboard: React.FC = () => {
                   <p className="text-amber-700 text-sm text-right">Create an exam first.</p>
                 )}
               </div>
+            </div>
+          )}
+
+          {/* Registered Students View */}
+          {activeTab === 'students' && (
+            <div className="space-y-6">
+              <div className="flex flex-col md:flex-row md:items-center justify-between border-b border-default pb-4 gap-4">
+                <div>
+                  <h3 className="text-xl font-semibold text-heading">Registered Students</h3>
+                  <p className="text-sm text-muted">View and inspect students registered for examinations.</p>
+                </div>
+                
+                <div className="flex items-center gap-3">
+                  <span className="text-sm font-medium text-heading whitespace-nowrap">Select Exam:</span>
+                  <select
+                    value={selectedExamForStudents}
+                    onChange={(e) => setSelectedExamForStudents(e.target.value)}
+                    className={`${inputClass} !w-72 !h-10`}
+                  >
+                    <option value="">-- Choose an Examination --</option>
+                    {exams.map((ex) => (
+                      <option key={ex.id} value={ex.id}>
+                        {ex.title}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {selectedExamForStudents ? (
+                <div className="space-y-6">
+                  {/* Stats Counter */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="bg-white rounded-xl border border-default p-5 flex items-center gap-4">
+                      <div className="w-12 h-12 bg-custech-primary/10 rounded-xl flex items-center justify-center">
+                        <Users className="w-6 h-6 text-custech-primary" />
+                      </div>
+                      <div>
+                        <span className="text-sm text-muted block">Registered Count</span>
+                        <span className="text-2xl font-bold text-heading">
+                          {studentsLoading ? '...' : examStudents.length}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Student Table */}
+                  <div className="bg-white rounded-xl border border-default overflow-hidden">
+                    <div className="p-4 border-b border-default bg-light flex justify-between items-center">
+                      <h4 className="font-medium text-heading">Students List</h4>
+                      {!studentsLoading && examStudents.length > 0 && (
+                        <span className="text-xs font-semibold bg-white border border-default px-2 py-1 rounded text-muted">
+                          Total: {examStudents.length} registered
+                        </span>
+                      )}
+                    </div>
+                    
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm text-left">
+                        <thead className="bg-light text-muted uppercase text-xs">
+                          <tr>
+                            <th className="px-6 py-3">S/N</th>
+                            <th className="px-6 py-3">Matric Number</th>
+                            <th className="px-6 py-3">Name</th>
+                            <th className="px-6 py-3">Email</th>
+                            <th className="px-6 py-3">Department</th>
+                            <th className="px-6 py-3">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {studentsLoading ? (
+                            <tr>
+                              <td colSpan={6} className="px-6 py-12 text-center text-muted">
+                                <div className="flex justify-center items-center gap-2">
+                                  <Loader2 className="w-5 h-5 animate-spin text-custech-primary" />
+                                  <span>Fetching registered students...</span>
+                                </div>
+                              </td>
+                            </tr>
+                          ) : studentsError ? (
+                            <tr>
+                              <td colSpan={6} className="px-6 py-8 text-center text-red-500">
+                                <div className="flex justify-center items-center gap-2">
+                                  <AlertTriangle className="w-5 h-5" />
+                                  <span>{studentsError}</span>
+                                </div>
+                              </td>
+                            </tr>
+                          ) : examStudents.length === 0 ? (
+                            <tr>
+                              <td colSpan={6} className="px-6 py-12 text-center text-muted">
+                                <Users size={40} className="text-gray-300 mx-auto mb-3 animate-pulse" />
+                                <p className="font-semibold text-heading">No students registered for this examination</p>
+                                <p className="text-sm mt-1">Please ensure students are registered for this course under the selected academic session.</p>
+                              </td>
+                            </tr>
+                          ) : (
+                            examStudents.map((student, idx) => (
+                              <tr key={student.id} className="border-b border-default hover:bg-light/40 transition-colors">
+                                <td className="px-6 py-4 font-medium text-muted">{idx + 1}</td>
+                                <td className="px-6 py-4 font-semibold text-custech-primary">{student.matric_number}</td>
+                                <td className="px-6 py-4 text-heading">{student.first_name} {student.last_name}</td>
+                                <td className="px-6 py-4 text-muted">{student.email}</td>
+                                <td className="px-6 py-4 text-muted">
+                                  {student.department_code ? `${student.department_code} - ${student.department_name}` : student.department_id || '—'}
+                                </td>
+                                <td className="px-6 py-4">
+                                  <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${
+                                    student.is_active 
+                                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' 
+                                      : 'bg-red-50 text-red-700 border border-red-200'
+                                  }`}>
+                                    {student.is_active ? 'Active' : 'Inactive'}
+                                  </span>
+                                </td>
+                              </tr>
+                            ))
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-white rounded-xl border border-default p-12 text-center text-muted">
+                  <Calendar size={48} className="text-gray-300 mx-auto mb-4" />
+                  <h4 className="font-semibold text-heading text-lg">No Examination Selected</h4>
+                  <p className="max-w-md mx-auto mt-2">
+                    Please select an examination from the dropdown menu above to view its registered students count and details.
+                  </p>
+                </div>
+              )}
             </div>
           )}
 

@@ -47,7 +47,7 @@ async def list_students(
     level: Optional[int] = Query(None),
     student_status: Optional[StudentStatus] = Query(None, alias="status"),
     academic_session: Optional[str] = Query(None),
-    limit: int = Query(50, le=100),
+    limit: int = Query(50, le=1000),
     cursor: Optional[str] = Query(None),
     db: Any = Depends(get_db),
     current_user = Depends(get_current_active_user)

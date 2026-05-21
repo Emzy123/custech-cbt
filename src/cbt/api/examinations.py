@@ -7,7 +7,8 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query, Response, 
 from pydantic import BaseModel
 
 from ..models.exam import Examination, ExamStatus, ExamInstance, ExamInstanceStatus
-from ..models.student import Student
+from ..models.student import Student, StudentCourse
+from ..models.academic import Department
 from ..core.security import security
 from ..core.redis import cache_manager
 from ..services.authorization_service import AuthorizationService
@@ -15,19 +16,16 @@ from ..schemas.exam import (
     ExaminationCreate, ExaminationUpdate, ExaminationResponse,
     ExamInstanceResponse, ExamSubmissionRequest, ExamSubmissionResponse,
     ExamStartRequest, ExamStartResponse, ExamReviewResponse,
-    AnswerSaveRequest, ProctoringEventRequest
+    AnswerSaveRequest, ExamRegisteredStudentResponse
 )
 from ..services.exam_service import ExamService
-from ..services.venue_allocation_service import VenueAllocationService
-from ..services.slip_generation_service import SlipGenerationService
 from ..core.database import get_db
 from .deps import get_current_active_user, require_permission
 
 router = APIRouter(prefix="/examinations", tags=["examinations"])
 
 
-class VenueAllocationBody(BaseModel):
-    venue_ids: List[str]
+
 
 
 async def _ensure_instance_access(instance_id: str, current_user) -> ExamInstance:
@@ -265,58 +263,7 @@ async def cancel_examination(
         )
 
 
-@router.post("/{exam_id}/allocate-venues", dependencies=[Depends(require_permission("exam.manage"))])
-async def allocate_venues(
-    exam_id: str,
-    body: VenueAllocationBody,
-    db: Any = Depends(get_db),
-    current_user = Depends(get_current_active_user)
-):
-    """Allocate students to specific venues for the examination."""
-    try:
-        allocation_service = VenueAllocationService(db)
-        result = await allocation_service.allocate_venues(exam_id, body.venue_ids, current_user.id)
-        return result
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to allocate venues"
-        )
 
-
-@router.get("/{exam_id}/slips", dependencies=[Depends(require_permission("exam.read"))])
-async def download_slips(
-    exam_id: str,
-    student_id: Optional[str] = Query(None),
-    db: Any = Depends(get_db),
-    current_user = Depends(get_current_active_user)
-):
-    """Download examination slips as PDF. If student_id is provided, download only for that student."""
-    try:
-        slip_service = SlipGenerationService(db)
-        student_ids = [student_id] if student_id else None
-        pdf_bytes = await slip_service.generate_slips(exam_id, student_ids)
-        
-        return Response(
-            content=pdf_bytes,
-            media_type="application/pdf",
-            headers={"Content-Disposition": f"attachment; filename=exam_slips_{exam_id}.pdf"}
-        )
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to generate slips"
-        )
 
 
 # Exam Instance Management
@@ -472,24 +419,7 @@ async def sync_clock(
         )
 
 
-@router.post("/{exam_id}/instances/{instance_id}/proctoring/events", dependencies=[Depends(require_permission("exam.start"))])
-async def log_proctoring_event(
-    exam_id: str,
-    instance_id: str,
-    event: ProctoringEventRequest,
-    db: Any = Depends(get_db),
-    current_user = Depends(get_current_active_user)
-) -> Dict[str, Any]:
-    """Log proctoring event like focus loss."""
-    try:
-        await _ensure_instance_access(instance_id, current_user)
-        exam_service = ExamService(db)
-        return await exam_service.log_proctoring_event(instance_id, event)
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
+
 
 
 @router.post("/{exam_id}/instances/{instance_id}/submit", response_model=ExamSubmissionResponse, dependencies=[Depends(require_permission("exam.submit"))])
@@ -627,6 +557,87 @@ async def get_exam_statistics(
         )
 
 
+@router.get("/{exam_id}/registered-students", response_model=List[ExamRegisteredStudentResponse], dependencies=[Depends(require_permission("exam.read"))])
+async def get_exam_registered_students(
+    exam_id: str,
+    db: Any = Depends(get_db),
+    current_user = Depends(get_current_active_user)
+) -> List[ExamRegisteredStudentResponse]:
+    """Get the list of registered students for an examination."""
+    try:
+        # 1. Fetch examination
+        exam = await Examination.get(exam_id)
+        if not exam:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Examination not found"
+            )
+        
+        # 2. Fetch registered student courses
+        student_courses = await StudentCourse.find(
+            StudentCourse.course_id == exam.course_id,
+            StudentCourse.academic_session_id == exam.academic_session_id,
+            StudentCourse.status == "REGISTERED"
+        ).to_list()
+        
+        if not student_courses:
+            return []
+            
+        # 3. Fetch student details and resolve departments
+        student_ids = [sc.student_id for sc in student_courses]
+        students = await Student.find({"_id": {"$in": student_ids}}).to_list()
+        
+        # 4. Resolve unique department IDs to get department code and name
+        dept_ids = list({s.department_id for s in students if s.department_id})
+        departments = await Department.find({"_id": {"$in": dept_ids}}).to_list()
+        dept_map = {str(d.id): d for d in departments}
+        
+        # 5. Build response list
+        response_students = []
+        for s in students:
+            dept = dept_map.get(str(s.department_id))
+            response_students.append(
+                ExamRegisteredStudentResponse(
+                    id=str(s.id),
+                    first_name=s.first_name,
+                    last_name=s.last_name,
+                    email=s.email,
+                    matric_number=s.matric_number,
+                    department_id=s.department_id,
+                    department_code=dept.code if dept else None,
+                    department_name=dept.name if dept else None,
+                    is_active=s.is_active
+                )
+            )
+        return response_students
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get registered students: {str(e)}"
+        )
+
+
+# ── Phase 5: Results & Analytics ─────────────────────────────────────────────
+
+@router.get("/my/results", dependencies=[Depends(require_permission("exam.read"))])
+async def get_my_results(
+    exam_id: Optional[str] = Query(None, description="Filter by exam"),
+    db: Any = Depends(get_db),
+    current_user = Depends(get_current_active_user),
+) -> List[Dict[str, Any]]:
+    """Return embargo-aware results for the authenticated student."""
+    student = await Student.find_one(Student.user_id == str(current_user.id))
+    if not student:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Student profile not found for this account",
+        )
+    exam_service = ExamService(db)
+    return await exam_service.get_student_results(str(student.id), exam_id)
+
+
 @router.get("/{exam_id}/results", dependencies=[Depends(require_permission("grade.read"))])
 async def get_exam_results(
     exam_id: str,
@@ -692,23 +703,6 @@ async def publish_results(
         )
 
 
-# ── Phase 5: Results & Analytics ─────────────────────────────────────────────
-
-@router.get("/my/results", dependencies=[Depends(require_permission("exam.read"))])
-async def get_my_results(
-    exam_id: Optional[str] = Query(None, description="Filter by exam"),
-    db: Any = Depends(get_db),
-    current_user = Depends(get_current_active_user),
-) -> List[Dict[str, Any]]:
-    """Return embargo-aware results for the authenticated student."""
-    student = await Student.find_one(Student.user_id == str(current_user.id))
-    if not student:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Student profile not found for this account",
-        )
-    exam_service = ExamService(db)
-    return await exam_service.get_student_results(str(student.id), exam_id)
 
 
 @router.get("/{exam_id}/analytics/items", dependencies=[Depends(require_permission("exam.manage"))])

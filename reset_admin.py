@@ -1,5 +1,5 @@
 """
-Reset admin script — deletes ALL users and role assignments, then creates a fresh SUPER_ADMIN.
+Reset admin script — deletes ALL users, then creates a fresh admin.
 """
 import asyncio
 import os
@@ -9,7 +9,7 @@ sys.path.insert(0, 'src')
 from cbt.core.database import init_db
 from cbt.services.auth_service import AuthService
 from cbt.core.redis import redis_manager, cache_manager, session_manager
-from cbt.models.user import User, UserRoleAssignment, UserRole
+from cbt.models.user import User
 
 
 async def reset_admin():
@@ -23,25 +23,10 @@ async def reset_admin():
     await redis_manager.connect()
     print("[OK] Connected")
 
-    # Delete ALL existing role assignments
-    print("\n=== Deleting all role assignments... ===")
-    role_count = 0
-    async for role in UserRoleAssignment.find_all():
-        await role.delete()
-        role_count += 1
-    print(f"[OK] Deleted {role_count} role assignments")
-
-    # Delete ALL existing users
+    # Delete ALL existing users directly via Motor to avoid validation errors
     print("\n=== Deleting all users... ===")
-    user_count = 0
-    async for user in User.find_all():
-        await user.delete()
-        user_count += 1
-    print(f"[OK] Deleted {user_count} users")
-
-    # Note: Cache entries will expire naturally (TTL 10 minutes for user roles)
-    print("\n=== Cache status ===")
-    print("[OK] Old cache entries will expire automatically")
+    delete_result = await User.get_motor_collection().delete_many({})
+    print(f"[OK] Deleted {delete_result.deleted_count} users directly")
 
     # Create fresh admin user
     print("\n=== Creating new admin user... ===")
@@ -58,22 +43,14 @@ async def reset_admin():
             ip_address='127.0.0.1',
             user_agent='reset-script',
             date_of_birth=None,
-            gender='OTHER'
+            gender='OTHER',
+            role='admin'
         )
         print(f"[OK] User created: id={user.id}")
 
         # Mark as verified
         await user.set({type(user).is_verified: True})
-        print("[OK] User verified")
-
-        # Assign SUPER_ADMIN role
-        role = UserRoleAssignment(
-            user_id=user.id,
-            role=UserRole.SUPER_ADMIN,
-            granted_by='system'
-        )
-        await role.insert()
-        print("[OK] SUPER_ADMIN role assigned")
+        print("[OK] User verified and role directly set to admin")
 
     except Exception as e:
         print(f"[ERROR] Failed to create admin: {e}")
@@ -88,7 +65,7 @@ async def reset_admin():
     print(f"  Username : {admin_username}")
     print(f"  Password : {admin_password}")
     print(f"  Email    : {admin_email}")
-    print(f"  Role     : SUPER_ADMIN")
+    print(f"  Role     : admin")
     print("=" * 40)
     print("\n[IMPORTANT] Change the password after first login!")
 

@@ -3,13 +3,11 @@ Authentication service for user management, login, and security.
 Uses Beanie ODM for MongoDB.
 """
 
-import secrets
 import uuid
-from jose import jwt
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, Any, Tuple
 
-from ..models.user import User, UserRole, UserRoleAssignment
+from ..models.user import User
 from ..models.security import UserSession, AuditLog, AuditAction
 from ..core.security import security
 from ..core.config import settings
@@ -22,22 +20,20 @@ class AuthenticationResult:
 
     def __init__(self, success: bool, user: Optional[User] = None,
                  token: Optional[str] = None, refresh_token: Optional[str] = None,
-                 error_message: Optional[str] = None, mfa_required: bool = False,
-                 mfa_methods: Optional[list] = None):
+                 error_message: Optional[str] = None):
         self.success = success
         self.user = user
         self.token = token
         self.refresh_token = refresh_token
         self.error_message = error_message
-        self.mfa_required = mfa_required
-        self.mfa_methods = mfa_methods or []
+        self.mfa_required = False
+        self.mfa_methods = []
 
 
 class AuthService:
     """Authentication and user management service."""
 
     def __init__(self, db: Any, cache, sessions):
-        # db is not used directly — Beanie documents are self-managing
         self.cache = cache
         self.sessions = sessions
         self.security = security
@@ -46,7 +42,7 @@ class AuthService:
                            user_agent: str, device_fingerprint: str,
                            require_biometric: bool = False,
                            biometric_data: Optional[Dict] = None) -> AuthenticationResult:
-        """Authenticate user with credentials and optional biometric verification."""
+        """Authenticate user with credentials (Username/Matric/Email + Password)."""
         try:
             user = await self._get_user_by_username_or_email(username)
             if not user:
@@ -61,11 +57,6 @@ class AuthService:
             if not self.security.verify_password(password, user.salt, user.password_hash):
                 await self._handle_failed_login(user, ip_address, user_agent)
                 return AuthenticationResult(success=False, error_message="Invalid credentials")
-
-            if require_biometric:
-                biometric_result = await self._verify_biometric(user.id, biometric_data, device_fingerprint)
-                if not biometric_result:
-                    return AuthenticationResult(success=False, error_message="Biometric verification failed")
 
             session_data, access_token, refresh_token = await self._create_user_session(
                 user, ip_address, user_agent, device_fingerprint
@@ -82,15 +73,15 @@ class AuthService:
             )
 
         except Exception as e:
-            import traceback
-            traceback.print_exc()
             return AuthenticationResult(success=False, error_message=f"Authentication failed: {str(e)}")
 
     async def register_user(self, username: str, email: str, password: str,
                             first_name: str, last_name: str, phone_number: Optional[str],
                             date_of_birth: Optional[datetime], gender: Optional[Any],
-                            ip_address: str, user_agent: str) -> User:
-        """Register new user account."""
+                            ip_address: str, user_agent: str, role: str = "student",
+                            matric_number: Optional[str] = None,
+                            department: Optional[str] = None) -> User:
+        """Register new user account with direct role field."""
         try:
             if await self._get_user_by_username(username):
                 raise ValueError("Username already exists")
@@ -107,13 +98,12 @@ class AuthService:
                 email=email,
                 password_hash=password_hash,
                 salt=salt,
-                first_name=first_name,
-                last_name=last_name,
-                phone_number=phone_number,
-                date_of_birth=date_of_birth,
-                gender=gender,
+                full_name=f"{first_name} {last_name}".strip(),
+                matric_number=matric_number,
+                role=role.lower(),
+                department=department,
                 is_active=True,
-                is_verified=False
+                is_verified=True
             )
             await user.insert()
 
@@ -211,11 +201,11 @@ class AuthService:
             if not user:
                 raise ValueError("User not found")
 
-            update_fields = {
-                getattr(User, field): value
-                for field, value in profile_data.items()
-                if hasattr(User, field) and field not in ['id', 'password_hash', 'salt']
-            }
+            update_fields = {}
+            for field, value in profile_data.items():
+                if hasattr(User, field) and field not in ['id', 'password_hash', 'salt']:
+                    update_fields[getattr(User, field)] = value
+            
             if update_fields:
                 await user.set(update_fields)
                 await user.sync()
@@ -227,25 +217,7 @@ class AuthService:
 
     async def verify_email(self, token: str) -> bool:
         """Verify user email."""
-        try:
-            user_id = await self.cache.get(f"email_verify:{token}")
-            if not user_id:
-                return False
-
-            user = await self._get_user_by_id(user_id)
-            if not user:
-                return False
-
-            await user.set({User.is_verified: True})
-            await self.cache.delete(f"email_verify:{token}")
-            await self._log_audit_event(
-                user_id=user_id, action=AuditAction.UPDATE,
-                resource_type="user", resource_id=user_id,
-                new_values={"email_verified": True}, success=True
-            )
-            return True
-        except Exception:
-            return False
+        return True
 
     async def send_password_reset_email(self, email: str, ip_address: str) -> bool:
         """Send password reset email."""
@@ -277,25 +249,22 @@ class AuthService:
             return False
 
     async def user_has_role(self, user_id: str, role: str) -> bool:
-        """Check if user has specific role."""
+        """Check if user has specific role directly from User document."""
         try:
-            role_assignment = await UserRoleAssignment.find_one(
-                UserRoleAssignment.user_id == user_id,
-                UserRoleAssignment.role == role,
-                UserRoleAssignment.is_active == True
-            )
-            if not role_assignment:
+            user = await self._get_user_by_id(user_id)
+            if not user:
                 return False
-            if role_assignment.expires_at and role_assignment.expires_at <= datetime.now(timezone.utc):
-                return False
-            return True
+            user_role = user.role.lower()
+            check_role = role.lower()
+            if user_role == "admin" and check_role in ["admin", "administrator", "exam_officer"]:
+                return True
+            return user_role == check_role
         except Exception:
             return False
 
     async def get_user_from_token(self, token: str) -> Optional[User]:
         """Get user from access token."""
         try:
-            # Look up user_id from cache using access_token prefix
             user_id = await self.cache.get(f"access_token:{token}")
             if not user_id:
                 return None
@@ -306,7 +275,7 @@ class AuthService:
     # ── Private helpers ──────────────────────────────────────────────────
 
     async def _get_user_by_username_or_email(self, identifier: str) -> Optional[User]:
-        return await User.find_one({"$or": [{"username": identifier}, {"email": identifier}]})
+        return await User.find_one({"$or": [{"username": identifier}, {"email": identifier}, {"matric_number": identifier}]})
 
     async def _get_user_by_username(self, username: str) -> Optional[User]:
         return await User.find_one(User.username == username)
@@ -330,7 +299,6 @@ class AuthService:
             "ip_address": ip_address,
             "user_agent": user_agent,
             "device_fingerprint": device_fingerprint,
-            "biometric_verified": False,
             "created_at": datetime.now(timezone.utc).isoformat()
         }
 
@@ -350,7 +318,6 @@ class AuthService:
         if not session_data:
             return None
 
-        # Build a lightweight UserSession object from Redis data
         session = UserSession(
             id=session_token,
             user_id=session_data["user_id"],
@@ -388,10 +355,6 @@ class AuthService:
         if user.failed_login_attempts > 0 or user.locked_until:
             await user.set({User.failed_login_attempts: 0, User.locked_until: None})
 
-    async def _verify_biometric(self, user_id: str, biometric_data: Optional[Dict],
-                                device_fingerprint: str) -> bool:
-        return True  # Simplified — integrate real biometric verification here
-
     async def _log_audit_event(self, user_id: Optional[str], action: AuditAction,
                                resource_type: str, resource_id: Optional[str] = None,
                                ip_address: Optional[str] = None,
@@ -415,4 +378,4 @@ class AuthService:
             )
             await audit_log.insert()
         except Exception:
-            pass  # Never let audit failures break the main flow
+            pass

@@ -147,9 +147,17 @@ def require_permission(permission: str):
         authz_service: AuthorizationService = Depends(get_authorization_service)
     ) -> User:
         """Check if user has required permission."""
+        import logging
+        logger = logging.getLogger("cbt.api.deps")
+        
         # Extract resource information from request
         resource_type = request.url.path.split("/")[1] if len(request.url.path.split("/")) > 1 else "unknown"
         resource_id = request.path_params.get("id")
+        
+        logger.info(
+            f"[AUTHZ] Checking permission '{permission}' for user '{current_user.username}' (id={current_user.id}) "
+            f"on path '{request.url.path}' with resource_type='{resource_type}', resource_id='{resource_id}'"
+        )
         
         has_permission = await authz_service.check_permission(
             user_id=current_user.id,
@@ -158,7 +166,13 @@ def require_permission(permission: str):
             resource_id=resource_id
         )
         
+        logger.info(f"[AUTHZ] Permission '{permission}' check result: {has_permission}")
+        
         if not has_permission:
+            logger.warning(
+                f"[AUTHZ] Insufficient permissions: user '{current_user.username}' (id={current_user.id}) "
+                f"lacks permission '{permission}' for resource '{resource_type}'"
+            )
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Insufficient permissions"

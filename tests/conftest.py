@@ -42,6 +42,29 @@ def event_loop() -> Generator[asyncio.AbstractEventLoop, None, None]:
     loop.close()
 
 
+@pytest.fixture(scope="session", autouse=True)
+async def initialize_test_db(event_loop):
+    """Initialize database and Redis connection for testing."""
+    from src.cbt.core.database import init_db, close_db
+    from src.cbt.core.redis import redis_manager
+    from src.cbt.core.config import settings
+    settings.database_url = "mongodb://localhost:27017"
+    settings.database_name = "cbt_test"
+    settings.redis_url = "redis://localhost:6379/1"
+    
+    # Drop test database to clean stale records
+    from motor.motor_asyncio import AsyncIOMotorClient
+    client = AsyncIOMotorClient(settings.database_url)
+    await client.drop_database(settings.database_name)
+    client.close()
+    
+    await init_db()
+    await redis_manager.connect()
+    yield
+    await close_db()
+    await redis_manager.disconnect()
+
+
 @pytest.fixture(scope="session")
 async def test_engine():
     """Legacy fixture kept for compatibility with existing tests."""
@@ -92,9 +115,12 @@ async def test_client(test_session) -> AsyncGenerator[AsyncClient, None]:
 def sample_user_data():
     """Sample user data for testing."""
     return {
+        "username": "test_student",
         "email": "test.user@university.edu",
-        "full_name": "Test User",
         "password": "SecureTestPassword123!",
+        "confirm_password": "SecureTestPassword123!",
+        "first_name": "Test",
+        "last_name": "User",
         "role": "student",
         "department": "Computer Science",
         "matric_number": "202400001"
@@ -208,12 +234,47 @@ def sample_exam_blueprint_data():
 @pytest.fixture
 async def authenticated_client(test_client: AsyncClient, sample_user_data: dict) -> AsyncClient:
     """Create an authenticated test client."""
+    from src.cbt.models.user import User, UserRole
+    from src.cbt.models.student import Student
+    from src.cbt.core.redis import cache_manager
+    
     # Register user
     await test_client.post("/api/v1/auth/register", json=sample_user_data)
     
+    # Fetch registered or existing user
+    user = await User.find_one(User.username == sample_user_data["username"])
+    assert user is not None, f"Registered user {sample_user_data['username']} not found in database!"
+    
+    # Set active student role directly
+    if user.role != "student":
+        user.role = "student"
+        await user.save()
+    
+    # Seed student profile document if it does not exist
+    student = await Student.find_one(Student.user_id == user.id)
+    if not student:
+        student = Student(
+            id="student-001",  # Matches the ID used in the tests mock
+            user_id=user.id,
+            first_name=sample_user_data["first_name"],
+            last_name=sample_user_data["last_name"],
+            email=sample_user_data["email"],
+            matric_number=sample_user_data["matric_number"],
+            department_id="Computer Science",
+            academic_session_id="2023/2024",
+            admission_year=2020,
+            current_level=400,
+            graduated=False
+        )
+        await student.insert()
+        
+    # Invalidate cache for the user to prevent 403 due to caching of empty roles
+    await cache_manager.delete(f"user_permissions:{user.id}")
+    await cache_manager.delete(f"user_roles:{user.id}")
+    
     # Login user
     login_data = {
-        "email": sample_user_data["email"],
+        "username": sample_user_data["username"],
         "password": sample_user_data["password"]
     }
     response = await test_client.post("/api/v1/auth/login", json=login_data)

@@ -28,6 +28,7 @@ interface Exam {
 
 interface Result {
   id: string;
+  examId: string;
   courseCode: string;
   courseTitle: string;
   score: number | null;
@@ -91,7 +92,7 @@ const StudentDashboard: React.FC = () => {
           setMatricNumber(storedUser.username || '');
         }
 
-        const exams = await apiRequest<ExaminationApi[]>('/api/v1/examinations?limit=10');
+        const exams = await apiRequest<ExaminationApi[]>('/api/v1/examinations/?limit=10');
         const now = new Date();
         const mapped: Exam[] = exams.map((exam) => {
           const startAt = new Date(exam.start_time);
@@ -121,6 +122,7 @@ const StudentDashboard: React.FC = () => {
           const rawResults = await apiRequest<ResultApi[]>('/api/v1/examinations/my/results');
           const mappedResults: Result[] = rawResults.map((r) => ({
             id: r.instance_id,
+            examId: r.exam_id,
             courseCode: r.course_id || '',
             courseTitle: r.exam_title,
             score: r.score,
@@ -326,7 +328,16 @@ const StudentDashboard: React.FC = () => {
             {recentResults.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {recentResults.map((result) => (
-                  <Card key={result.id} elevation={1} className="p-4">
+                  <Card 
+                    key={result.id} 
+                    elevation={1} 
+                    className={`p-4 ${result.status === 'released' ? 'cursor-pointer hover:shadow-elevation-2 hover:scale-[1.01] transition-all duration-150 border-l-4 border-l-custech-green' : 'border-l-4 border-l-custech-gold opacity-90'}`}
+                    onClick={() => {
+                      if (result.status === 'released') {
+                        navigate(`/exam/${result.examId}/instances/${result.id}/review`);
+                      }
+                    }}
+                  >
                     <div className="flex justify-between items-start mb-2">
                       <div>
                         <h3 className="font-semibold text-heading">

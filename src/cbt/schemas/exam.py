@@ -359,3 +359,17 @@ class ExamMonitoringResponse(BaseModel):
     technical_issues: List[Dict[str, Any]]
     suspicious_activities: List[Dict[str, Any]]
     last_updated: datetime
+
+
+class ExamRegisteredStudentResponse(BaseModel):
+    """Schema for a student registered for an examination."""
+    id: str
+    first_name: str
+    last_name: str
+    email: str
+    matric_number: str
+    department_id: str
+    department_code: Optional[str] = None
+    department_name: Optional[str] = None
+    is_active: bool
+

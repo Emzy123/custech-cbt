@@ -1,5 +1,5 @@
 """
-Seed script — creates sample LECTURER and STUDENT users with supporting academic data.
+Seed script — creates sample LECTURER and STUDENT users with supporting academic data for CSC 131.
 """
 import asyncio
 import os
@@ -14,9 +14,9 @@ sys.path.insert(0, 'src')
 from cbt.core.database import init_db
 from cbt.services.auth_service import AuthService
 from cbt.core.redis import redis_manager, cache_manager, session_manager
-from cbt.models.user import UserRoleAssignment, UserRole, User
+from cbt.models.user import User
 from cbt.models.academic import AcademicSession, Semester, Department, Course, SemesterType, CourseLevel, LecturerCourse
-from cbt.models.student import Student
+from cbt.models.student import Student, StudentCourse
 
 
 # Default credentials (override with env vars)
@@ -84,14 +84,14 @@ async def ensure_academic_structure():
     else:
         print(f"[OK] Semester exists: {semester.semester_type.value}")
     
-    # Course
-    course = await Course.find_one(Course.code == "GST101")
+    # Course CSC 131 - Introduction to Computer Science
+    course = await Course.find_one(Course.code == "CSC131")
     if not course:
         course = Course(
-            code="GST101",
-            title="Communication in English",
-            description="Basic communication skills for undergraduates",
-            credit_units=2,
+            code="CSC131",
+            title="Introduction to Computer Science",
+            description="Fundamental computer science concepts for 100-Level",
+            credit_units=3,
             level=CourseLevel.LEVEL_100,
             semester_type=SemesterType.FIRST,
             created_by="system"
@@ -118,22 +118,15 @@ async def create_lecturer(auth_service, department):
             ip_address='127.0.0.1',
             user_agent='seed-script',
             date_of_birth=None,
-            gender='MALE'
+            gender='MALE',
+            role='lecturer',
+            department='Computer Science'
         )
         print(f"[OK] Lecturer user created: {user.username} (id={user.id})")
         
         # Mark as verified
         await user.set({type(user).is_verified: True})
-        
-        # Assign LECTURER role
-        role = UserRoleAssignment(
-            user_id=user.id,
-            role=UserRole.LECTURER,
-            department_id=str(department.id),
-            granted_by='system'
-        )
-        await role.insert()
-        print('[OK] LECTURER role assigned')
+        print('[OK] Lecturer role assigned directly')
         
         return user
         
@@ -143,24 +136,12 @@ async def create_lecturer(auth_service, department):
             user = await auth_service._get_user_by_username(DEFAULTS['lecturer_username'])
             
             if user:
-                if not user.is_verified:
-                    await user.set({type(user).is_verified: True})
-                
-                existing = await UserRoleAssignment.find_one(
-                    UserRoleAssignment.user_id == user.id,
-                    UserRoleAssignment.role == UserRole.LECTURER
-                )
-                if not existing:
-                    role = UserRoleAssignment(
-                        user_id=user.id,
-                        role=UserRole.LECTURER,
-                        department_id=str(department.id),
-                        granted_by='system'
-                    )
-                    await role.insert()
-                    print('[OK] LECTURER role assigned')
-                else:
-                    print('[OK] LECTURER role already present')
+                await user.set({
+                    User.is_verified: True,
+                    User.role: "lecturer",
+                    User.department: "Computer Science"
+                })
+                print('[OK] Lecturer role/verification ensured')
             return user
         else:
             raise
@@ -180,22 +161,16 @@ async def create_student(auth_service, department, session):
             ip_address='127.0.0.1',
             user_agent='seed-script',
             date_of_birth=None,
-            gender='FEMALE'
+            gender='FEMALE',
+            role='student',
+            matric_number=DEFAULTS['matric_number'],
+            department='Computer Science'
         )
         print(f"[OK] Student user created: {user.username} (id={user.id})")
         
         # Mark as verified
         await user.set({type(user).is_verified: True})
-        
-        # Assign STUDENT role
-        role = UserRoleAssignment(
-            user_id=user.id,
-            role=UserRole.STUDENT,
-            department_id=str(department.id),
-            granted_by='system'
-        )
-        await role.insert()
-        print('[OK] STUDENT role assigned')
+        print('[OK] Student role assigned directly')
         
         # Create Student profile
         existing_student = await Student.find_one(Student.user_id == str(user.id))
@@ -216,7 +191,12 @@ async def create_student(auth_service, department, session):
             await student_profile.insert()
             print(f"[OK] Student profile created: matric={student_profile.matric_number}")
         else:
-            print(f"[OK] Student profile already exists: matric={existing_student.matric_number}")
+            await existing_student.set({
+                Student.matric_number: DEFAULTS['matric_number'],
+                Student.first_name: DEFAULTS['student_first'],
+                Student.last_name: DEFAULTS['student_last']
+            })
+            print(f"[OK] Student profile already exists and updated: matric={existing_student.matric_number}")
         
         return user
         
@@ -226,24 +206,37 @@ async def create_student(auth_service, department, session):
             user = await auth_service._get_user_by_username(DEFAULTS['student_username'])
             
             if user:
-                if not user.is_verified:
-                    await user.set({type(user).is_verified: True})
+                await user.set({
+                    User.is_verified: True,
+                    User.role: "student",
+                    User.matric_number: DEFAULTS['matric_number'],
+                    User.department: "Computer Science"
+                })
+                print('[OK] Student role/verification ensured')
                 
-                existing = await UserRoleAssignment.find_one(
-                    UserRoleAssignment.user_id == user.id,
-                    UserRoleAssignment.role == UserRole.STUDENT
-                )
-                if not existing:
-                    role = UserRoleAssignment(
-                        user_id=user.id,
-                        role=UserRole.STUDENT,
+                # Check Student profile
+                existing_student = await Student.find_one(Student.user_id == str(user.id))
+                if not existing_student:
+                    student_profile = Student(
+                        user_id=str(user.id),
+                        first_name=DEFAULTS['student_first'],
+                        last_name=DEFAULTS['student_last'],
+                        email=DEFAULTS['student_email'],
+                        phone_number='+2348000000002',
                         department_id=str(department.id),
-                        granted_by='system'
+                        academic_session_id=str(session.id),
+                        matric_number=DEFAULTS['matric_number'],
+                        admission_year=2024,
+                        current_level=100,
+                        graduated=False
                     )
-                    await role.insert()
-                    print('[OK] STUDENT role assigned')
+                    await student_profile.insert()
+                    print(f"[OK] Student profile created: matric={student_profile.matric_number}")
                 else:
-                    print('[OK] STUDENT role already present')
+                    await existing_student.set({
+                        Student.matric_number: DEFAULTS['matric_number']
+                    })
+                    print(f"[OK] Student profile ensured")
             return user
         else:
             raise
@@ -271,7 +264,7 @@ async def assign_lecturer_to_course(lecturer, course):
 async def seed_users():
     """Main seed function."""
     print("=" * 50)
-    print("CBT System — Seed Lecturer & Student")
+    print("CBT System — Seed Lecturer & Student for CSC 131")
     print("=" * 50)
     
     # 1. Boot MongoDB + Beanie
@@ -299,6 +292,33 @@ async def seed_users():
     print("\n=== Assigning lecturer to course... ===")
     if lecturer:
         await assign_lecturer_to_course(lecturer, course)
+    
+    # 7. Register student for course
+    print("\n=== Registering Student for Course... ===")
+    if student:
+        student_profile = await Student.find_one(Student.user_id == str(student.id))
+        if student_profile:
+            existing_reg = await StudentCourse.find_one(
+                StudentCourse.student_id == str(student_profile.id),
+                StudentCourse.course_id == str(course.id),
+                StudentCourse.academic_session_id == str(session.id),
+                StudentCourse.semester_id == str(semester.id)
+            )
+            if not existing_reg:
+                student_course = StudentCourse(
+                    student_id=str(student_profile.id),
+                    course_id=str(course.id),
+                    academic_session_id=str(session.id),
+                    semester_id=str(semester.id),
+                    registration_date=datetime.now(timezone.utc),
+                    status="REGISTERED"
+                )
+                await student_course.insert()
+                print(f"[OK] Student registered for course {course.code}")
+            else:
+                print(f"[OK] Student already registered for course {course.code}")
+        else:
+            print("[ERROR] Student profile not found for registration")
     
     # Cleanup
     await redis_manager.disconnect()

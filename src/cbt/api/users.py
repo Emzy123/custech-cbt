@@ -6,7 +6,7 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field, EmailStr
 
-from ..models.user import User, UserRole, UserRoleAssignment, Gender
+from ..models.user import User, UserRole, Gender
 from ..services.auth_service import AuthService
 from ..services.authorization_service import AuthorizationService
 from ..core.database import get_db
@@ -167,13 +167,9 @@ async def create_user(
     # Verify user
     await user.set({User.is_verified: True})
     
-    # Assign role
-    role_assignment = UserRoleAssignment(
-        user_id=str(user.id),
-        role=user_role,
-        granted_by=str(current_user.id)
-    )
-    await role_assignment.insert()
+    # Assign role directly
+    user.role = user_role.value
+    await user.save()
     
     # Clear cache
     authz = AuthorizationService(cache_manager)
@@ -263,8 +259,7 @@ async def delete_user(
     if str(user.id) == str(current_user.id):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot delete yourself")
     
-    # Delete role assignments
-    await UserRoleAssignment.find({"user_id": user_id}).delete()
+    # No role assignments collection to delete
     
     # Clear cache
     authz = AuthorizationService(cache_manager)
@@ -297,23 +292,9 @@ async def assign_role(
             detail=f"Invalid role '{data.role}'"
         )
     
-    # Check if role already exists
-    existing = await UserRoleAssignment.find_one({
-        "user_id": user_id,
-        "role": user_role
-    })
-    if existing:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Role already assigned")
-    
-    # Create assignment
-    assignment = UserRoleAssignment(
-        user_id=user_id,
-        role=user_role,
-        department_id=data.department_id,
-        granted_by=str(current_user.id),
-        expires_at=data.expires_at
-    )
-    await assignment.insert()
+    # Assign role directly
+    user.role = user_role.value
+    await user.save()
     
     # Clear cache
     authz = AuthorizationService(cache_manager)
@@ -335,14 +316,9 @@ async def remove_role(
     except ValueError:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Invalid role '{role}'")
     
-    assignment = await UserRoleAssignment.find_one({
-        "user_id": user_id,
-        "role": user_role
-    })
-    if not assignment:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Role assignment not found")
-    
-    await assignment.delete()
+    # Reset role directly
+    user.role = "student"
+    await user.save()
     
     # Clear cache
     authz = AuthorizationService(cache_manager)

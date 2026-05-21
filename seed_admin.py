@@ -1,5 +1,5 @@
 """
-Seed script — creates the SUPER_ADMIN user in MongoDB.
+Seed script — creates the admin user in MongoDB.
 """
 import asyncio
 import os
@@ -13,17 +13,17 @@ sys.path.insert(0, 'src')
 from cbt.core.database import init_db
 from cbt.services.auth_service import AuthService
 from cbt.core.redis import redis_manager, cache_manager, session_manager
-from cbt.models.user import UserRoleAssignment, UserRole
+from cbt.models.user import User
 
 
 async def create_admin():
     admin_username = os.getenv("SEED_ADMIN_USERNAME", "admin")
     admin_email = os.getenv("SEED_ADMIN_EMAIL", "admin@custech.edu.ng")
-    admin_password = os.getenv("SEED_ADMIN_PASSWORD")
+    admin_password = os.getenv("SEED_ADMIN_PASSWORD", "Admin123!")
     if not admin_password:
         raise ValueError(
             "SEED_ADMIN_PASSWORD is required. "
-            "Set it in your shell before running the seed script."
+            "Set it in your shell or use the default before running the seed script."
         )
 
     # 1. Boot MongoDB + Beanie
@@ -44,47 +44,27 @@ async def create_admin():
             ip_address='127.0.0.1',
             user_agent='seed-script',
             date_of_birth=None,
-            gender='OTHER'
+            gender='OTHER',
+            role='admin'
         )
         print(f'[OK] User created: id={user.id}')
 
         # Mark as verified
         await user.set({type(user).is_verified: True})
-
-        # Assign SUPER_ADMIN role
-        role = UserRoleAssignment(
-            user_id=user.id,
-            role=UserRole.SUPER_ADMIN,
-            granted_by='system'
-        )
-        await role.insert()
-        print('[OK] SUPER_ADMIN role assigned')
+        print('[OK] Admin role assigned directly')
 
     except ValueError as e:
         if "already exists" in str(e):
-            print("[INFO] Admin user already exists. Ensuring role...")
+            print("[INFO] Admin user already exists. Ensuring role is admin...")
             user = await auth_service._get_user_by_username(admin_username)
 
             if user:
-                # Ensure verified
-                if not user.is_verified:
-                    await user.set({type(user).is_verified: True})
-
-                # Check for existing role
-                existing = await UserRoleAssignment.find_one(
-                    UserRoleAssignment.user_id == user.id,
-                    UserRoleAssignment.role == UserRole.SUPER_ADMIN
-                )
-                if not existing:
-                    role = UserRoleAssignment(
-                        user_id=user.id,
-                        role=UserRole.SUPER_ADMIN,
-                        granted_by='system'
-                    )
-                    await role.insert()
-                    print('[OK] SUPER_ADMIN role assigned')
-                else:
-                    print('[OK] SUPER_ADMIN role already present')
+                # Ensure verified and role is admin
+                await user.set({
+                    User.is_verified: True,
+                    User.role: "admin"
+                })
+                print('[OK] Admin role and verification ensured')
             else:
                 print('[ERROR] Could not find admin user')
         else:
@@ -97,8 +77,10 @@ async def create_admin():
     await redis_manager.disconnect()
     print('\n=== Admin Credentials ===')
     print(f'  Username : {admin_username}')
-    print('  Password : [from SEED_ADMIN_PASSWORD]')
-    print('  Role     : SUPER_ADMIN')
+    print(f'  Password : {admin_password}')
+    print('  Role     : admin')
 
 
-asyncio.run(create_admin())
+if __name__ == "__main__":
+    asyncio.run(create_admin())
+

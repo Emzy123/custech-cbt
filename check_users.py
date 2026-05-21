@@ -7,7 +7,7 @@ sys.path.insert(0, 'src')
 
 from cbt.core.database import init_db
 from cbt.core.redis import redis_manager, cache_manager, session_manager
-from cbt.models.user import User, UserRoleAssignment, UserRole
+from cbt.models.user import User
 from cbt.services.auth_service import AuthService
 
 
@@ -30,13 +30,7 @@ async def check_users():
         print(f"  Verified: {user.is_verified}")
         print(f"  Locked: {user.is_locked}")
         print(f"  Failed Attempts: {user.failed_login_attempts}")
-        
-        # Get roles
-        roles = await UserRoleAssignment.find(
-            UserRoleAssignment.user_id == str(user.id)
-        ).to_list()
-        role_names = [r.role.value for r in roles]
-        print(f"  Roles: {role_names}")
+        print(f"  Role (direct): {user.role}")
         print()
     
     # Test authentication
@@ -45,6 +39,7 @@ async def check_users():
     test_cases = [
         ("lecturer", "Lecturer123!"),
         ("student", "Student123!"),
+        ("admin", "Admin123!"),
     ]
     
     for username, password in test_cases:

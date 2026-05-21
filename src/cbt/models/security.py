@@ -1,5 +1,5 @@
 """
-Security and audit models for user sessions, audit logs, and logging using Beanie (MongoDB).
+Security and audit models for user sessions and simplified audit logging using Beanie (MongoDB).
 """
 
 from typing import Optional, Dict, Any
@@ -18,18 +18,12 @@ class UserSession(BaseDocument):
     ip_address: Optional[str] = None
     user_agent: Optional[str] = None
     device_fingerprint: Optional[str] = None
-    biometric_verified: bool = False
     expires_at: datetime
     last_activity_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     @property
     def is_expired(self) -> bool:
         return datetime.now(timezone.utc) > self.expires_at
-
-    @property
-    def session_age(self) -> int:
-        age = datetime.now(timezone.utc) - self.created_at
-        return int(age.total_seconds() / 60)
 
     class Settings:
         name = "user_sessions"
@@ -52,7 +46,7 @@ class AuditAction(str, enum.Enum):
 
 
 class AuditLog(BaseDocument):
-    """Comprehensive audit logging for security and compliance."""
+    """Comprehensive audit logging for tracking key administrative actions."""
     user_id: Optional[str] = None
     action: AuditAction
     resource_type: str
@@ -82,47 +76,3 @@ class SecurityEvent(BaseDocument):
 
     class Settings:
         name = "security_events"
-
-
-class SecurityScan(BaseDocument):
-    """Recorded security scan or hardening run (SAST, DAST, WAF, audits, etc.)."""
-
-    scan_type: str
-    status: str
-    started_at: datetime
-    completed_at: Optional[datetime] = None
-    vulnerabilities_found: int = 0
-    configuration: Dict[str, Any] = Field(default_factory=dict)
-    results: Optional[Dict[str, Any]] = None
-    error_message: Optional[str] = None
-
-    class Settings:
-        name = "security_scans"
-
-
-class Vulnerability(BaseDocument):
-    """Individual vulnerability finding linked to a security scan."""
-
-    scan_id: str
-    severity: str
-    category: str
-    title: str
-    description: str
-    file_path: Optional[str] = None
-    line_number: Optional[int] = None
-    url: Optional[str] = None
-    parameter: Optional[str] = None
-    cwe_id: Optional[str] = None
-    cvss_score: float = 0.0
-    remediation: Optional[str] = None
-    status: str = "open"
-    exploit_available: bool = False
-    remediated_by: Optional[str] = None
-    remediated_at: Optional[datetime] = None
-    acknowledged_by: Optional[str] = None
-    acknowledged_at: Optional[datetime] = None
-    remediation_notes: Optional[str] = None
-    acknowledgment_notes: Optional[str] = None
-
-    class Settings:
-        name = "vulnerabilities"

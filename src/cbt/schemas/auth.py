@@ -141,12 +141,13 @@ class ProfileResponse(BaseModel):
     first_name: str
     last_name: str
     full_name: str
-    phone_number: Optional[str]
-    date_of_birth: Optional[date]
-    gender: Optional[Gender]
+    role: Optional[str] = None
+    phone_number: Optional[str] = None
+    date_of_birth: Optional[date] = None
+    gender: Optional[Gender] = None
     is_verified: bool
     is_active: bool
-    last_login_at: Optional[datetime]
+    last_login_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
 
@@ -160,14 +161,15 @@ class ProfileResponse(BaseModel):
             first_name=obj.first_name,
             last_name=obj.last_name,
             full_name=f"{obj.first_name} {obj.last_name}",
-            phone_number=obj.phone_number,
-            date_of_birth=obj.date_of_birth,
-            gender=obj.gender,
+            role=getattr(obj, 'role', None),
+            phone_number=getattr(obj, 'phone_number', None),
+            date_of_birth=getattr(obj, 'date_of_birth', None),
+            gender=getattr(obj, 'gender', None),
             is_verified=obj.is_verified,
             is_active=obj.is_active,
             last_login_at=obj.last_login_at,
             created_at=obj.created_at,
-            updated_at=obj.updated_at,
+            updated_at=getattr(obj, 'updated_at', obj.created_at),
         )
 
 

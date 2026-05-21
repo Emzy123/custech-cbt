@@ -20,8 +20,8 @@ class BlueprintRequirement(BaseModel):
     @field_validator("question_count")
     @classmethod
     def validate_question_count(cls, v: int) -> int:
-        if v <= 0 or v > 20:
-            raise ValueError("Question count must be between 1 and 20")
+        if v <= 0 or v > 200:
+            raise ValueError("Question count must be between 1 and 200")
         return v
 
 

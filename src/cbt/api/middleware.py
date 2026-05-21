@@ -102,6 +102,8 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
             process_time = time.time() - start_time
             
             # Log error
+            import traceback
+            traceback.print_exc()
             logger.error(
                 f"Request failed: {request.method} {request.url.path} - {str(e)}",
                 extra={

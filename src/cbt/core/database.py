@@ -36,40 +36,24 @@ async def init_db():
         from beanie import init_beanie
         
         # Import all models here to avoid circular imports
-        from ..models.user import User, UserRoleAssignment
+        from ..models.user import User
         from ..models.academic import AcademicSession, Semester, Department, Course, CourseDepartment, LecturerCourse
         from ..models.student import Student, StudentCourse
-        from ..models.question import QuestionBank, Question, QuestionOption, QuestionAnswer
-        from ..models.exam import Examination, ExamQuestion, ExamInstance, ExamAnswer
-        from ..models.venue import Venue, ExamVenueAssignment
+        from ..models.question import Question
+        from ..models.exam import Examination, ExamInstance, Result
         from ..models.security import (
             UserSession,
             AuditLog,
             SecurityEvent,
-            SecurityScan,
-            Vulnerability,
-        )
-        from ..models.biometric import (
-            BiometricTemplate,
-            BiometricVerification,
-            BiometricDevice,
-            BiometricSession,
-            BiometricAnomaly,
-            BiometricConfiguration,
-            BiometricAuditLog,
         )
 
         # Add models to Beanie
         document_models = [
-            User, UserRoleAssignment, Department, Course, CourseDepartment, LecturerCourse,
+            User, Department, Course, CourseDepartment, LecturerCourse,
             AcademicSession, Semester, Student, StudentCourse,
-            QuestionBank, Question, QuestionOption, QuestionAnswer,
-            Examination, ExamQuestion, ExamInstance, ExamAnswer,
-            Venue, ExamVenueAssignment,
-            UserSession, AuditLog, SecurityEvent, SecurityScan, Vulnerability,
-            BiometricTemplate, BiometricVerification, BiometricDevice,
-            BiometricSession, BiometricAnomaly, BiometricConfiguration,
-            BiometricAuditLog,
+            Question,
+            Examination, ExamInstance, Result,
+            UserSession, AuditLog, SecurityEvent,
         ]
         
         await init_beanie(database=database, document_models=document_models)
@@ -117,7 +101,6 @@ class DatabaseManager:
 db_manager = DatabaseManager()
 
 # Legacy dependency injection generator for endpoints requiring a DB session
-# In MongoDB with Beanie, documents manage their own sessions (or use global context)
 async def get_db():
     """Dependency function for MongoDB (placeholder for legacy compatibility)."""
     yield None

@@ -69,14 +69,10 @@ const LoginPage: React.FC = () => {
         const roleStr = me.roles && me.roles.length > 0 ? me.roles[0].toLowerCase() : (me.role ? me.role.toLowerCase() : '');
         
         // Navigate based on role
-        if (roleStr === 'admin' || roleStr === 'administrator' || roleStr === 'super_admin') {
+        if (roleStr === 'admin' || roleStr === 'administrator' || roleStr === 'super_admin' || roleStr === 'officer' || roleStr === 'exam_officer') {
           navigate('/admin/dashboard', { replace: true });
-        } else if (roleStr === 'officer' || roleStr === 'exam_officer') {
-          navigate('/officer', { replace: true });
-        } else if (roleStr === 'invigilator') {
-          navigate('/invigilator/dashboard', { replace: true });
         } else if (roleStr === 'lecturer') {
-          navigate('/lecturer/questions', { replace: true });
+          navigate('/lecturer/dashboard', { replace: true });
         } else {
           navigate('/dashboard', { replace: true });
         }
@@ -111,9 +107,9 @@ const LoginPage: React.FC = () => {
           </div>
           
           <div className="text-white">
-            <h2 className="text-4xl font-bold mb-4">GST Examination Portal</h2>
+            <h2 className="text-4xl font-bold mb-4">CSC 131 CBE Portal</h2>
             <p className="text-lg opacity-80 leading-relaxed">
-              Secure • Fair • Reliable
+              Introduction to Computer Science
             </p>
           </div>
         </div>
@@ -141,7 +137,7 @@ const LoginPage: React.FC = () => {
           {/* Mobile branding */}
           <div className="lg:hidden text-center mb-8">
             <h1 className="text-2xl font-bold text-custech-primary mb-2">CUSTECH</h1>
-            <p className="text-sm text-body">GST Examination Portal</p>
+            <p className="text-sm text-body">CSC 131 CBE Portal</p>
           </div>
 
           <Card elevation={1} className="p-8">
