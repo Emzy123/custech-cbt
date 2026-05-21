@@ -16,7 +16,7 @@ from .core.redis import redis_manager
 from .core.security import security
 from .api.middleware import setup_cors_middleware, setup_security_middleware
 from .services.audit_service import AuditService
-from .api import auth, students, courses, examinations, questions, academics, users
+from .api import auth, students, courses, examinations, questions, academics, users, exam_blueprint
 
 # Configure logging
 log_file_path = Path(settings.log_file)
@@ -195,14 +195,7 @@ async def root():
     }
 
 
-@app.get("/metrics")
-async def prometheus_metrics():
-    """Prometheus scrape endpoint when metrics are enabled."""
-    if not settings.metrics_enabled:
-        raise HTTPException(status_code=404, detail="Metrics disabled")
-    from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
-    return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 
 # Include API routers
@@ -216,6 +209,9 @@ app.include_router(examinations.router, prefix=settings.api_v1_str)
 
 # Question bank
 app.include_router(questions.router, prefix=settings.api_v1_str)
+
+# Blueprint configuration
+app.include_router(exam_blueprint.router, prefix=settings.api_v1_str)
 
 
 if __name__ == "__main__":
