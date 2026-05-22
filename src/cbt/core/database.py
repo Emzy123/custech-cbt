@@ -45,6 +45,13 @@ async def init_db():
             UserSession,
             AuditLog,
             SecurityEvent,
+            SecurityScan,
+            Vulnerability,
+        )
+        from ..models.biometric import (
+            BiometricTemplate, BiometricVerification, BiometricDevice,
+            BiometricSession, BiometricAnomaly, BiometricConfiguration,
+            BiometricAuditLog,
         )
 
         # Add models to Beanie
@@ -53,7 +60,10 @@ async def init_db():
             AcademicSession, Semester, Student, StudentCourse,
             Question,
             Examination, ExamInstance, Result,
-            UserSession, AuditLog, SecurityEvent,
+            UserSession, AuditLog, SecurityEvent, SecurityScan, Vulnerability,
+            BiometricTemplate, BiometricVerification, BiometricDevice,
+            BiometricSession, BiometricAnomaly, BiometricConfiguration,
+            BiometricAuditLog,
         ]
         
         await init_beanie(database=database, document_models=document_models)

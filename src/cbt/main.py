@@ -9,6 +9,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
+from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
 
 from .core.config import settings
 from .core.database import db_manager, init_db
@@ -16,7 +17,7 @@ from .core.redis import redis_manager
 from .core.security import security
 from .api.middleware import setup_cors_middleware, setup_security_middleware
 from .services.audit_service import AuditService
-from .api import auth, students, courses, examinations, questions, academics, users, exam_blueprint
+from .api import auth, students, courses, examinations, questions, academics, users, exam_blueprint, security_hardening, biometric
 
 # Configure logging
 log_file_path = Path(settings.log_file)
@@ -195,6 +196,13 @@ async def root():
     }
 
 
+if settings.metrics_enabled:
+    @app.get("/metrics")
+    async def metrics():
+        """Prometheus metrics endpoint."""
+        return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
+
+
 
 
 
@@ -212,6 +220,10 @@ app.include_router(questions.router, prefix=settings.api_v1_str)
 
 # Blueprint configuration
 app.include_router(exam_blueprint.router, prefix=settings.api_v1_str)
+
+# Security & biometric
+app.include_router(security_hardening.router, prefix=settings.api_v1_str)
+app.include_router(biometric.router, prefix=settings.api_v1_str)
 
 
 if __name__ == "__main__":

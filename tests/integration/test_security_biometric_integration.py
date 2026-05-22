@@ -30,12 +30,44 @@ def integration_client(require_integration_mongo):
         yield client
 
 
+@pytest.fixture(autouse=True)
+async def clean_database(require_integration_mongo):
+    """Drop all documents from every known collection before each test so that
+    the first-user auto-bootstrap is always in a clean state."""
+    from motor.motor_asyncio import AsyncIOMotorClient
+    import redis.asyncio as aioredis
+    from src.cbt.core.config import settings
+
+    # Drop MongoDB collections
+    mongo_client = AsyncIOMotorClient(settings.database_url)
+    db = mongo_client[settings.database_name]
+    for col in [
+        "users", "user_sessions", "audit_logs", "security_events",
+        "security_scans", "vulnerabilities",
+        "biometric_templates", "biometric_verifications", "biometric_devices",
+        "biometric_sessions", "biometric_anomalies",
+    ]:
+        await db[col].drop()
+    mongo_client.close()
+
+    # Flush Redis test DB using a fresh connection to avoid event-loop conflicts
+    redis_client = aioredis.from_url(settings.redis_url, decode_responses=True)
+    await redis_client.flushdb()
+    await redis_client.aclose()
+
+    yield
+
+
 def _register_admin(integration_client: TestClient) -> tuple[str, str]:
-    """Create an ADMINISTRATOR user via open registration + user-create API."""
+    """Register the *first* user (auto-bootstrapped as admin), then create a
+    second ADMINISTRATOR user via the admin-only /api/v1/users/ endpoint.
+
+    Returns (admin_username, admin_password) for the second user.
+    """
     suffix = uuid.uuid4().hex[:8]
     gate_username = f"gate_{suffix}"
     gate_password = "GatePass1!"
-    gate_email = f"gate_{suffix}@test.local"
+    gate_email = f"gate_{suffix}@example.com"
 
     resp = integration_client.post(
         "/api/v1/auth/register",
@@ -63,7 +95,7 @@ def _register_admin(integration_client: TestClient) -> tuple[str, str]:
 
     admin_username = f"adm_{suffix}"
     admin_password = "AdminPass1!"
-    admin_email = f"adm_{suffix}@test.local"
+    admin_email = f"adm_{suffix}@example.com"
     cr = integration_client.post(
         "/api/v1/users/",
         json={

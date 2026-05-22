@@ -83,6 +83,7 @@ class AuthorizationService:
                 "question.create",
                 "question.update",
                 "question.delete",
+                "question.import",
                 "exam.read",
                 "exam.create",
                 "exam.update",
@@ -163,6 +164,21 @@ class AuthorizationService:
                 "security.permissions",
                 "security.sessions",
                 "security.read",
+                "security.scan",
+                "security.audit",
+                "security.manage",
+                "security.remediate",
+                "security.acknowledge",
+                "security.configure",
+                "security.harden",
+                "security.penetration_test",
+                "biometric.read",
+                "biometric.register",
+                "biometric.verify",
+                "biometric.update",
+                "biometric.deactivate",
+                "biometric.admin",
+                "system.admin",
             ],
             "SUPER_ADMIN": [
                 "*"
@@ -220,7 +236,7 @@ class AuthorizationService:
             },
             "LECTURER": {
                 "user.read", "student.read", "course.read", "course.create", "course.update",
-                "question.read", "question.create", "question.update", "question.delete",
+                "question.read", "question.create", "question.update", "question.delete", "question.import",
                 "exam.read", "exam.create", "exam.update", "exam.delete", "exam.schedule",
                 "grade.read", "grade.update", "result.read", "result.export"
             },

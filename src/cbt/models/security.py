@@ -76,3 +76,48 @@ class SecurityEvent(BaseDocument):
 
     class Settings:
         name = "security_events"
+
+
+class SecurityScan(BaseDocument):
+    """Recorded security scan or hardening run (SAST, DAST, WAF, audits, etc.)."""
+
+    scan_type: str
+    status: str
+    started_at: datetime
+    completed_at: Optional[datetime] = None
+    vulnerabilities_found: int = 0
+    configuration: Dict[str, Any] = Field(default_factory=dict)
+    results: Optional[Dict[str, Any]] = None
+    error_message: Optional[str] = None
+
+    class Settings:
+        name = "security_scans"
+
+
+class Vulnerability(BaseDocument):
+    """Individual vulnerability finding linked to a security scan."""
+
+    scan_id: str
+    severity: str
+    category: str
+    title: str
+    description: str
+    file_path: Optional[str] = None
+    line_number: Optional[int] = None
+    url: Optional[str] = None
+    parameter: Optional[str] = None
+    cwe_id: Optional[str] = None
+    cvss_score: float = 0.0
+    remediation: Optional[str] = None
+    status: str = "open"
+    exploit_available: bool = False
+    remediated_by: Optional[str] = None
+    remediated_at: Optional[datetime] = None
+    acknowledged_by: Optional[str] = None
+    acknowledged_at: Optional[datetime] = None
+    remediation_notes: Optional[str] = None
+    acknowledgment_notes: Optional[str] = None
+
+    class Settings:
+        name = "vulnerabilities"
+
