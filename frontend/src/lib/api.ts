@@ -21,6 +21,7 @@ export function clearAuthStorage(): void {
   localStorage.removeItem('authToken');
   localStorage.removeItem('refreshToken');
   localStorage.removeItem('authUser');
+  localStorage.removeItem('adminActiveConsole');
 }
 
 export async function logout(): Promise<boolean> {
@@ -74,7 +75,7 @@ async function refreshAccessToken(): Promise<boolean> {
 export async function apiRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
   const buildHeaders = () => {
     const headers = new Headers(init.headers || {});
-    if (!headers.has('Content-Type') && init.body) {
+    if (!headers.has('Content-Type') && init.body && !(init.body instanceof FormData)) {
       headers.set('Content-Type', 'application/json');
     }
     if (!headers.has('Accept')) {

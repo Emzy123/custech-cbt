@@ -2,7 +2,7 @@
 Question model using Beanie (MongoDB).
 """
 
-from typing import Optional
+from typing import Optional, List, Any
 from datetime import datetime, timezone
 from beanie import Document
 from pydantic import Field
@@ -60,6 +60,19 @@ class Question(BaseDocument):
     course_code: str = "CSC131"
     created_by: str
     updated_by: Optional[str] = None
+    
+    # Compatibility fields for QuestionResponse mapping
+    question_type: QuestionType = QuestionType.MULTIPLE_CHOICE
+    difficulty: QuestionDifficulty = QuestionDifficulty.MEDIUM
+    cognitive_level: CognitiveLevel = CognitiveLevel.UNDERSTANDING
+    topic: str = "General"
+    points_value: int = 1
+    course_id: str = "CSC131"
+    status: QuestionStatus = QuestionStatus.DRAFT
+    version: int = 1
+    reviewed_by: Optional[str] = None
+    approved_at: Optional[datetime] = None
+    options: Optional[List[Any]] = None
 
     class Settings:
         name = "questions"

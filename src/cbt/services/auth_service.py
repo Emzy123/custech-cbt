@@ -92,6 +92,10 @@ class AuthService:
             salt = self.security.generate_salt()
             password_hash = self.security.hash_password(password, salt)
 
+            # Auto-bootstrap first user as admin
+            is_first = await User.count() == 0
+            user_role = "admin" if is_first else role.lower()
+
             user = User(
                 id=user_id,
                 username=username,
@@ -100,7 +104,7 @@ class AuthService:
                 salt=salt,
                 full_name=f"{first_name} {last_name}".strip(),
                 matric_number=matric_number,
-                role=role.lower(),
+                role=user_role,
                 department=department,
                 is_active=True,
                 is_verified=True

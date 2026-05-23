@@ -69,7 +69,28 @@ const RoleRoute: React.FC<{ allowed: string[]; children: React.ReactNode }> = ({
 
 const AdminOrOfficerDashboard: React.FC = () => {
   const username = getStoredUsername();
-  if (username === 'examofficer') {
+  const [activeConsole, setActiveConsole] = React.useState<'admin' | 'exam'>(() => {
+    const stored = localStorage.getItem('adminActiveConsole');
+    if (stored === 'exam' || stored === 'admin') return stored;
+    return username === 'examofficer' ? 'exam' : 'admin';
+  });
+
+  React.useEffect(() => {
+    const handleStorageChange = () => {
+      const stored = localStorage.getItem('adminActiveConsole');
+      if (stored === 'exam' || stored === 'admin') {
+        setActiveConsole(stored);
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+    window.addEventListener('adminConsoleSwitched', handleStorageChange);
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('adminConsoleSwitched', handleStorageChange);
+    };
+  }, []);
+
+  if (activeConsole === 'exam') {
     return <ExamOfficerDashboard />;
   }
   return <AdminDashboard />;

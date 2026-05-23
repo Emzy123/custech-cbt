@@ -6,7 +6,7 @@ import uuid
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timezone
 
-from ..models.question import Question
+from ..models.question import Question, QuestionDifficulty
 from ..models.user import User
 from ..schemas.question import (
     QuestionCreate, QuestionUpdate, QuestionSearch, QuestionReviewRequest,
@@ -253,6 +253,15 @@ class QuestionService:
         for row in reader:
             total += 1
             try:
+                diff_str = str(row.get("difficulty") or "MEDIUM").strip().upper()
+                difficulty = QuestionDifficulty.MEDIUM
+                if diff_str == "EASY":
+                    difficulty = QuestionDifficulty.EASY
+                elif diff_str == "HARD":
+                    difficulty = QuestionDifficulty.HARD
+                    
+                topic = str(row.get("topic") or "General").strip()
+
                 question = Question(
                     question_text=row["question_text"],
                     option_a=row.get("option_a") or row.get("option_A") or "",
@@ -261,7 +270,9 @@ class QuestionService:
                     option_d=row.get("option_d") or row.get("option_D") or "",
                     correct_answer=str(row.get("correct_answer") or "A").strip().upper(),
                     course_code="CSC131",
-                    created_by=imported_by
+                    created_by=imported_by,
+                    difficulty=difficulty,
+                    topic=topic
                 )
                 if not validate_only:
                     await question.insert()

@@ -15,7 +15,9 @@ class ExaminationBase(BaseModel):
     description: Optional[str] = None
     exam_date: date
     start_time: datetime
+    end_time: Optional[datetime] = None
     duration_minutes: int
+    total_questions: int = 0
     total_points: int
     pass_points: Optional[int] = None
     randomize_questions: bool = False
@@ -63,7 +65,9 @@ class ExaminationUpdate(BaseModel):
     description: Optional[str] = None
     exam_date: Optional[date] = None
     start_time: Optional[datetime] = None
+    end_time: Optional[datetime] = None
     duration_minutes: Optional[int] = None
+    total_questions: Optional[int] = None
     total_points: Optional[int] = None
     pass_points: Optional[int] = None
     status: Optional[ExamStatus] = None
@@ -102,6 +106,37 @@ class ExaminationResponse(ExaminationBase):
     def is_active(self) -> bool:
         """Check if exam is currently active."""
         return self.status == ExamStatus.ACTIVE
+
+
+class ExaminationSimpleResponse(BaseModel):
+    """Simplified examination response matching the actual Examination MongoDB model."""
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    title: str
+    course_code: str = "CSC131"
+    duration_minutes: int
+    total_questions: int = 0
+    passing_score: Optional[float] = None
+    scheduled_date: Optional[datetime] = None
+    start_time: str
+    end_time: str
+    is_active: bool = True
+    status: str = "draft"
+    created_by: str
+    created_at: datetime
+    updated_at: datetime
+
+    @field_validator("status", mode="before")
+    @classmethod
+    def coerce_status(cls, v):
+        if not v:
+            return "draft"
+        if isinstance(v, str):
+            return v.lower()
+        if hasattr(v, "value"):
+            return str(v.value).lower()
+        return str(v).lower()
 
 
 class ExamInstanceBase(BaseModel):

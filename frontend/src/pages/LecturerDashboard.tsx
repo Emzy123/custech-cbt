@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
   BookOpen,
   GraduationCap,
@@ -94,9 +94,18 @@ const BLANK_FORM = (courseId: string): QuestionFormData => ({
 
 const LecturerDashboard: React.FC = () => {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<ActiveTab>('overview');
+  const location = useLocation();
+  const state = location.state as { activeTab?: ActiveTab } | null;
+  const [activeTab, setActiveTab] = useState<ActiveTab>(state?.activeTab || 'overview');
   const [lecturerName, setLecturerName] = useState('Lecturer');
   const [lecturerId, setLecturerId] = useState('');
+
+  useEffect(() => {
+    const s = location.state as { activeTab?: ActiveTab } | null;
+    if (s?.activeTab) {
+      setActiveTab(s.activeTab);
+    }
+  }, [location.state]);
 
   const [assignedCourses, setAssignedCourses] = useState<AssignedCourse[]>([]);
   const [selectedCourse, setSelectedCourse] = useState<AssignedCourse | null>(null);
@@ -170,9 +179,15 @@ const LecturerDashboard: React.FC = () => {
   const loadQuestions = useCallback(async (courseId: string) => {
     setQuestionsLoading(true);
     try {
-      const data = await apiRequest<Question[]>(`/api/v1/questions?course_id=${courseId}&limit=200`);
-      setQuestions(Array.isArray(data) ? data : []);
-    } catch {
+      const data = await apiRequest<any[]>(`/api/v1/questions/?course_id=${courseId}&limit=1000`);
+      const mapped: Question[] = (Array.isArray(data) ? data : []).map(q => ({
+        ...q,
+        difficulty: (String(q.difficulty || 'medium').toLowerCase() as 'easy' | 'medium' | 'hard'),
+        status: (String(q.status || 'draft').toLowerCase() as 'draft' | 'submitted' | 'approved' | 'rejected'),
+      }));
+      setQuestions(mapped);
+    } catch (err: any) {
+      console.error("Error loading questions:", err);
       setQuestions([]);
     } finally {
       setQuestionsLoading(false);
@@ -318,7 +333,7 @@ const LecturerDashboard: React.FC = () => {
     }
     setIsSubmitting(true);
     try {
-      const resp = await apiRequest<Question>('/api/v1/questions', {
+      const resp = await apiRequest<Question>('/api/v1/questions/', {
         method: 'POST',
         body: JSON.stringify({
           question_text: formData.question_text,
@@ -331,6 +346,7 @@ const LecturerDashboard: React.FC = () => {
       setQuestions(prev => [resp, ...prev]);
       handleCloseModals();
     } catch (err: any) {
+      console.error("Error creating question:", err);
       alert(err.message || 'Failed to create question.');
     } finally {
       setIsSubmitting(false);
@@ -442,7 +458,7 @@ const LecturerDashboard: React.FC = () => {
     let ok = 0; let fail = 0;
     for (const q of importPreview) {
       try {
-        const resp = await apiRequest<Question>('/api/v1/questions', {
+        const resp = await apiRequest<Question>('/api/v1/questions/', {
           method: 'POST',
           body: JSON.stringify({
             question_text: q.question_text,
@@ -454,7 +470,10 @@ const LecturerDashboard: React.FC = () => {
         });
         setQuestions(prev => [resp, ...prev]);
         ok++;
-      } catch { fail++; }
+      } catch (err: any) {
+        console.error("Error importing individual question:", err);
+        fail++;
+      }
     }
     alert(`Imported ${ok} questions${fail > 0 ? `, ${fail} failed` : ''}.`);
     if (ok > 0) handleCloseModals();
@@ -774,7 +793,7 @@ const LecturerDashboard: React.FC = () => {
                           <td className="px-6 py-4 text-slate-600">{ex.exam_date ? new Date(ex.exam_date).toLocaleDateString() : '—'}</td>
                           <td className="px-6 py-4 text-slate-600">{ex.duration_minutes} min</td>
                           <td className="px-6 py-4">
-                            <span className={`text-xs px-2 py-1 rounded-full font-medium ${ex.status === 'published' ? 'bg-emerald-100 text-emerald-700' : ex.status === 'completed' ? 'bg-slate-100 text-slate-700' : 'bg-amber-100 text-amber-700'}`}>
+                            <span className={`text-xs px-2 py-1 rounded-full font-medium ${['published', 'active'].includes(ex.status) ? 'bg-emerald-100 text-emerald-700' : ex.status === 'completed' ? 'bg-slate-100 text-slate-700' : 'bg-amber-100 text-amber-700'}`}>
                               {ex.status || 'draft'}
                             </span>
                           </td>

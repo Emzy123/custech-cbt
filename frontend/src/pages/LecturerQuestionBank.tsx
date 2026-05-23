@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { 
   Plus, 
   Upload, 
@@ -90,6 +90,20 @@ const INITIAL_FORM_DATA: QuestionFormData = {
 
 const LecturerQuestionBank: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const [lecturerName, setLecturerName] = useState('Lecturer');
+
+  useEffect(() => {
+    const raw = localStorage.getItem('authUser');
+    if (raw) {
+      try {
+        const u = JSON.parse(raw) as { first_name?: string; last_name?: string; username?: string };
+        const fullName = `${u.first_name || ''} ${u.last_name || ''}`.trim();
+        setLecturerName(fullName || u.username || 'Lecturer');
+      } catch { /* ignore */ }
+    }
+  }, []);
+
   const [questions, setQuestions] = useState<Question[]>([]);
   const [filteredQuestions, setFilteredQuestions] = useState<Question[]>([]);
   const [selectedQuestions, setSelectedQuestions] = useState<string[]>([]);
@@ -114,37 +128,38 @@ const LecturerQuestionBank: React.FC = () => {
     search: ''
   });
 
-  useEffect(() => {
-    const loadQuestions = async () => {
-      try {
-        const data = await apiRequest<Array<Record<string, unknown>>>('/api/v1/questions');
-        const mapped: Question[] = data.map((item) => ({
-          id: String(item.id || ''),
-          stem: String(item.question_text || item.stem || ''),
-          topic: String(item.topic || 'General'),
-          difficulty: (String(item.difficulty || 'medium').toLowerCase() as 'easy' | 'medium' | 'hard'),
-          status: (String(item.status || 'draft').toLowerCase() as 'draft' | 'submitted' | 'approved' | 'rejected'),
-          lastModified: String(item.updated_at || item.created_at || new Date().toISOString()),
-          options: Array.isArray(item.options)
-            ? (item.options as Array<Record<string, unknown>>).map((opt, idx) => ({
-                id: String(opt.id || idx),
-                label: String.fromCharCode(65 + idx),
-                text: String(opt.option_text || opt.text || ''),
-                isCorrect: Boolean(opt.is_correct),
-              }))
-            : [],
-        }));
-        setQuestions(mapped);
-        setFilteredQuestions(mapped);
-      } catch (error) {
-        setQuestions([]);
-        setFilteredQuestions([]);
-      } finally {
-        setLoading(false);
-      }
-    };
+  const fetchQuestions = async () => {
+    try {
+      const data = await apiRequest<Array<Record<string, unknown>>>('/api/v1/questions/?limit=1000');
+      const mapped: Question[] = data.map((item) => ({
+        id: String(item.id || ''),
+        stem: String(item.question_text || item.stem || ''),
+        topic: String(item.topic || 'General'),
+        difficulty: (String(item.difficulty || 'medium').toLowerCase() as 'easy' | 'medium' | 'hard'),
+        status: (String(item.status || 'draft').toLowerCase() as 'draft' | 'submitted' | 'approved' | 'rejected'),
+        lastModified: String(item.updated_at || item.created_at || new Date().toISOString()),
+        options: Array.isArray(item.options)
+          ? (item.options as Array<Record<string, unknown>>).map((opt, idx) => ({
+              id: String(opt.id || idx),
+              label: String.fromCharCode(65 + idx),
+              text: String(opt.option_text || opt.text || ''),
+              isCorrect: Boolean(opt.is_correct),
+            }))
+          : [],
+      }));
+      setQuestions(mapped);
+      setFilteredQuestions(mapped);
+    } catch (error) {
+      console.error("Error fetching questions in Question Bank:", error);
+      setQuestions([]);
+      setFilteredQuestions([]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    loadQuestions();
+  useEffect(() => {
+    fetchQuestions();
   }, []);
 
   // Apply filters
@@ -336,7 +351,7 @@ const LecturerQuestionBank: React.FC = () => {
         }))
       };
 
-      const response = await apiRequest<{ id: string }>('/api/v1/questions', {
+      const response = await apiRequest<{ id: string }>('/api/v1/questions/', {
         method: 'POST',
         body: JSON.stringify(payload),
       });
@@ -496,74 +511,72 @@ const LecturerQuestionBank: React.FC = () => {
     reader.readAsText(file);
   };
 
+  interface QuestionImportResponse {
+    import_id: string;
+    total_records: number;
+    successful_imports: number;
+    failed_imports: number;
+    validation_errors: string[];
+    import_errors: string[];
+    status: string;
+  }
+
   const handleImportQuestions = async () => {
-    if (importPreview.length === 0) return;
+    if (!csvFile) {
+      alert('Please select a CSV file first');
+      return;
+    }
 
     setIsSubmitting(true);
-    let successCount = 0;
-    let failCount = 0;
 
-    for (const question of importPreview) {
-      try {
-        const payload = {
-          question_text: question.stem,
-          topic: question.topic,
-          difficulty: question.difficulty,
-          options: question.options.map(opt => ({
-            option_text: opt.text,
-            is_correct: opt.isCorrect
-          }))
-        };
+    try {
+      const formData = new FormData();
+      formData.append('file', csvFile);
 
-        const response = await apiRequest<{ id: string }>('/api/v1/questions', {
+      const response = await apiRequest<QuestionImportResponse>(
+        '/api/v1/questions/import?course_id=CSC131',
+        {
           method: 'POST',
-          body: JSON.stringify(payload),
-        });
-
-        const newQuestion: Question = {
-          id: response.id,
-          stem: question.stem,
-          topic: question.topic,
-          difficulty: question.difficulty,
-          status: 'draft',
-          lastModified: new Date().toISOString(),
-          options: question.options
-        };
-
-        setQuestions(prev => [newQuestion, ...prev]);
-        successCount++;
-      } catch (error: any) {
-        failCount++;
-        // Check for permission error on first failure
-        if (failCount === 1 && error?.status === 403) {
-          const shouldClear = confirm(
-            'Permission denied. Your cached permissions may be outdated.\n\n' +
-            'Would you like to clear your permission cache?\n' +
-            '(You will need to log in again after clearing)'
-          );
-          if (shouldClear) {
-            try {
-              await apiRequest('/api/v1/users/me/clear-cache', { method: 'POST' });
-              alert('Cache cleared. Please log out and log back in to refresh permissions.');
-            } catch {
-              alert('Failed to clear cache. Please contact an administrator.');
-            }
-          }
-          break; // Stop importing
+          body: formData,
         }
-      }
-    }
+      );
 
-    if (failCount > 0 && failCount !== importPreview.length) {
-      alert(`Import complete: ${successCount} questions imported, ${failCount} failed`);
-    } else if (successCount > 0) {
-      alert(`Import complete: ${successCount} questions imported successfully!`);
+      const successCount = response.successful_imports;
+      const failCount = response.failed_imports;
+
+      if (failCount > 0 && failCount !== response.total_records) {
+        alert(`Import complete: ${successCount} questions imported, ${failCount} failed`);
+      } else if (successCount > 0) {
+        alert(`Import complete: ${successCount} questions imported successfully!`);
+      } else {
+        alert(`Import failed: 0 questions imported, ${failCount} failed`);
+      }
+
+      if (successCount > 0) {
+        await fetchQuestions();
+        handleCloseModals();
+      }
+    } catch (error: any) {
+      if (error?.status === 403) {
+        const shouldClear = confirm(
+          'Permission denied. Your cached permissions may be outdated.\n\n' +
+          'Would you like to clear your permission cache?\n' +
+          '(You will need to log in again after clearing)'
+        );
+        if (shouldClear) {
+          try {
+            await apiRequest('/api/v1/users/me/clear-cache', { method: 'POST' });
+            alert('Cache cleared. Please log out and log back in to refresh permissions.');
+          } catch {
+            alert('Failed to clear cache. Please contact an administrator.');
+          }
+        }
+      } else {
+        alert(`Import failed: ${error?.message || 'An error occurred during import'}`);
+      }
+    } finally {
+      setIsSubmitting(false);
     }
-    
-    if (successCount > 0) {
-      handleCloseModals();
-    }
-    setIsSubmitting(false);
   };
 
   const getDifficultyColor = (difficulty: string) => {
@@ -630,7 +643,10 @@ const LecturerQuestionBank: React.FC = () => {
       {/* Professional Sidebar */}
       <aside className="w-64 bg-dark text-white flex flex-col fixed h-full shadow-2xl">
         {/* Logo Area */}
-        <div className="p-6 border-b border-darker">
+        <div 
+          onClick={() => navigate('/lecturer/dashboard')}
+          className="p-6 border-b border-darker cursor-pointer hover:bg-darker transition-colors"
+        >
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-custech-gradient rounded-xl flex items-center justify-center shadow-lg">
               <GraduationCap size={24} weight="bold" className="text-white" />
@@ -647,23 +663,28 @@ const LecturerQuestionBank: React.FC = () => {
           <div className="px-3 mb-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
             Main Menu
           </div>
-          <a href="#" className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-custech-primary text-white transition-all">
+          <button 
+            onClick={() => navigate('/lecturer/questions')}
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg bg-custech-primary text-white transition-all text-left"
+          >
             <Database size={20} weight="fill" />
             <span className="font-medium">Question Bank</span>
-          </a>
-          <a href="#" className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-300 hover:bg-darker hover:text-white transition-all">
+          </button>
+          <button 
+            onClick={() => navigate('/lecturer/dashboard')}
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-300 hover:bg-darker hover:text-white transition-all text-left"
+          >
             <Files size={20} />
             <span className="font-medium">My Courses</span>
-          </a>
-          <a href="#" className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-300 hover:bg-darker hover:text-white transition-all">
+          </button>
+          <button 
+            onClick={() => navigate('/lecturer/dashboard', { state: { activeTab: 'exams' } })}
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-300 hover:bg-darker hover:text-white transition-all text-left"
+          >
             <ClipboardText size={20} />
             <span className="font-medium">Examinations</span>
             <span className="ml-auto bg-amber-500 text-slate-900 text-xs font-bold px-2 py-0.5 rounded-full">2</span>
-          </a>
-          <a href="#" className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-300 hover:bg-darker hover:text-white transition-all">
-            <ChartBar size={20} />
-            <span className="font-medium">Analytics</span>
-          </a>
+          </button>
 
           <div className="px-3 mt-8 mb-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
             Quick Actions
@@ -695,7 +716,7 @@ const LecturerQuestionBank: React.FC = () => {
               <User size={20} weight="bold" className="text-white" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-white truncate">Dr. Lecturer</p>
+              <p className="text-sm font-medium text-white truncate">{lecturerName}</p>
               <p className="text-xs text-gray-400">Lecturer</p>
             </div>
             <button 
@@ -715,7 +736,7 @@ const LecturerQuestionBank: React.FC = () => {
           <div className="flex items-center justify-between px-8 py-4">
             <div>
               <h2 className="text-2xl font-bold text-heading">Question Bank</h2>
-              <p className="text-sm text-muted mt-0.5">GST 111 - Use of English</p>
+              <p className="text-sm text-muted mt-0.5">CSC 131 - Computer Programming I</p>
             </div>
             <div className="flex items-center gap-4">
               <button className="relative p-2 text-muted hover:text-slate-600 transition-colors">

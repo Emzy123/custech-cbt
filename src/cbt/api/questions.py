@@ -50,7 +50,7 @@ async def list_questions(
     topic: Optional[str] = Query(None),
     q_status: Optional[QuestionStatus] = Query(None, alias="status"),
     created_by: Optional[str] = Query(None),
-    limit: int = Query(50, le=100),
+    limit: int = Query(50, le=1000),
     cursor: Optional[str] = Query(None),
     db: Any = Depends(get_db),
     current_user = Depends(get_current_active_user)
@@ -236,7 +236,7 @@ async def review_question(
 @router.get("/review/pending", response_model=List[QuestionResponse], dependencies=[Depends(require_permission("question.review"))])
 async def get_pending_reviews(
     course_id: Optional[str] = Query(None),
-    limit: int = Query(50, le=100),
+    limit: int = Query(50, le=1000),
     cursor: Optional[str] = Query(None),
     db: Any = Depends(get_db),
     current_user = Depends(get_current_active_user)

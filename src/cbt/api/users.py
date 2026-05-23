@@ -16,6 +16,17 @@ from .deps import get_current_active_user, require_permission
 router = APIRouter(prefix="/users", tags=["users"])
 
 
+def validate_role(role_str: str) -> UserRole:
+    """Validate and map role string to UserRole enum."""
+    for name, r in UserRole.__members__.items():
+        if r.value.lower() == role_str.lower():
+            return r
+    for name, r in UserRole.__members__.items():
+        if name.lower() == role_str.lower():
+            return r
+    raise ValueError(f"Invalid role '{role_str}'")
+
+
 # ──────────────────────────── Schemas ─────────────────────────────────────
 
 class UserCreate(BaseModel):
@@ -132,11 +143,12 @@ async def create_user(
     
     # Validate role
     try:
-        user_role = UserRole(data.role.upper())
+        user_role = validate_role(data.role)
     except ValueError:
+        valid_roles = list(set(list(UserRole.__members__.keys()) + [r.value for r in UserRole.__members__.values()]))
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid role '{data.role}'. Must be one of: {', '.join([r.value for r in UserRole])}"
+            detail=f"Invalid role '{data.role}'. Must be one of: {', '.join(valid_roles)}"
         )
     
     # Convert gender string to enum
@@ -285,11 +297,12 @@ async def assign_role(
     
     # Validate role
     try:
-        user_role = UserRole(data.role.upper())
+        user_role = validate_role(data.role)
     except ValueError:
+        valid_roles = list(set(list(UserRole.__members__.keys()) + [r.value for r in UserRole.__members__.values()]))
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid role '{data.role}'"
+            detail=f"Invalid role '{data.role}'. Must be one of: {', '.join(valid_roles)}"
         )
     
     # Assign role directly
@@ -311,8 +324,12 @@ async def remove_role(
     db: Any = Depends(get_db),
 ):
     """Remove a role from user."""
+    user = await User.get(user_id)
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+        
     try:
-        user_role = UserRole(role.upper())
+        user_role = validate_role(role)
     except ValueError:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Invalid role '{role}'")
     

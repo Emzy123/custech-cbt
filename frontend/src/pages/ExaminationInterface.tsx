@@ -76,6 +76,7 @@ const ExaminationInterface: React.FC = () => {
   });
 
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
+  const [isSubmitAgreementChecked, setIsSubmitAgreementChecked] = useState(false);
   const [showTimeWarning, setShowTimeWarning] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected'>('connected');
   const [lastSyncTime, setLastSyncTime] = useState<Date>(new Date());
@@ -163,7 +164,7 @@ const ExaminationInterface: React.FC = () => {
           const seconds = Math.max(0, Math.floor((end - now) / 1000));
           setExamState((prev) => {
             const next = { ...prev, timeRemaining: seconds };
-            if (seconds === 900 && !showTimeWarning) {
+            if (seconds <= 900 && !showTimeWarning) {
               setShowTimeWarning(true);
             }
             return next;
@@ -179,11 +180,28 @@ const ExaminationInterface: React.FC = () => {
       }
     };
 
+    // Sync with server every 30 seconds
     void syncClock();
-    const handle = window.setInterval(() => {
+    const serverSyncHandle = window.setInterval(() => {
       void syncClock();
-    }, 1000);
-    return () => window.clearInterval(handle);
+    }, 30_000);
+
+    // Count down locally every second
+    const localTickHandle = window.setInterval(() => {
+      setExamState((prev) => {
+        if (prev.isSubmitted || prev.timeRemaining <= 0) return prev;
+        const next = prev.timeRemaining - 1;
+        if (next <= 900 && !showTimeWarning) {
+          setShowTimeWarning(true);
+        }
+        return { ...prev, timeRemaining: next };
+      });
+    }, 1_000);
+
+    return () => {
+      window.clearInterval(serverSyncHandle);
+      window.clearInterval(localTickHandle);
+    };
   }, [instanceId, examId, examState.isSubmitted, showTimeWarning, drainOfflineQueue]);
 
 
@@ -348,17 +366,6 @@ const ExaminationInterface: React.FC = () => {
     );
   }
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-light flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-custech-primary mx-auto mb-4"></div>
-          <p className="text-body">Loading question bank...</p>
-        </div>
-      </div>
-    );
-  }
-
   // Rules acceptance step
   if (preExamStep === 'rules') {
     return (
@@ -403,6 +410,17 @@ const ExaminationInterface: React.FC = () => {
             </Button>
           </div>
         </Card>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-light flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-custech-primary mx-auto mb-4"></div>
+          <p className="text-body">Loading question bank...</p>
+        </div>
       </div>
     );
   }
@@ -591,18 +609,14 @@ const ExaminationInterface: React.FC = () => {
                 <input
                   type="checkbox"
                   className="rounded border-default"
-                  onChange={(e) => {
-                    const submitBtn = document.getElementById('confirm-submit-btn') as HTMLButtonElement | null;
-                    if (submitBtn) {
-                      submitBtn.disabled = !e.target.checked;
-                    }
-                  }}
+                  checked={isSubmitAgreementChecked}
+                  onChange={(e) => setIsSubmitAgreementChecked(e.target.checked)}
                 />
                 <span className="text-sm text-heading">I understand this cannot be undone</span>
               </label>
 
               <div className="flex gap-3 justify-end">
-                <Button variant="secondary" size="md" onClick={() => setShowSubmitConfirm(false)}>
+                <Button variant="secondary" size="md" onClick={() => { setShowSubmitConfirm(false); setIsSubmitAgreementChecked(false); }}>
                   Cancel
                 </Button>
                 <Button
@@ -611,9 +625,10 @@ const ExaminationInterface: React.FC = () => {
                   size="md"
                   onClick={() => {
                     setShowSubmitConfirm(false);
+                    setIsSubmitAgreementChecked(false);
                     void handleSubmitExam();
                   }}
-                  disabled
+                  disabled={!isSubmitAgreementChecked}
                   className="bg-danger hover:bg-red-700 focus:ring-danger"
                 >
                   Submit Exam

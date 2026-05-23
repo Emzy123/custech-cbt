@@ -13,7 +13,7 @@ from ..core.security import security
 from ..core.redis import cache_manager
 from ..services.authorization_service import AuthorizationService
 from ..schemas.exam import (
-    ExaminationCreate, ExaminationUpdate, ExaminationResponse,
+    ExaminationCreate, ExaminationUpdate, ExaminationSimpleResponse,
     ExamInstanceResponse, ExamSubmissionRequest, ExamSubmissionResponse,
     ExamStartRequest, ExamStartResponse, ExamReviewResponse,
     AnswerSaveRequest, ExamRegisteredStudentResponse
@@ -50,17 +50,17 @@ async def _ensure_instance_access(instance_id: str, current_user) -> ExamInstanc
     )
 
 
-@router.post("/", response_model=ExaminationResponse, status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_permission("exam.create"))])
+@router.post("/", response_model=ExaminationSimpleResponse, status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_permission("exam.create"))])
 async def create_examination(
     exam_data: ExaminationCreate,
     db: Any = Depends(get_db),
     current_user = Depends(get_current_active_user)
-) -> ExaminationResponse:
+) -> ExaminationSimpleResponse:
     """Create a new examination."""
     try:
         exam_service = ExamService(db)
         examination = await exam_service.create_examination(exam_data, current_user.id)
-        return ExaminationResponse.from_orm(examination)
+        return ExaminationSimpleResponse.model_validate(examination)
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -73,23 +73,25 @@ async def create_examination(
         )
 
 
-@router.get("/", response_model=List[ExaminationResponse], dependencies=[Depends(require_permission("exam.read"))])
+@router.get("/", response_model=List[ExaminationSimpleResponse], dependencies=[Depends(require_permission("exam.read"))])
 async def list_examinations(
     course_id: Optional[str] = Query(None),
     academic_session_id: Optional[str] = Query(None),
-    status: Optional[ExamStatus] = Query(None),
+    exam_status: Optional[ExamStatus] = Query(None),
     limit: int = Query(50, le=100),
     cursor: Optional[str] = Query(None),
     db: Any = Depends(get_db),
     current_user = Depends(get_current_active_user)
-) -> List[ExaminationResponse]:
+) -> List[ExaminationSimpleResponse]:
     """List examinations with filtering and pagination."""
     try:
+        if current_user.role == "student":
+            exam_status = ExamStatus.ACTIVE
         exam_service = ExamService(db)
         examinations = await exam_service.list_examinations(
-            course_id, academic_session_id, status, limit, cursor
+            course_id, academic_session_id, exam_status, limit, cursor
         )
-        return [ExaminationResponse.from_orm(exam) for exam in examinations]
+        return [ExaminationSimpleResponse.model_validate(exam) for exam in examinations]
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -97,22 +99,22 @@ async def list_examinations(
         )
 
 
-@router.get("/{exam_id}", response_model=ExaminationResponse, dependencies=[Depends(require_permission("exam.read"))])
+@router.get("/{exam_id}", response_model=ExaminationSimpleResponse, dependencies=[Depends(require_permission("exam.read"))])
 async def get_examination(
     exam_id: str,
     db: Any = Depends(get_db),
     current_user = Depends(get_current_active_user)
-) -> ExaminationResponse:
+) -> ExaminationSimpleResponse:
     """Get examination by ID."""
     try:
         exam_service = ExamService(db)
         examination = await exam_service.get_examination(exam_id)
-        if not examination:
+        if not examination or (current_user.role == "student" and examination.status != ExamStatus.ACTIVE):
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Examination not found"
             )
-        return ExaminationResponse.from_orm(examination)
+        return ExaminationSimpleResponse.model_validate(examination)
     except HTTPException:
         raise
     except Exception as e:
@@ -122,13 +124,13 @@ async def get_examination(
         )
 
 
-@router.put("/{exam_id}", response_model=ExaminationResponse, dependencies=[Depends(require_permission("exam.update"))])
+@router.put("/{exam_id}", response_model=ExaminationSimpleResponse, dependencies=[Depends(require_permission("exam.update"))])
 async def update_examination(
     exam_id: str,
     exam_data: ExaminationUpdate,
     db: Any = Depends(get_db),
     current_user = Depends(get_current_active_user)
-) -> ExaminationResponse:
+) -> ExaminationSimpleResponse:
     """Update examination."""
     try:
         exam_service = ExamService(db)
@@ -138,7 +140,7 @@ async def update_examination(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Examination not found"
             )
-        return ExaminationResponse.from_orm(examination)
+        return ExaminationSimpleResponse.model_validate(examination)
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -183,7 +185,7 @@ async def schedule_examination(
     schedule_data: dict,
     db: Any = Depends(get_db),
     current_user = Depends(get_current_active_user)
-) -> ExaminationResponse:
+) -> ExaminationSimpleResponse:
     """Schedule examination for specific date and time."""
     try:
         exam_service = ExamService(db)
@@ -193,7 +195,7 @@ async def schedule_examination(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Examination not found"
             )
-        return ExaminationResponse.from_orm(examination)
+        return ExaminationSimpleResponse.model_validate(examination)
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -211,7 +213,7 @@ async def publish_examination(
     exam_id: str,
     db: Any = Depends(get_db),
     current_user = Depends(get_current_active_user)
-) -> ExaminationResponse:
+) -> ExaminationSimpleResponse:
     """Publish examination for students."""
     try:
         exam_service = ExamService(db)
@@ -221,7 +223,7 @@ async def publish_examination(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Examination not found"
             )
-        return ExaminationResponse.from_orm(examination)
+        return ExaminationSimpleResponse.model_validate(examination)
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -240,7 +242,7 @@ async def cancel_examination(
     reason: str,
     db: Any = Depends(get_db),
     current_user = Depends(get_current_active_user)
-) -> ExaminationResponse:
+) -> ExaminationSimpleResponse:
     """Cancel examination."""
     try:
         exam_service = ExamService(db)
@@ -250,7 +252,7 @@ async def cancel_examination(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Examination not found"
             )
-        return ExaminationResponse.from_orm(examination)
+        return ExaminationSimpleResponse.model_validate(examination)
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -270,7 +272,7 @@ async def cancel_examination(
 @router.get("/{exam_id}/instances", response_model=List[ExamInstanceResponse], dependencies=[Depends(require_permission("exam.read"))])
 async def list_exam_instances(
     exam_id: str,
-    status: Optional[ExamInstanceStatus] = Query(None),
+    instance_status: Optional[ExamInstanceStatus] = Query(None),
     limit: int = Query(50, le=100),
     cursor: Optional[str] = Query(None),
     db: Any = Depends(get_db),
@@ -279,7 +281,7 @@ async def list_exam_instances(
     """List exam instances for an examination."""
     try:
         exam_service = ExamService(db)
-        instances = await exam_service.list_exam_instances(exam_id, status, limit, cursor)
+        instances = await exam_service.list_exam_instances(exam_id, instance_status, limit, cursor)
         return [ExamInstanceResponse.from_orm(instance) for instance in instances]
     except Exception as e:
         raise HTTPException(
@@ -705,15 +707,7 @@ async def publish_results(
 
 
 
-@router.get("/{exam_id}/analytics/items", dependencies=[Depends(require_permission("exam.manage"))])
-async def get_item_analysis(
-    exam_id: str,
-    db: Any = Depends(get_db),
-    current_user = Depends(get_current_active_user),
-) -> Dict[str, Any]:
-    """Return per-question P-value, discrimination, and distractor breakdown (lecturer/officer)."""
-    exam_service = ExamService(db)
-    return await exam_service.get_item_analysis(exam_id)
+
 
 
 @router.get("/{exam_id}/results/export", dependencies=[Depends(require_permission("exam.manage"))])

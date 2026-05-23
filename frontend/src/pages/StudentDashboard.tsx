@@ -56,10 +56,12 @@ interface ResultApi {
 interface ExaminationApi {
   id: string;
   title: string;
-  course_id: string;
-  exam_date: string;
+  course_code: string;
+  scheduled_date: string | null;
   start_time: string;
+  end_time: string;
   duration_minutes: number;
+  is_active: boolean;
 }
 
 const StudentDashboard: React.FC = () => {
@@ -92,50 +94,71 @@ const StudentDashboard: React.FC = () => {
           setMatricNumber(storedUser.username || '');
         }
 
-        const exams = await apiRequest<ExaminationApi[]>('/api/v1/examinations/?limit=10');
+        const [exams, rawResults] = await Promise.all([
+          apiRequest<ExaminationApi[]>('/api/v1/examinations/?limit=10'),
+          apiRequest<ResultApi[]>('/api/v1/examinations/my/results').catch(() => [])
+        ]);
+
+        const mappedResults: Result[] = rawResults.map((r) => ({
+          id: r.instance_id,
+          examId: r.exam_id,
+          courseCode: r.course_id || '',
+          courseTitle: r.exam_title,
+          score: r.score,
+          grade: r.grade,
+          dateTaken: r.submitted_at || new Date().toISOString(),
+          maxScore: r.max_score ?? 100,
+          status: r.status,
+          message: r.message,
+        }));
+        setRecentResults(mappedResults.slice(0, 6));
+
+        const takenExamIds = new Set(mappedResults.map(r => r.examId));
+
         const now = new Date();
         const mapped: Exam[] = exams.map((exam) => {
-          const startAt = new Date(exam.start_time);
-          const examDate = exam.exam_date || startAt.toISOString().slice(0, 10);
-          const examTime = startAt.toTimeString().slice(0, 5);
+          const rawDate = exam.scheduled_date ? exam.scheduled_date.slice(0, 10) : '';
+          const examDate = rawDate || new Date().toISOString().slice(0, 10);
+          const examTime = exam.start_time || '09:00';
           const examDateTime = new Date(`${examDate}T${examTime}`);
+          const durationMs = exam.duration_minutes * 60 * 1000;
+          const endDateTime = new Date(examDateTime.getTime() + durationMs);
+          
           const diffMs = examDateTime.getTime() - now.getTime();
-          const within24h = diffMs > 0 && diffMs <= 24 * 60 * 60 * 1000;
+          const isOngoing = now >= examDateTime && now < endDateTime;
+          const isUpcomingWithin24h = diffMs > 0 && diffMs <= 24 * 60 * 60 * 1000;
+          
           return {
             id: exam.id,
-            courseCode: exam.course_id || '',
+            courseCode: exam.course_code || '',
             courseTitle: exam.title,
             date: examDate,
             time: examTime,
             venue: 'TBA',
             duration: exam.duration_minutes,
-            isWithin24Hours: within24h,
+            isWithin24Hours: isOngoing || isUpcomingWithin24h,
           };
         });
 
-        const upcoming = mapped.filter((exam) => new Date(`${exam.date}T${exam.time}`) > now);
-        setNextExam(upcoming.length > 0 ? upcoming[0] : null);
-        setUpcomingExams(upcoming.slice(0, 5));
+        // Filter out exams that are completed or already ended
+        const upcomingOrActive = mapped.filter((exam) => {
+          if (takenExamIds.has(exam.id)) {
+            return false;
+          }
+          const examDateTime = new Date(`${exam.date}T${exam.time}`);
+          const endDateTime = new Date(examDateTime.getTime() + exam.duration * 60 * 1000);
+          return endDateTime > now;
+        });
 
-        // Fetch real results (embargo-aware)
-        try {
-          const rawResults = await apiRequest<ResultApi[]>('/api/v1/examinations/my/results');
-          const mappedResults: Result[] = rawResults.map((r) => ({
-            id: r.instance_id,
-            examId: r.exam_id,
-            courseCode: r.course_id || '',
-            courseTitle: r.exam_title,
-            score: r.score,
-            grade: r.grade,
-            dateTaken: r.submitted_at || new Date().toISOString(),
-            maxScore: r.max_score ?? 100,
-            status: r.status,
-            message: r.message,
-          }));
-          setRecentResults(mappedResults.slice(0, 6));
-        } catch {
-          setRecentResults([]);
-        }
+        // Sort upcoming/active exams by scheduled time ascending
+        upcomingOrActive.sort((a, b) => {
+          const dateA = new Date(`${a.date}T${a.time}`).getTime();
+          const dateB = new Date(`${b.date}T${b.time}`).getTime();
+          return dateA - dateB;
+        });
+
+        setNextExam(upcomingOrActive.length > 0 ? upcomingOrActive[0] : null);
+        setUpcomingExams(upcomingOrActive.slice(0, 5));
       } catch (error) {
         setNextExam(null);
         setUpcomingExams([]);
@@ -304,10 +327,18 @@ const StudentDashboard: React.FC = () => {
               
               <div className="flex flex-col items-center gap-4">
                 <div className="text-center">
-                  <div className="text-2xl font-bold text-custech-primary">
-                    {getTimeUntilExam(nextExam.date, nextExam.time)}
-                  </div>
-                  <div className="text-sm text-body">until exam starts</div>
+                  {getTimeUntilExam(nextExam.date, nextExam.time) === 'Started' ? (
+                    <div className="text-2xl font-bold text-success">
+                      Active Now
+                    </div>
+                  ) : (
+                    <>
+                      <div className="text-2xl font-bold text-custech-primary">
+                        {getTimeUntilExam(nextExam.date, nextExam.time)}
+                      </div>
+                      <div className="text-sm text-body">until exam starts</div>
+                    </>
+                  )}
                 </div>
                 <Button variant="primary" size="md" onClick={() => navigate(`/exam/${nextExam.id}`)}>
                   Start Exam

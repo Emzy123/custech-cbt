@@ -18,8 +18,8 @@ class QuestionOptionBase(BaseModel):
     @field_validator("option_text")
     @classmethod
     def validate_option_text(cls, v: str) -> str:
-        if not v or len(v.strip()) < 3:
-            raise ValueError("Option text must be at least 3 characters long")
+        if not v or len(v.strip()) < 1:
+            raise ValueError("Option text must be at least 1 character long")
         return v.strip()
 
 

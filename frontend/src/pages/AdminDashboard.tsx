@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { apiRequest, logout } from '../lib/api';
-import { Plus, Search, Trash2, Lock, UserPlus, RefreshCw, Shield, Users, Building2, BookOpen, GraduationCap, FileText, Activity, Settings, X, ChevronDown, ChevronRight, LogOut, UserCheck } from 'lucide-react';
+import { Plus, Search, Trash2, Lock, UserPlus, RefreshCw, Shield, Users, Building2, BookOpen, GraduationCap, FileText, Activity, Settings, X, ChevronDown, ChevronRight, LogOut, UserCheck, User } from 'lucide-react';
 
 // --- Interfaces ---
 interface User {
@@ -60,6 +60,22 @@ export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState<TabType>('overview');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const navigate = useNavigate();
+  const [userProfile, setUserProfile] = useState<{ full_name: string; role: string } | null>(null);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('authUser');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        setUserProfile({
+          full_name: parsed.full_name || parsed.username || 'Administrator',
+          role: parsed.role || 'Super Admin'
+        });
+      }
+    } catch (e) {
+      // ignore
+    }
+  }, []);
 
   const menuItems: { id: TabType; label: string; icon: React.ReactNode }[] = [
     { id: 'overview', label: 'Overview', icon: <Activity size={20} /> },
@@ -102,9 +118,41 @@ export default function AdminDashboard() {
                 </button>
               </li>
             ))}
+            <li className="my-4 px-2">
+              <div className="h-px bg-darker animate-pulse" />
+            </li>
+            <li>
+              <button
+                onClick={() => {
+                  localStorage.setItem('adminActiveConsole', 'exam');
+                  window.dispatchEvent(new Event('adminConsoleSwitched'));
+                }}
+                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-white font-medium bg-custech-gradient hover:opacity-90 active:scale-[0.98] transition-all shadow-md group relative overflow-hidden"
+                title={sidebarCollapsed ? "Switch to Exams" : undefined}
+              >
+                <div className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                <Shield size={20} className="text-custech-gold" />
+                {!sidebarCollapsed && <span className="text-sm font-semibold tracking-wide">Switch to Exams</span>}
+              </button>
+            </li>
           </ul>
         </nav>
-        <div className="p-4 border-t border-darker">
+        <div className="p-4 border-t border-darker flex flex-col gap-3">
+          {/* User Profile Card */}
+          {userProfile && (
+            <div className="flex items-center gap-3 p-2 bg-darker rounded-lg border border-darker/50 hover:border-custech-primary/30 transition-all duration-300">
+              <div className="w-9 h-9 bg-custech-gradient rounded-full flex items-center justify-center text-white font-bold flex-shrink-0">
+                <User size={18} className="text-custech-gold" />
+              </div>
+              {!sidebarCollapsed && (
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-semibold text-white truncate">{userProfile.full_name}</p>
+                  <p className="text-[10px] text-gray-400 truncate uppercase tracking-wider">{userProfile.role}</p>
+                </div>
+              )}
+            </div>
+          )}
+
           <button
             onClick={handleLogout}
             className="w-full flex items-center gap-3 px-3 py-2 rounded-md text-custech-gold hover:bg-darker hover:text-white transition-colors"
@@ -113,7 +161,7 @@ export default function AdminDashboard() {
             {!sidebarCollapsed && <span className="text-sm">Logout</span>}
           </button>
           {!sidebarCollapsed && (
-            <div className="text-xs text-muted mt-2">
+            <div className="text-xs text-muted">
               Admin Panel v1.0
             </div>
           )}

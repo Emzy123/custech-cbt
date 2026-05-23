@@ -41,6 +41,8 @@ class User(BaseDocument):
     matric_number: Optional[str] = None
     role: str = "student"  # "student", "lecturer", "admin"
     department: Optional[str] = None
+    phone_number: Optional[str] = None
+    gender: Optional[Gender] = None
     is_verified: bool = True
     last_login_at: Optional[datetime] = None
     failed_login_attempts: int = 0

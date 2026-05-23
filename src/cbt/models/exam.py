@@ -5,7 +5,7 @@ Examination, ExamInstance (Session), and Result models using Beanie (MongoDB).
 from typing import Optional, List, Dict, Any
 from datetime import datetime, timezone
 from beanie import Document
-from pydantic import Field
+from pydantic import Field, field_validator
 
 from .base import BaseDocument
 import enum
@@ -37,13 +37,28 @@ class Examination(BaseDocument):
     title: str
     course_code: str = "CSC131"
     duration_minutes: int
-    total_questions: int
+    total_questions: int = 0
     passing_score: Optional[float] = None
-    scheduled_date: datetime
-    start_time: str  # e.g. "09:00"
-    end_time: str    # e.g. "17:00"
+    scheduled_date: Optional[datetime] = None
+    start_time: str = "09:00"  # e.g. "09:00"
+    end_time: str = "17:00"    # e.g. "17:00"
     is_active: bool = True
+    status: ExamStatus = ExamStatus.DRAFT
     created_by: str
+
+    @field_validator("start_time", mode="before")
+    @classmethod
+    def coerce_start_time(cls, v):
+        if isinstance(v, datetime):
+            return v.strftime("%H:%M")
+        return str(v) if v else "09:00"
+
+    @field_validator("end_time", mode="before")
+    @classmethod
+    def coerce_end_time(cls, v):
+        if isinstance(v, datetime):
+            return v.strftime("%H:%M")
+        return str(v) if v else "17:00"
 
     class Settings:
         name = "examinations"

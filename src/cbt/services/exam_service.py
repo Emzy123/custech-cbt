@@ -7,7 +7,7 @@ import random
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timedelta, timezone
 
-from ..models.exam import Examination, ExamInstance, Result
+from ..models.exam import Examination, ExamInstance, Result, ExamStatus
 from ..models.question import Question
 from ..models.user import User
 from ..schemas.exam import ExamStartResponse, ExamSubmissionResponse, ExamReviewResponse
@@ -22,20 +22,47 @@ class ExamService:
     async def create_examination(self, exam_data, created_by: str) -> Examination:
         """Create a new CSC 131 examination."""
         try:
+            # Safely resolve start_time string
+            raw_start = getattr(exam_data, "start_time", None)
+            if isinstance(raw_start, datetime):
+                start_str = raw_start.strftime("%H:%M")
+            elif isinstance(raw_start, str):
+                start_str = raw_start
+            else:
+                start_str = "09:00"
+
+            # Safely resolve end_time string – fall back to start + duration
+            raw_end = getattr(exam_data, "end_time", None)
+            if isinstance(raw_end, datetime):
+                end_str = raw_end.strftime("%H:%M")
+            elif isinstance(raw_end, str) and raw_end:
+                end_str = raw_end
+            else:
+                # Compute from start_time + duration_minutes
+                try:
+                    from datetime import timedelta
+                    start_dt = raw_start if isinstance(raw_start, datetime) else datetime.strptime(start_str, "%H:%M")
+                    end_dt = start_dt + timedelta(minutes=int(getattr(exam_data, "duration_minutes", 120)))
+                    end_str = end_dt.strftime("%H:%M")
+                except Exception:
+                    end_str = "17:00"
+
             # Standardize all exams to CSC131
             exam = Examination(
                 title=exam_data.title,
                 course_code="CSC131",
                 duration_minutes=exam_data.duration_minutes,
-                total_questions=exam_data.total_questions,
+                total_questions=getattr(exam_data, "total_questions", 0),
                 passing_score=float(exam_data.pass_points) if getattr(exam_data, "pass_points", None) is not None else (float(exam_data.passing_score) if getattr(exam_data, "passing_score", None) is not None else 50.0),
                 scheduled_date=datetime.combine(exam_data.exam_date, datetime.min.time()) if not isinstance(exam_data.exam_date, datetime) else exam_data.exam_date,
-                start_time=exam_data.start_time.strftime("%H:%M") if isinstance(exam_data.start_time, datetime) else getattr(exam_data, "start_time", "09:00"),
-                end_time=exam_data.end_time.strftime("%H:%M") if isinstance(exam_data.end_time, datetime) else getattr(exam_data, "end_time", "17:00"),
+                start_time=start_str,
+                end_time=end_str,
                 is_active=True,
+                status=ExamStatus.DRAFT,
                 created_by=created_by
             )
             await exam.insert()
+
             return exam
         except Exception as e:
             raise ValueError(f"Failed to create examination: {str(e)}")
@@ -47,6 +74,10 @@ class ExamService:
         """List active examinations."""
         try:
             query = Examination.find(Examination.is_active == True)
+            if course_id:
+                query = query.find(Examination.course_code == course_id)
+            if status:
+                query = query.find(Examination.status == status)
             exams = await query.sort("-created_at").limit(limit).to_list()
             return exams
         except Exception as e:
@@ -126,7 +157,7 @@ class ExamService:
             exam = await Examination.find_one(Examination.id == exam_id, Examination.is_active == True)
             if not exam:
                 return None
-            exam.is_active = True
+            exam.status = ExamStatus.ACTIVE
             await exam.save()
             return exam
         except Exception as e:
@@ -138,7 +169,7 @@ class ExamService:
             exam = await Examination.find_one(Examination.id == exam_id, Examination.is_active == True)
             if not exam:
                 return None
-            exam.is_active = False
+            exam.status = ExamStatus.CANCELLED
             await exam.save()
             return exam
         except Exception as e:
@@ -319,8 +350,16 @@ class ExamService:
         if not instance:
             raise ValueError("Instance not found")
 
+        def make_aware(dt: datetime) -> datetime:
+            if dt.tzinfo is None:
+                return dt.replace(tzinfo=timezone.utc)
+            return dt.astimezone(timezone.utc)
+
         now = datetime.now(timezone.utc)
-        if now > instance.end_time and instance.status == "in_progress":
+        now_naive = now.replace(tzinfo=None)
+        end_time_naive = instance.end_time.replace(tzinfo=None) if instance.end_time.tzinfo else instance.end_time
+
+        if now_naive > end_time_naive and instance.status == "in_progress":
             await self.submit_exam(instance_id, None, "system")
             await instance.sync()
 
@@ -328,9 +367,9 @@ class ExamService:
             "attempt_id": instance_id,
             "status": instance.status,
             "server_now": now.isoformat(),
-            "ends_at": instance.end_time.isoformat() if instance.status == "in_progress" else None,
+            "ends_at": make_aware(instance.end_time).isoformat() if instance.status == "in_progress" else None,
             "paused": False,
-            "submitted_at": instance.updated_at.isoformat() if instance.status != "in_progress" else None
+            "submitted_at": make_aware(instance.updated_at).isoformat() if instance.status != "in_progress" else None
         }
 
     async def submit_exam(self, instance_id: str, submission_data, submitted_by: str) -> ExamSubmissionResponse:
@@ -451,6 +490,15 @@ class ExamService:
         """Retrieve student's graded exam review session details."""
         try:
             instance = await self.get_exam_instance(instance_id)
+            # Fall back: if not found by direct id, try any instance for this student/exam
+            if not instance:
+                # instance_id may actually be a Result document id — find the real instance
+                result_doc = await Result.find_one(Result.id == instance_id)
+                if result_doc:
+                    instance = await ExamInstance.find_one(
+                        ExamInstance.exam_id == result_doc.exam_id,
+                        ExamInstance.student_id == result_doc.student_id,
+                    )
             if not instance:
                 return None
 
@@ -536,8 +584,16 @@ class ExamService:
             formatted_results = []
             for r in results_list:
                 exam = await Examination.find_one(Examination.id == r.exam_id)
+
+                # Resolve the actual ExamInstance id so the review page works correctly
+                instance = await ExamInstance.find_one(
+                    ExamInstance.exam_id == r.exam_id,
+                    ExamInstance.student_id == student_id,
+                )
+                instance_id = str(instance.id) if instance else str(r.id)
+
                 formatted_results.append({
-                    "instance_id": r.id,
+                    "instance_id": instance_id,
                     "exam_id": r.exam_id,
                     "exam_title": exam.title if exam else "Introduction to Computer Science",
                     "course_id": "CSC131",

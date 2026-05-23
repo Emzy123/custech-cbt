@@ -4,7 +4,8 @@ import {
   Settings, Calendar, Users, FileText, CheckCircle, AlertTriangle, 
   Printer, Download, Loader2, Plus, Trash2, GraduationCap, Bell, Clock,
   LayoutDashboard, BookOpen, BarChart3, ChevronRight, User, LogOut,
-  ClipboardList, School, FileCheck, TrendingUp, Activity, MoreHorizontal
+  ClipboardList, School, FileCheck, TrendingUp, Activity, MoreHorizontal,
+  Shield
 } from 'lucide-react';
 import { apiRequest, logout, getAuthToken, ApiError } from '../lib/api';
 
@@ -62,6 +63,29 @@ const ExamOfficerDashboard: React.FC = () => {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<'wizard' | 'blueprint' | 'slips' | 'results' | 'students'>('wizard');
   const [activeExamId, setActiveExamId] = useState<string>(localStorage.getItem('activeExamId') || '');
+
+  const [userProfile, setUserProfile] = useState<{ full_name: string; role: string } | null>(null);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('authUser');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        setUserProfile({
+          full_name: parsed.full_name || parsed.username || 'Exam Officer',
+          role: parsed.role || 'Administrator'
+        });
+      }
+    } catch (e) {
+      // ignore
+    }
+  }, []);
+
+  const showAdminToggle = userProfile && (
+    ['ADMIN', 'SUPER_ADMIN', 'ADMINISTRATOR', 'EXAM_OFFICER'].includes(userProfile.role.toUpperCase()) ||
+    localStorage.getItem('authUser')?.toLowerCase().includes('admin') ||
+    localStorage.getItem('authUser')?.toLowerCase().includes('officer')
+  );
 
   // Data states
   const [courses, setCourses] = useState<Course[]>([]);
@@ -259,8 +283,9 @@ const ExamOfficerDashboard: React.FC = () => {
         exam_date: examForm.date,
         start_time: startIso,
         duration_minutes: duration,
-        total_points: 100,
-        pass_points: 40,
+        total_questions: blueprintConfig.totalQuestions || 50,
+        total_points: blueprintConfig.totalQuestions || 50,
+        pass_points: Math.round((blueprintConfig.totalQuestions || 50) * 0.4),
         academic_session_id: academicContext.sessionId,
         semester_id: academicContext.semesterId,
         question_ids: [] as string[],
@@ -353,6 +378,29 @@ const ExamOfficerDashboard: React.FC = () => {
       alert('Result settings saved successfully!');
     } catch (error) {
       alert('Failed to save settings. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleToggleExamPublish = async (examId: string, isActive: boolean) => {
+    setIsSubmitting(true);
+    try {
+      if (isActive) {
+        await apiRequest(`/api/v1/examinations/${examId}/cancel?reason=Deactivated+by+Officer`, {
+          method: 'POST',
+        });
+        alert('Exam deactivated successfully. It is no longer visible to students.');
+      } else {
+        await apiRequest(`/api/v1/examinations/${examId}/publish`, {
+          method: 'POST',
+        });
+        alert('Exam activated successfully! It is now visible to students.');
+      }
+      const updatedExams = await apiRequest<unknown>('/api/v1/examinations/?limit=100');
+      setExams(asList<Exam>(updatedExams));
+    } catch (error) {
+      alert(errorMessage(error, `Failed to ${isActive ? 'deactivate' : 'activate'} exam. Please try again.`));
     } finally {
       setIsSubmitting(false);
     }
@@ -474,6 +522,25 @@ const ExamOfficerDashboard: React.FC = () => {
             <span>Students</span>
           </button>
 
+          {showAdminToggle && (
+            <>
+              <div className="px-3 mt-8 mb-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                System Administration
+              </div>
+              <button
+                onClick={() => {
+                  localStorage.setItem('adminActiveConsole', 'admin');
+                  window.dispatchEvent(new Event('adminConsoleSwitched'));
+                }}
+                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-white font-medium bg-custech-gradient hover:opacity-90 active:scale-[0.98] transition-all shadow-md group relative overflow-hidden text-left"
+              >
+                <div className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                <Shield size={20} className="text-custech-gold animate-pulse" />
+                <span>System Admin</span>
+              </button>
+            </>
+          )}
+
           <div className="px-3 mt-8 mb-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
             Quick Stats
           </div>
@@ -501,16 +568,17 @@ const ExamOfficerDashboard: React.FC = () => {
         {/* User Profile */}
         <div className="p-4 border-t border-darker">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-full flex items-center justify-center">
-              <User size={20} className="text-white" />
+            <div className="w-10 h-10 bg-custech-gradient rounded-full flex items-center justify-center border border-custech-primary/30 flex-shrink-0">
+              <User size={20} className="text-custech-gold" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-white truncate">Exam Officer</p>
-              <p className="text-xs text-gray-400">Administrator</p>
+              <p className="text-sm font-medium text-white truncate">{userProfile?.full_name || 'Exam Officer'}</p>
+              <p className="text-xs text-gray-400 truncate uppercase tracking-wider">{userProfile?.role || 'Administrator'}</p>
             </div>
             <button 
               onClick={async () => { await logout(); navigate('/', { replace: true }); }}
-              className="text-gray-400 hover:text-white transition-colors"
+              className="text-gray-400 hover:text-white transition-colors flex-shrink-0"
+              title="Logout"
             >
               <LogOut size={20} />
             </button>
@@ -664,22 +732,57 @@ const ExamOfficerDashboard: React.FC = () => {
               
               {/* Active Exam Selector */}
               {exams.length > 0 && (
-                <div className="bg-light rounded-xl p-4 border border-default">
-                  <label className={labelClass}>Continue with existing exam</label>
-                  <select 
-                    className={inputClass}
-                    value={activeExamId}
-                    onChange={(e) => {
-                      setActiveExamId(e.target.value);
-                      localStorage.setItem('activeExamId', e.target.value);
-                      if (e.target.value) loadExamDetails(e.target.value);
-                    }}
-                  >
-                    <option value="">Create new exam...</option>
-                    {exams.map(exam => (
-                      <option key={exam.id} value={exam.id}>{exam.title} ({exam.exam_date})</option>
-                    ))}
-                  </select>
+                <div className="bg-light rounded-xl p-4 border border-default flex flex-col md:flex-row md:items-end justify-between gap-4">
+                  <div className="flex-1">
+                    <label className={labelClass}>Continue with existing exam</label>
+                    <select 
+                      className={inputClass}
+                      value={activeExamId}
+                      onChange={(e) => {
+                        setActiveExamId(e.target.value);
+                        localStorage.setItem('activeExamId', e.target.value);
+                        if (e.target.value) loadExamDetails(e.target.value);
+                      }}
+                    >
+                      <option value="">Create new exam...</option>
+                      {exams.map(exam => (
+                        <option key={exam.id} value={exam.id}>{exam.title} ({exam.exam_date})</option>
+                      ))}
+                    </select>
+                  </div>
+                  {activeExamId && (() => {
+                    const currentExam = exams.find(e => e.id === activeExamId);
+                    if (!currentExam) return null;
+                    const isExamActive = currentExam.status === 'active';
+                    return (
+                      <div className="flex items-center gap-3">
+                        <div className="flex flex-col">
+                          <span className="text-xs text-muted font-medium mb-1.5 block">Current Status</span>
+                          <span className={`px-3 py-1.5 rounded-lg text-sm font-semibold border ${
+                            isExamActive 
+                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
+                              : 'bg-amber-50 text-amber-700 border-amber-200'
+                          }`}>
+                            {currentExam.status ? currentExam.status.toUpperCase() : 'DRAFT'}
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleToggleExamPublish(activeExamId, isExamActive)}
+                          disabled={isSubmitting}
+                          className={`h-11 px-5 rounded-lg font-medium transition-all shadow-sm active:scale-[0.98] flex items-center gap-2 mt-auto ${
+                            isExamActive
+                              ? 'bg-red-50 text-danger border-2 border-danger/20 hover:bg-red-100'
+                              : 'bg-custech-green text-white hover:opacity-90'
+                          }`}
+                        >
+                          {isSubmitting && <Loader2 className="w-5 h-5 animate-spin" />}
+                          {!isSubmitting && (isExamActive ? <AlertTriangle className="w-5 h-5" /> : <CheckCircle className="w-5 h-5" />)}
+                          {isExamActive ? 'Deactivate Exam' : 'Activate Exam'}
+                        </button>
+                      </div>
+                    );
+                  })()}
                 </div>
               )}
 
