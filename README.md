@@ -17,6 +17,22 @@ A comprehensive Computer-Based Testing (CBT) platform for Confluence University 
 - **Secure Sessions**: JWT tokens with Redis caching, device fingerprinting, and concurrent limits.
 - **Audit Logging**: Comprehensive tracking of all security events and academic changes.
 
+## ⚡ Core Enhancements & System Stability
+
+Recent updates have significantly hardened the platform's stability, runtime reliability, and administrative controls:
+
+### ⏱️ Resilient Exam Runtime & Timer Sync
+* **Dual-Timer Sync**: Resolved critical "connection error" and performance degradation issues by replacing per-second server-sync polling with a **dual-timer architecture**. The runtime now drives a smooth 1-second UI countdown via high-precision local React state, while periodically validating and syncing state with the server every **30 seconds**.
+* **Failsafe Submit Controls**: Eliminated fragile DOM-manipulation hacks (`document.getElementById`) for checking agreement boxes. The submit flow now relies on robust React-controlled states (`isSubmitAgreementChecked`), ensuring the submission buttons render and respond correctly at all times.
+
+### ⚙️ Dynamic Exam Activation & Scheduling
+* **Wizard Controls**: Examination Officers can now instantly toggle exams active/inactive directly from the Exam Wizard with dynamic status badges, eliminating manual database overrides.
+* **Optional Scheduling**: Hardened the student dashboard against crashes by making the `scheduled_date` field fully optional, allowing pending or unscheduled exams to load cleanly.
+
+### 🔍 Robust Exam Review & Navigation
+* **ID Resolution**: Fixed a navigation issue where the student results page attempted to view reviews using MongoDB `Result` IDs instead of `ExamInstance` IDs.
+* **Fallback Lookups**: The `/my/results` API now correctly resolves and returns the `ExamInstance` ID. Furthermore, the `review_exam` backend service includes a smart fallback lookup (via `exam_id` + `student_id`) to ensure reviews load successfully even under legacy or mismatched ID routes.
+
 ## 📋 System Architecture
 
 ```text
